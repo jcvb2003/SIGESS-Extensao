@@ -1,0 +1,117 @@
+{
+  "manifest_version": 3,
+  "name": "SIGESS",
+  "version": "3.1.1",
+  "description": "Automatiza logins e preenchimento de formulários em sites governamentais",
+  "permissions": [
+    "cookies",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "storage",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+    "https://pesqbrasil-pescadorprofissional.mpa.gov.br/*",
+    "https://sso.acesso.gov.br/*",
+    "https://login.esocial.gov.br/*",
+    "https://www.esocial.gov.br/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "assets/background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/content_script.js",
+        "assets/content_reap.js",
+        "assets/content_reap_turbo.js",
+        "assets/content_esocial.js",
+        "assets/pesqbrasil_bridge.js",
+        "assets/caepf_bridge.js",
+        "assets/cadunico_bridge.js",
+        "assets/tse_bridge.js",
+        "data_inspector.html",
+        "assets/data_inspector.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "icons": {
+    "128": "icon.png"
+  },
+  "action": {
+    "default_title": "SIGESS",
+    "default_icon": "icon.png",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "assets/content_script.js"
+      ]
+    },
+    {
+      "matches": [
+        "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+        "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*"
+      ],
+      "js": [
+        "assets/content_reap.js",
+        "assets/content_reap_turbo.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://www.esocial.gov.br/portal/Home/Inicial*",
+        "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias*",
+        "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/ListarPagamentos*"
+      ],
+      "js": [
+        "assets/content_esocial.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+        "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*",
+        "*://*.esocial.gov.br/*",
+        "*://*.gov.br/*",
+        "*://*.receita.fazenda.gov.br/*",
+        "*://*.tse.jus.br/*",
+        "*://*.sigess.com.br/*",
+        "*://sigess-extensao.vercel.app/*",
+        "*://*.vercel.app/*"
+      ],
+      "js": [
+        "assets/content_auto_registration.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+        "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*",
+        "*://*.esocial.gov.br/*",
+        "*://*.gov.br/*",
+        "*://*.receita.fazenda.gov.br/*",
+        "*://*.tse.jus.br/*",
+        "*://*.sigess.com.br/*",
+        "*://sigess-extensao.vercel.app/*"
+      ],
+      "js": [
+        "assets/capture_indicator.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
