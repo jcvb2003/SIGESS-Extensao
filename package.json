@@ -1,0 +1,34 @@
+{
+    "name": "sinpesca-extension",
+    "version": "2.5.0",
+    "description": "Automatiza logins e preenchimento de formulários em sites governamentais",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && node build.js",
+        "preview": "vite preview",
+        "test": "vitest",
+        "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+        "format": "prettier --write \"src/**/*.{ts,tsx,css,json,md}\""
+    },
+    "dependencies": {
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+    },
+    "devDependencies": {
+        "@types/chrome": "^0.0.260",
+        "@types/firefox-webext-browser": "^120.0.1",
+        "@types/node": "^20.11.19",
+        "@types/react": "^18.2.56",
+        "@types/react-dom": "^18.2.19",
+        "@typescript-eslint/eslint-plugin": "^7.0.2",
+        "@typescript-eslint/parser": "^7.0.2",
+        "@vitejs/plugin-react": "^4.2.1",
+        "eslint": "^8.56.0",
+        "eslint-plugin-react-hooks": "^4.6.0",
+        "eslint-plugin-react-refresh": "^0.4.5",
+        "prettier": "^3.2.5",
+        "typescript": "^5.3.3",
+        "vite": "^5.1.4",
+        "vitest": "^1.3.1"
+    }
+}
