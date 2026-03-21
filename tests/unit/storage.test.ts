@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StorageService } from '../../src/background/utils/storage';
 
-// Mock browser global
-global.browser = {
+globalThis.browser = {
     storage: {
         local: {
-            get: vi.fn(),
-            set: vi.fn(),
-            remove: vi.fn()
+            get: vi.fn().mockResolvedValue({}),
+            set: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined)
         }
     }
 } as any;
@@ -19,23 +18,20 @@ describe('StorageService', () => {
 
     it('should save settings correctly', async () => {
         const settings = { consultarGuias: true } as any;
-        (browser.storage.local.set as any).mockImplementation((data: any, cb: any) => cb());
+        (browser.storage.local.set as any).mockResolvedValue(undefined);
 
         await StorageService.saveSettings(settings);
 
         expect(browser.storage.local.set).toHaveBeenCalledWith(
-            { sinpescaSettings: settings },
-            expect.any(Function)
+            { sigessSettings: settings }
         );
     });
 
     it('should retrieve settings with defaults', async () => {
-        (browser.storage.local.get as any).mockImplementation((keys: any, cb: any) => {
-            cb({}); // Empty result
-        });
+        (browser.storage.local.get as any).mockResolvedValue({});
 
         const result = await StorageService.getSettings();
-        expect(result.consultarGuias).toBe(false); // Default
+        expect(result.consultarGuias).toBe(false);
         expect(result.selectedYear).toBe('current');
     });
 });

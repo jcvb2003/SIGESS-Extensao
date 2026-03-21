@@ -1,6 +1,6 @@
 {
     "manifest_version": 2,
-    "name": "SINPESCA",
+    "name": "SIGESS",
     "version": "2.5.0",
     "description": "Automatiza logins e preenchimento de formulários em sites governamentais",
     "permissions": [
@@ -32,7 +32,7 @@
         "128": "icon.png"
     },
     "browser_action": {
-        "default_title": "SINPESCA",
+        "default_title": "SIGESS",
         "default_icon": "icon.png",
         "default_popup": "popup.html"
     },
@@ -47,7 +47,7 @@
         },
         {
             "matches": [
-                "*://pesqbrasil-pescadorprofissional.agro.gov.br/reap-simplificada/*",
+                "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
                 "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*"
             ],
             "js": [
@@ -57,7 +57,7 @@
         },
         {
             "matches": [
-                "https://www.esocial.gov.br/portal/Home/Inicial?tipoEmpregador=EMPREGADOR_DOMESTICO",
+                "https://www.esocial.gov.br/portal/Home/Inicial*",
                 "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias*",
                 "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/ListarPagamentos*"
             ],
@@ -70,7 +70,7 @@
     "browser_specific_settings": {
         "gecko": {
             "id": "{e9df396f-bdd8-4e79-bc7c-92017a928891}",
-            "update_url": "https://raw.githubusercontent.com/jcvb2003/extensao_firefox/main/updates.json"
+            "update_url": "https://raw.githubusercontent.com/jcvb2003/SIGESS-Extensao/main/updates.json"
         }
     }
 }

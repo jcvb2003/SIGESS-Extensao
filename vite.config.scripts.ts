@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite';
-import { resolve } from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import { resolve } from 'node:path';
 
 // Capturar target via variável de ambiente do processo
 const target = process.env.TARGET;
@@ -21,20 +21,29 @@ if (!entryFile) {
 }
 
 // Build dos Scripts (IIFE - Standalone)
-export default defineConfig({
-    build: {
-        outDir: 'dist',
-        emptyOutDir: false,
-        lib: {
-            entry: entryFile,
-            formats: ['iife'],
-            name: `Sinpesca_${target}`, // Nome único para cada IIFE
-            fileName: () => `assets/${target}.js` // Forçar nome exato sem .iife
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, process.cwd());
+    
+    return {
+        define: {
+            'import.meta.env.VITE_APP_SECRET': JSON.stringify(env.VITE_APP_SECRET)
         },
-        rollupOptions: {
-            output: {
-                extend: true
+        plugins: [],
+        build: {
+            outDir: 'dist',
+            emptyOutDir: false,
+            minify: true,
+            lib: {
+                entry: entryFile,
+                formats: ['iife'],
+                name: `SIGESS_${target}`,
+                fileName: () => `assets/${target}.js`
+            },
+            rollupOptions: {
+                output: {
+                    extend: true
+                }
             }
         }
-    }
+    };
 });

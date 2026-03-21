@@ -19,10 +19,7 @@
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
-        "types": [
-            "firefox-webext-browser",
-            "node"
-        ]
+        "types": ["chrome", "firefox-webext-browser", "node", "vite/client"]
     },
     "include": [
         "src"
