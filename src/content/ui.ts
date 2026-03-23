@@ -1,6 +1,8 @@
 import { Manager } from "./manager";
 import { State } from "./state";
 import { Icons } from "./utils/icons";
+import { DaysGenerator } from "./generators/schedule";
+import { ProductionGenerator } from "./generators/fish";
 const Draggable = {
   init(el: HTMLElement) {
     let isDragging = false,
@@ -169,6 +171,98 @@ const injectButton = () => {
         }
       };
       container.appendChild(btn);
+
+      const btnTurbo = document.createElement("button");
+      btnTurbo.id = "sigess-reap-turbo-btn";
+      btnTurbo.style.cssText =
+        "padding: 8px; background: #6f42c1; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
+      btnTurbo.innerHTML = `⚡ Turbo API`;
+      btnTurbo.onclick = async (e) => {
+        e.stopPropagation();
+        if (State.isRunning) return;
+        
+        btnTurbo.innerHTML = "⏳ Aguarde...";
+        btnTurbo.style.background = "#5a32a3";
+        
+        try {
+          if (!State.daysMap || Object.keys(State.daysMap).length === 0) {
+             State.daysMap = DaysGenerator.generate(State.gender);
+          }
+          if (!State.production || State.production.length === 0) {
+             State.production = ProductionGenerator.generate(State.daysMap, State.gender);
+          }
+          
+          const FISH_IDS: Record<string, number> = {
+            "Matrinxã ou Jatuarana": 15,
+            "Acará": 25,
+            "Aracu": 26,
+            "Traíra": 21,
+            "Mapará": 12
+          };
+          
+          const config: any = {
+             areaRealizacao: {
+               localPesca: 6, // Rio
+               uf: 5,         // PA
+               municipio: 4718, // Oeiras do Pará
+               petrechosPesca: [4], // Emalhe
+               ambientePesca: 1 // Água Doce
+             },
+             meses: []
+          };
+          
+          for (let i = 0; i < 12; i++) {
+             const isDefeso = i <= 3;
+             if (isDefeso) {
+                 config.meses.push({
+                    mes: i + 1,
+                    houvePesca: false,
+                    justificativa: 1
+                 });
+             } else {
+                 const especies = State.production
+                    .map((fish: any) => {
+                       const monthlyKg = fish.monthlyKg[i] || 0;
+                       if (monthlyKg <= 0) return null;
+                       return {
+                         especiePescado: FISH_IDS[fish.name] || 12,
+                         unidadeMedida: 1,
+                         quantidade: monthlyKg,
+                         valorMedioQuilo: fish.price
+                       };
+                    })
+                    .filter((f: any) => f !== null);
+
+                 config.meses.push({
+                    mes: i + 1,
+                    houvePesca: true,
+                    diasTrabalhados: State.daysMap[i] || 16,
+                    especies
+                 });
+             }
+          }
+          
+          const response = await browser.runtime.sendMessage({
+            action: "turboFillReap",
+            config
+          });
+          
+          if (response?.success) {
+            btnTurbo.innerHTML = "✅ Concluído!";
+            btnTurbo.style.background = "#28a745";
+          } else {
+            alert(response?.error || 'Erro desconhecido');
+            btnTurbo.innerHTML = `⚡ Turbo API`;
+            btnTurbo.style.background = "#6f42c1";
+          }
+        } catch (err: any) {
+          alert("Erro: " + err.message);
+          btnTurbo.innerHTML = `⚡ Turbo API`;
+          btnTurbo.style.background = "#6f42c1";
+        }
+      };
+      container.appendChild(btnTurbo);
+
       refreshUI();
       const resetBtn = document.createElement("button");
       resetBtn.innerHTML = `${Icons.refresh} Resetar`;

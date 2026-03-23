@@ -1,6 +1,6 @@
 const { execSync } = require('child_process');
 
-const targets = ['background', 'content_esocial', 'content_reap', 'content_script'];
+const targets = ['background', 'content_esocial', 'content_reap', 'content_reap_turbo', 'content_script'];
 
 console.log('🏗️ Building Popup UI...');
 execSync('vite build', { stdio: 'inherit' });

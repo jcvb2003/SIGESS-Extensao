@@ -10,6 +10,7 @@ export interface AppSettings {
   selectedMonth: string;
   valorComercializado: string;
   reapData: Record<string, string>;
+  reapTurboConfig?: string;
 }
 export interface MessageRequest {
   action: string;
@@ -22,4 +23,32 @@ export interface MessageResponse {
   settings?: AppSettings;
   data?: any;
   [key: string]: any;
+}
+
+export interface TurboReapConfig {
+  meses: TurboMesConfig[];
+  areaRealizacao: TurboAreaConfig;
+}
+
+export interface TurboMesConfig {
+  mes: number;
+  houvePesca: boolean;
+  diasTrabalhados?: number;
+  justificativa?: number;
+  especies?: TurboEspecieConfig[];
+}
+
+export interface TurboAreaConfig {
+  localPesca: number;
+  uf: number;
+  municipio: number;
+  petrechosPesca: number[];
+  ambientePesca: number;
+}
+
+export interface TurboEspecieConfig {
+  especiePescado: number;
+  unidadeMedida: number;
+  quantidade: number;
+  valorMedioQuilo: number;
 }

@@ -12,6 +12,7 @@ const entries = {
     background: resolve(__dirname, 'src/background/index.ts'),
     content_esocial: resolve(__dirname, 'src/content/esocial.ts'),
     content_reap: resolve(__dirname, 'src/content/reap.ts'),
+    content_reap_turbo: resolve(__dirname, 'src/content/reap-turbo.ts'),
     content_script: resolve(__dirname, 'src/content/content-script.ts')
 };
 

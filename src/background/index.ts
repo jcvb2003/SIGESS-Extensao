@@ -32,6 +32,8 @@ browser.runtime.onMessage.addListener(
             return await handleStartBatchLogin(message);
           case "abrirAbaContainer":
             return await handleAbrirAbaContainer(message);
+          case "turboFillReap":
+            return await handleTurboFillReap(message);
           default:
             return {
               success: false,
@@ -101,6 +103,34 @@ async function handleAbrirAbaContainer(message: MessageRequest) {
   const randIndex = Math.floor(Math.random() * 1000);
   await tabManager.createSession(url, cpf, senha, randIndex);
   return { success: true };
+}
+
+async function handleTurboFillReap(message: MessageRequest) {
+  const license = await LicenseService.checkLicense(true, true);
+  if (!license.ok) {
+    return {
+      success: false,
+      error: `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
+    };
+  }
+
+  const { config } = message;
+  if (!config) return { success: false, error: "Configuração do Turbo não fornecida" };
+
+  try {
+    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+    if (!tabs[0]?.id) return { success: false, error: "Nenhuma aba ativa encontrada" };
+    
+    // Assegura que o content script turbo já foi injetado (ou será injetado nativamente pela manifest)
+    // O envio da mensagem fará com que o content execute.
+    const response = await browser.tabs.sendMessage(tabs[0].id, {
+      action: "executeTurboFill",
+      config
+    });
+    return response || { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "A aba atual do REAP não pôde receber a ação de Turbo. Certifique-se de estar na página correta do formulário e recarregue-a." };
+  }
 }
 browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   const currentUrl = changeInfo.url || tab.url;

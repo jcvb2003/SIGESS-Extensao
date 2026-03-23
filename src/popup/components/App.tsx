@@ -216,7 +216,7 @@ const AppContent: React.FC = () => {
 
         <ReapPanel
           settings={settings}
-          onUpdate={(reapData) => updateSettings({ reapData })}
+          onUpdate={updateSettings}
           isOpen={openSections.reap}
           onToggle={() => toggleSection("reap")}
         />

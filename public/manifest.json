@@ -26,6 +26,7 @@
     "web_accessible_resources": [
         "assets/content_script.js",
         "assets/content_reap.js",
+        "assets/content_reap_turbo.js",
         "assets/content_esocial.js"
     ],
     "icons": {
@@ -51,7 +52,8 @@
                 "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*"
             ],
             "js": [
-                "assets/content_reap.js"
+                "assets/content_reap.js",
+                "assets/content_reap_turbo.js"
             ],
             "run_at": "document_end"
         },
