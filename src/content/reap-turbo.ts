@@ -3,6 +3,20 @@ import { TurboReapConfig } from '../shared/types';
 // Constants
 const FALLBACK_ACTION_HASH = "0e19fa9cd1721c7395e62a3a725505d58b5b5630";
 const REAP_ID_REGEX = /\/manutencao\/(\d+)\//;
+let lastDetectedActionHash: string | null = null;
+
+function extractActionHashCandidates(html: string): string[] {
+  const candidates = new Set<string>();
+
+  for (const m of html.matchAll(/\$ACTION_ID_[a-zA-Z0-9_]*([a-f0-9]{40})/g)) {
+    if (m[1]) candidates.add(m[1]);
+  }
+  for (const m of html.matchAll(/next-action["':\s=]+([a-f0-9]{40})/gi)) {
+    if (m[1]) candidates.add(m[1].toLowerCase());
+  }
+
+  return Array.from(candidates);
+}
 
 /**
  * Dinamicamente encontra o hash de Server Action do Next.js
@@ -11,18 +25,30 @@ const REAP_ID_REGEX = /\/manutencao\/(\d+)\//;
 async function getActionHash(): Promise<string> {
   try {
     const html = document.documentElement.innerHTML;
-    // Procurar por referências do Next.js às Server Actions (costumam ter o prefixo 0e19fa9c ou estar num map action)
-    // Tenta encontrar o nosso fallback hash primeiro, para garantir que se for a mesma build, não corremos riscos.
-    if (html.includes(FALLBACK_ACTION_HASH)) {
-      return FALLBACK_ACTION_HASH;
+    // Prioriza hash dinâmico do DOM para evitar fixar em hash de outra action.
+    const actionInputs = Array.from(document.querySelectorAll('input[name^="$ACTION_ID_"]')) as HTMLInputElement[];
+    const hashesFromDom = actionInputs
+      .map((input) => input.getAttribute('name') ?? "")
+      .map((nameAttr) => nameAttr.split('_').pop() as string)
+      .filter((hash) => Boolean(hash) && hash.length === 40);
+
+    const domPreferredHash = hashesFromDom.find((hash) => hash !== FALLBACK_ACTION_HASH) ?? hashesFromDom[0];
+    if (domPreferredHash) {
+      console.log("[SIGESS Turbo] Action hash detectado via DOM:", domPreferredHash);
+      return domPreferredHash;
     }
 
-    // Outros métodos para tentar inferir: as server actions de Forms no next.js geram inputs hidden com name="$ACTION_ID_..."
-    const actionInput = document.querySelector('input[name^="$ACTION_ID_"]') as HTMLInputElement;
-    if (actionInput) {
-      const nameAttr: string = actionInput.getAttribute('name') ?? "";
-      const hash = nameAttr.split('_').pop() as string;
-      if (hash && hash.length === 40) return hash;
+    // Fallback intermediário: tenta extrair hashes diretamente do HTML.
+    const htmlHashes = Array.from(html.matchAll(/\$ACTION_ID_[a-zA-Z0-9_]*([a-f0-9]{40})/g)).map((m) => m[1]);
+    const htmlPreferredHash = htmlHashes.find((hash) => hash !== FALLBACK_ACTION_HASH) ?? htmlHashes[0];
+    if (htmlPreferredHash) {
+      console.log("[SIGESS Turbo] Action hash detectado via HTML:", htmlPreferredHash);
+      return htmlPreferredHash;
+    }
+
+    if (lastDetectedActionHash) {
+      console.log("[SIGESS Turbo] Action hash detectado via HTML fresco:", lastDetectedActionHash);
+      return lastDetectedActionHash;
     }
 
     // Se nenhuma abordagem funcionar, avisamos
@@ -63,6 +89,13 @@ async function getReapState(): Promise<any> {
         throw new Error("Falha ao carregar os dados da página (status " + response.status + ").");
     }
     const html = await response.text();
+
+    const freshHashes = extractActionHashCandidates(html);
+    const preferredFreshHash = freshHashes.find((hash) => hash !== FALLBACK_ACTION_HASH) ?? freshHashes[0] ?? null;
+    if (preferredFreshHash) {
+        lastDetectedActionHash = preferredFreshHash;
+        console.log("[SIGESS Turbo] Action hash detectado no HTML fresco:", preferredFreshHash);
+    }
 
     console.log("[SIGESS Turbo] HTML obtido. Buscando blocos RSC...");
 
@@ -143,6 +176,9 @@ function buildPayload(reapId: string, stateOriginal: any, mesIndex: number, user
             // Só alteramos os dados do mês corrente que estamos salvando (simulando a aba ativa real do usuário)
             // Os outros 11 meses vão intocados, exatamente como o servidor os retornou no fetch.
             if (idx !== mesIndex) {
+                 if (mes.houvePesca === null || mes.houvePesca === undefined) {
+                    mes.houvePesca = false;
+                 }
                  return mes;
             }
 
@@ -215,7 +251,7 @@ async function submitMonth(url: string, payload: any[], actionHash: string): Pro
         }
 
         const data = await response.text();
-        if (data.includes("errosValidacao") && data.includes("não deve ser nulo")) {
+        if (data.includes("errosValidacao")) {
             console.error("[SIGESS Turbo] Resposta com erro de validação do servidor:", data);
             throw new Error(`Erro de validação no servidor para o mês ${payload[2] + 1}. Verifique se todos os campos obrigatórios estão presentes.`);
         }
@@ -257,14 +293,12 @@ async function executeTurboFill(config: TurboReapConfig) {
     const reapId = matchReapId[1];
 
     try {
-        console.log(`[SIGESS Turbo] Extraindo action hash do HTML...`);
-        const actionHash = await getActionHash();
-
         console.log(`[SIGESS Turbo] Disparando Sequência de POSTs (12 meses)...`);
         for (let i = 0; i < 12; i++) {
             console.log(`[SIGESS Turbo] Obtendo estado fresco para o mês ${i + 1}/12...`);
             // O build requer todos os meses com os "id"s de banco atualizados a cada iteração.
             let state = await getReapState();
+            const actionHash = await getActionHash();
 
             console.log(`[SIGESS Turbo] Construindo e salvando mês ${i + 1}/12...`);
             // Construir payload limpo

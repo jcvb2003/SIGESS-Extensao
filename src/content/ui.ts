@@ -212,27 +212,26 @@ const injectButton = () => {
           };
           
           for (let i = 0; i < 12; i++) {
-             const isDefeso = i <= 3;
-             if (isDefeso) {
+             const especies = State.production
+                .map((fish: any) => {
+                   const monthlyKg = fish.monthlyKg[i] || 0;
+                   if (monthlyKg <= 0) return null;
+                   return {
+                     especiePescado: FISH_IDS[fish.name] || 12,
+                     unidadeMedida: 1,
+                     quantidade: monthlyKg,
+                     valorMedioQuilo: fish.price
+                   };
+                })
+                .filter((f: any) => f !== null);
+
+             if (especies.length === 0) {
                  config.meses.push({
                     mes: i + 1,
                     houvePesca: false,
                     justificativa: 1
                  });
              } else {
-                 const especies = State.production
-                    .map((fish: any) => {
-                       const monthlyKg = fish.monthlyKg[i] || 0;
-                       if (monthlyKg <= 0) return null;
-                       return {
-                         especiePescado: FISH_IDS[fish.name] || 12,
-                         unidadeMedida: 1,
-                         quantidade: monthlyKg,
-                         valorMedioQuilo: fish.price
-                       };
-                    })
-                    .filter((f: any) => f !== null);
-
                  config.meses.push({
                     mes: i + 1,
                     houvePesca: true,
