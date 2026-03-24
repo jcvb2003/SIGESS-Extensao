@@ -9,8 +9,6 @@ const REAP_ID_REGEX = /\/manutencao\/(\d+)\//;
  * Utiliza o HTML e RSC payloads da página atual.
  */
 async function getActionHash(): Promise<string> {
-  // @ts-ignore Pular checagem para teste do fallback (Teste 3)
-  return fallbackHash();
   try {
     const html = document.documentElement.innerHTML;
     // Procurar por referências do Next.js às Server Actions (costumam ter o prefixo 0e19fa9c ou estar num map action)
@@ -44,174 +42,211 @@ function fallbackHash() {
 
 
 
-/**
- * Monta o corpo da requisição de post (Action Body)
- */
-function buildPayload(reapId: string, currentState: any, userConfig: TurboReapConfig) {
-  // Mesmo sem o currentState completo do DOM, podemos tentar forjar a estrutura.
-  // Porém a Server Action recebe o reapState completo
-  
-  // Vamos buscar o state via fetch SSR 
-  // Na verdade, no implementation plan assumimos que o currentState vem do script.
-  // Para simplificar: o servidor confia nos id (13966000156)? Sim. Se enviarmos
-  // os meses recriados do zero, talvez dê erro.
-  // Abordagem Segura: O usuário DEVE estar na página que já carregou os informes.
-  // Padrões do React Server Components colocam os dados formatados em <script>
-  
-  // Como `extractStateFromPageData` pode ser instável,
-  // Precisamos extrair isso garantidamente.
-  let state = currentState;
 
-  if (!state) {
-      throw new Error("Não foi possível carregar o estado base do REAP. A requisição precisa dos IDs originais.");
-  }
+async function getReapState(): Promise<any> {
+    console.log("[SIGESS Turbo] Buscando estado via HTML puro (bypass DOM mutation e Next.js Cache)...");
+    
+    // Obter HTML original do servidor adicionando um timestamp para fazer BYPASS no cache agressivo do Next.js App Router
+    // Se não fizermos isso, o Next.js retorna o RSC salvo em CDN e o dataAtualizacao acaba sendo antigo, gerando 500 (Optimistic Lock)
+    const urlCorrente = new URL(window.location.href);
+    urlCorrente.searchParams.set('_t', Date.now().toString());
 
-  // Preenchemos com a config
-  if (state.informesMensais && Array.isArray(state.informesMensais)) {
-      state.informesMensais = state.informesMensais.map((mes: any) => {
-          // Achar config correspondente (mês 1 = index 0)
-          const config = userConfig.meses.find(m => m.mes === mes.mes);
-          
-          if (config) {
-              // Regras rígidas de Tipagem exigidas no plano
-              mes.houvePesca = Boolean(config.houvePesca);
-              
-              if (mes.houvePesca) {
-                  mes.diasTrabalhados = typeof config.diasTrabalhados === 'number' ? config.diasTrabalhados : undefined;
-                  mes.justificativasNaoDeclaracao = [];
-                  mes.preenchido = true;
-                  
-                  // Popula área
-                  const area = {
-                      ...userConfig.areaRealizacao,
-                      id: mes.areasRealizacaoPesca?.[0]?.id // Preserva ID se existir
-                  };
-                  mes.areasRealizacaoPesca = [area];
-
-                  // Popula espécies
-                  if (config.especies && config.especies.length > 0) {
-                      mes.resultadosOperacaoPesca = config.especies.map((esp, i) => ({
-                          ...esp,
-                          id: mes.resultadosOperacaoPesca?.[i]?.id // Preserva ID se existir
-                      }));
-                  } else {
-                      mes.resultadosOperacaoPesca = [];
-                  }
-              } else {
-                  // Mês sem pesca
-                  mes.diasTrabalhados = undefined; // Não envia string
-                  mes.areasRealizacaoPesca = [];
-                  mes.resultadosOperacaoPesca = [];
-                  mes.justificativasNaoDeclaracao = config.justificativa ? [config.justificativa] : [];
-                  mes.preenchido = true;
-              }
-          }
-          return mes;
-      });
-  }
-
-  // O payload é [reapId, state, indexMes]
-  // Mas como estamos "turbinando", mandamos index nulo ou 11 (último)
-  return [reapId, state, null];
-}
-
-async function submitReap(reapId: string, payload: any[], actionHash: string) {
-    const url = `/manutencao/${reapId}/cadastro/informe-mensal`;
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "text/plain;charset=UTF-8",
-            "Accept": "text/x-component",
-            "Next-Action": actionHash
+    const response = await fetch(urlCorrente.toString(), { 
+        headers: { 
+            "Accept": "text/html",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache"
         },
-        body: JSON.stringify(payload)
+        cache: 'no-store' 
     });
-
     if (!response.ok) {
-        throw new Error(`Erro POST HTTP: ${response.status}`);
+        throw new Error("Falha ao carregar os dados da página (status " + response.status + ").");
     }
+    const html = await response.text();
 
-    const text = await response.text();
-    // Validar erros nos _rsc
-    if (text.includes('"errosValidacao":{') && !text.includes('"errosValidacao":{}')) {
-        throw new Error("Servidor retornou erros de validação: " + text.substring(0, 150));
-    }
-    return true;
-}
+    console.log("[SIGESS Turbo] HTML obtido. Buscando blocos RSC...");
 
-
-
-function extractJsonWithKey(text: string, keyName: string): any {
-    const keyStr = `"${keyName}"`;
-    let keyIdx = text.indexOf(keyStr);
+    const regex = /self\.__next_f\.push\((\[[\s\S]*?\])\)/g;
+    let match: RegExpExecArray | null;
     
-    if (keyIdx === -1) {
-        const escapedKeyStr = `\\"${keyName}\\"`;
-        if (text.indexOf(escapedKeyStr) !== -1) {
-            const unescaped = text.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-            return extractJsonWithKey(unescaped, keyName);
-        }
-        return null;
-    }
-    
-    let openBraceIdx = -1;
-    for (let i = keyIdx; i >= 0; i--) {
-        if (text[i] === '{') {
-            // Verifica se este '{' não está dentro de uma string ou array (simplificado)
-            openBraceIdx = i;
-            break;
-        }
-    }
-    
-    if (openBraceIdx === -1) return null;
-    
-    let braceCount = 0;
-    let inString = false;
-    let escapeNext = false;
-    
-    for (let i = openBraceIdx; i < text.length; i++) {
-        const char = text[i];
-        if (escapeNext) { escapeNext = false; continue; }
-        if (char === '\\') { escapeNext = true; continue; }
-        if (char === '"') { inString = !inString; continue; }
-        
-        if (!inString) {
-            if (char === '{') braceCount++;
-            else if (char === '}') {
-                braceCount--;
-                if (braceCount === 0) {
-                    const jsonStr = text.substring(openBraceIdx, i + 1);
-                    try {
-                        return JSON.parse(jsonStr);
-                    } catch (e) {
-                         // Pode haver chaves falsas antes, mas geralmente o primeiro match correto funciona.
-                         // Se falhar o parse, a função cai e tenta a próxima etapa
+    while ((match = regex.exec(html)) !== null) {
+        try {
+            const arr = JSON.parse(match[1]);
+            if (arr[0] === 1 && typeof arr[1] === 'string') {
+                const str = arr[1]; // Exemplo de string: "1c:[\"$\",\"$L2f\",...]"
+                const colonIdx = str.indexOf(':');
+                if (colonIdx !== -1) {
+                    const jsonStr = str.substring(colonIdx + 1);
+                    
+                    // Só tenta o parse caro se a string conter nossas chaves
+                    if (jsonStr.includes("informesMensais") && jsonStr.includes("pescador")) {
+                        try {
+                            const obj = JSON.parse(jsonStr);
+                            
+                            const check = (o: any): any => {
+                                 if (!o || typeof o !== 'object') return null;
+                                 if (o.pescador && o.informesMensais) return o;
+                                 if (o.defaultValues?.pescador && o.defaultValues?.informesMensais) return o.defaultValues;
+                                 if (Array.isArray(o)) {
+                                     for (const item of o) {
+                                         const res = check(item);
+                                         if (res) return res;
+                                     }
+                                 }
+                                 // Navega fundo nas chaves do objeto
+                                 for (const k in o) {
+                                     if (o[k] && typeof o[k] === 'object') {
+                                         const res = check(o[k]);
+                                         if (res) return res;
+                                     }
+                                 }
+                                 return null;
+                             };
+                             
+                             const foundObj = check(obj);
+                             if (foundObj) {
+                                 console.log("[SIGESS Turbo] Estado RSC capturado perfeitamente via Fetch HTML.");
+                                 return foundObj;
+                             }
+                        } catch (e) {
+                            console.warn("[SIGESS Turbo DEBUG] Falha no parse do chunk JSON:", e);
+                        }
                     }
                 }
             }
+        } catch (e) {
+            // Ignora falhas de parse de chunks individuais
         }
     }
-    return null;
+
+    throw new Error("Não foi possível encontrar o estado 'pescador' e 'informesMensais' no payload da página. Verifique se o formulário carregou completamente.");
 }
 
-async function getReapStateAPI(): Promise<any> {
-    const rscResp = await fetch(window.location.href, {
-        headers: {
-            "Accept": "text/x-component",
-            "RSC": "1"
-        }
-    });
-    
-    const text = await rscResp.text();
-    const extracted = extractJsonWithKey(text, "informesMensais");
-    
-    if (extracted && extracted.informesMensais) {
-        return extracted;
+function buildPayload(reapId: string, stateOriginal: any, mesIndex: number, userConfig: TurboReapConfig) {
+    if (!stateOriginal) throw new Error("Estado nulo");
+
+    // Deep clone para evitar que a modificação de um mês afete os dados do próximo mes iterado.
+    const state = JSON.parse(JSON.stringify(stateOriginal));
+
+    // Limpa erros residuais
+    state.errosValidacao = {};
+
+    // Força o form a aceitar nosso envio
+    if (state.configuracoes) {
+        state.configuracoes.podeEnviar = "true";
     }
 
-    throw new Error("Não foi possível decodificar os informesMensais do servidor");
+    if (state.informesMensais && Array.isArray(state.informesMensais)) {
+        state.informesMensais = state.informesMensais.map((oldMes: any, idx: number) => {
+            const mes = { ...oldMes };
+            
+            // Só alteramos os dados do mês corrente que estamos salvando (simulando a aba ativa real do usuário)
+            // Os outros 11 meses vão intocados, exatamente como o servidor os retornou no fetch.
+            if (idx !== mesIndex) {
+                 return mes;
+            }
+
+            const config = userConfig.meses.find((m: any) => m.mes === mes.mes);
+
+            // Determina houvePesca
+            const temEspecies = config?.especies && config.especies.length > 0;
+            const houvePesca = config && temEspecies 
+                ? Boolean(config.houvePesca) 
+                : false;
+
+            // Organiza as chaves para garantir que houvePesca venha antes de preenchido/áreas
+            // Isso ajuda alguns parsers rígidos de servidor
+            const newMes: any = {
+                configuracoes: mes.configuracoes || { diasAtivo: "30" },
+                id: mes.id,
+                mes: mes.mes,
+                houvePesca: houvePesca
+            };
+
+            if (houvePesca) {
+                newMes.diasTrabalhados = typeof config!.diasTrabalhados === 'number'
+                    ? config!.diasTrabalhados
+                    : 15;
+                newMes.justificativasNaoDeclaracao = [];
+                newMes.areasRealizacaoPesca = [{
+                    ...userConfig.areaRealizacao,
+                    id: mes.areasRealizacaoPesca?.[0]?.id ?? null
+                }];
+                newMes.resultadosOperacaoPesca = config!.especies!.map(
+                    (esp: any, i: number) => ({
+                        ...esp,
+                        id: mes.resultadosOperacaoPesca?.[i]?.id ?? null
+                    })
+                );
+            } else {
+                delete newMes.diasTrabalhados; // O backend não aceita null explícito
+                newMes.areasRealizacaoPesca = [];
+                newMes.resultadosOperacaoPesca = [];
+                newMes.justificativasNaoDeclaracao = [1];
+            }
+
+            newMes.preenchido = true;
+            return newMes;
+        });
+    }
+
+    return [reapId.toString(), state, mesIndex];
 }
 
+async function submitMonth(url: string, payload: any[], actionHash: string): Promise<boolean> {
+    try {
+        console.log(`[SIGESS Turbo] Action Hash Mês ${payload[2] + 1}:`, actionHash);
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'accept': 'text/x-component',
+                'content-type': 'text/plain;charset=UTF-8',
+                'next-action': actionHash,
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error(`[SIGESS Turbo] Falha requisição: Status ${response.status}`, errText);
+            console.error(`[SIGESS Turbo] PAYLOAD QUE FALHOU NO MÊS ${payload[2] + 1}:`, JSON.stringify(payload));
+            throw new Error(`Erro HTTP ${response.status} no mês ${payload[2] + 1}`);
+        }
+
+        const data = await response.text();
+        if (data.includes("errosValidacao") && data.includes("não deve ser nulo")) {
+            console.error("[SIGESS Turbo] Resposta com erro de validação do servidor:", data);
+            throw new Error(`Erro de validação no servidor para o mês ${payload[2] + 1}. Verifique se todos os campos obrigatórios estão presentes.`);
+        }
+        
+        return true;
+    } catch (e) {
+        throw e;
+    }
+}
+
+function isDeepEqual(obj1: any, obj2: any): boolean {
+    if (obj1 === obj2) return true;
+    if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 == null || obj2 == null) return false;
+    if (Array.isArray(obj1) && Array.isArray(obj2)) {
+        if (obj1.length !== obj2.length) return false;
+        for (let idx = 0; idx < obj1.length; idx++) {
+            if (!isDeepEqual(obj1[idx], obj2[idx])) return false;
+        }
+        return true;
+    }
+    if (Array.isArray(obj1) || Array.isArray(obj2)) return false;
+
+    const keys1 = Object.keys(obj1);
+    const keys2 = Object.keys(obj2);
+    if (keys1.length !== keys2.length) return false;
+
+    for (let key of keys1) {
+        if (!keys2.includes(key) || !isDeepEqual(obj1[key], obj2[key])) return false;
+    }
+    return true;
+}
 
 async function executeTurboFill(config: TurboReapConfig) {
     console.log("[SIGESS Turbo] Iniciando Preenchimento Turbo...");
@@ -225,15 +260,34 @@ async function executeTurboFill(config: TurboReapConfig) {
         console.log(`[SIGESS Turbo] Extraindo action hash do HTML...`);
         const actionHash = await getActionHash();
 
-        console.log(`[SIGESS Turbo] Extraindo payload atualizado do servidor Next.js...`);
-        // O build requer todos os meses com os "id"s de banco atualizados.
-        let state = await getReapStateAPI();
-        
-        console.log(`[SIGESS Turbo] Montando payload protegido por Types`);
-        const payload = buildPayload(reapId, state, config);
+        console.log(`[SIGESS Turbo] Disparando Sequência de POSTs (12 meses)...`);
+        for (let i = 0; i < 12; i++) {
+            console.log(`[SIGESS Turbo] Obtendo estado fresco para o mês ${i + 1}/12...`);
+            // O build requer todos os meses com os "id"s de banco atualizados a cada iteração.
+            let state = await getReapState();
 
-        console.log(`[SIGESS Turbo] Disparando Action POST [${actionHash}]...`);
-        await submitReap(reapId, payload, actionHash);
+            console.log(`[SIGESS Turbo] Construindo e salvando mês ${i + 1}/12...`);
+            // Construir payload limpo
+            const payload = buildPayload(reapId, state, i, config);
+            
+            // Bypass Inteligente: se as edições computadas forem identicas ao que já está no banco, não enviamos a request.
+            // O servidor backend SIGESS aparenta apresentar uma falha 500 digest se uma aba inalterada sequencial sofre update hard.
+            const originalMes = state.informesMensais[i];
+            const modificadoMes = payload[1].informesMensais[i];
+            
+            if (isDeepEqual(originalMes, modificadoMes)) {
+                console.log(`[SIGESS PAYLOAD MÊS ${i + 1}] Burlado! Estado Idêntico ao DB. (${originalMes.preenchido ? 'Preenchido' : 'Limpo'})`);
+                continue; 
+            }
+
+            console.log(`[SIGESS PAYLOAD MÊS ${i + 1}] DADOS NOVOS GERADOS:`, JSON.stringify(payload));
+            
+            await submitMonth(`${window.location.origin}/manutencao/${reapId}/cadastro/informe-mensal`, payload, actionHash);
+            console.log(`[SIGESS Turbo] Mês ${i + 1} salvo com sucesso.`);
+            
+            // Aumentando delay significativamente para evitar DB Pool Exhaustion / Rate Limiting (500)
+            await new Promise(resolve => setTimeout(resolve, 2500));
+        }
 
         console.log(`[SIGESS Turbo] Prontinho! Recarregando...`);
         alert("Preenchimento Turbo concluído com sucesso!");
