@@ -1,7 +1,6 @@
 import { getFingerprint } from "../utils/fingerprint";
 const EDGE_FUNCTION_URL =
   "https://vdwupmfpfkaempsiqfgb.supabase.co/functions/v1/check-license";
-const APP_SECRET = (import.meta as any).env.VITE_APP_SECRET;
 export type LicenseReason =
   | "invalid_key"
   | "wrong_device"
@@ -19,6 +18,8 @@ export interface LicenseResult {
   plan?: "trial" | "paid";
   usage_count?: number;
   max_usage?: number;
+  devices?: number;
+  max_devices?: number;
   expires_at?: string;
   reason?: LicenseReason;
   valid_until?: string;
@@ -35,15 +36,19 @@ export class LicenseService {
     await browser.storage.local.remove("license_cache");
     this.memoryCache = null;
   }
+  private static getAppSecret(): string {
+    return (import.meta as any).env?.VITE_APP_SECRET || (globalThis as any).VITE_APP_SECRET_MOCK || "";
+  }
   private static async verifySignature(
     data: any,
     sig: string,
   ): Promise<boolean> {
     if (!sig) return false;
     try {
-      const msg = `${data.ok}${data.plan || ""}${data.usage_count || ""}${data.valid_until}`;
+      const msg = `${data.ok}${data.plan || ""}${data.usage_count || ""}${data.devices || ""}${data.max_devices || ""}${data.valid_until}`;
       const encoder = new TextEncoder();
-      const keyData = encoder.encode(APP_SECRET);
+      const secret = this.getAppSecret();
+      const keyData = encoder.encode(secret);
       const msgData = encoder.encode(msg);
       const cryptoKey = await crypto.subtle.importKey(
         "raw",
@@ -113,7 +118,7 @@ export class LicenseService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-app-secret": APP_SECRET,
+          "x-app-secret": this.getAppSecret(),
         },
         body: JSON.stringify({ key, fingerprint, action }),
       });

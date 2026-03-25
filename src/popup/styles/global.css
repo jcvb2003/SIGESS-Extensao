@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     --color-page: #f4f6f8;
     --color-surface: #ffffff;
     --color-surface-alt: #f0f4f6;
@@ -961,3 +961,41 @@ body {
     padding: 8px 0;
 }
 
+.status-warning {
+    color: #f59e0b;
+    font-weight: 700;
+}
+
+.support-section-info {
+    margin-top: 16px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.support-section-info p {
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-bottom: 8px;
+}
+
+.btn-whatsapp-small {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #25d366;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-whatsapp-small:hover {
+    background: #128c7e;
+}

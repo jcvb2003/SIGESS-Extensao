@@ -119,6 +119,15 @@ const LicenseInfo: React.FC<LicenseInfoProps> = ({ onClose }) => {
                 </div>
 
                 <div className="info-item">
+                  <span className="info-label">Dispositivos</span>
+                  <span className="info-value">
+                    <span className={(license.devices ?? 0) >= (license.max_devices ?? 1) ? 'status-warning' : ''}>
+                      {license.devices ?? 1} / {license.max_devices ?? 2}
+                    </span>
+                  </span>
+                </div>
+
+                <div className="info-item">
                   <span className="info-label">Última Verificação</span>
                   <span className="info-value">
                     {lastRefresh
@@ -138,6 +147,20 @@ const LicenseInfo: React.FC<LicenseInfoProps> = ({ onClose }) => {
                   <span className="error-text">
                     {getReasonMessage(license.reason)}
                   </span>
+                </div>
+              )}
+
+              {(license.reason === "wrong_device" || (license.ok && (license.devices ?? 0) >= (license.max_devices ?? 1))) && (
+                <div className="support-section-info">
+                  <p>Atingiu o limite de dispositivos ou este PC é novo?</p>
+                  <a 
+                    href="https://wa.me/5591993193461" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="btn-whatsapp-small"
+                  >
+                    Solicitar Liberação no WhatsApp
+                  </a>
                 </div>
               )}
             </>

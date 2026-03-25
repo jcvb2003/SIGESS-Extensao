@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
     };
 
     // Generate HMAC signature
-    const msg = `${payload.ok}${payload.plan || ''}${payload.usage_count || ''}${validUntil}`;
+    const msg = `${payload.ok}${payload.plan || ''}${payload.usage_count || ''}${payload.devices || ''}${payload.max_devices || ''}${validUntil}`;
     const keyData = new TextEncoder().encode(APP_SECRET);
     const msgData = new TextEncoder().encode(msg);
     
