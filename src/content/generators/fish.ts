@@ -17,7 +17,13 @@ export const ProductionGenerator = {
         const totalKg =
           Math.floor(Math.random() * (fish.kgMax - fish.kgMin + 1)) +
           fish.kgMin;
-        result.push({ name: fish.name, totalKg, price: 0, monthlyKg: {} });
+        result.push({
+          id: fish.id,
+          name: fish.name,
+          totalKg,
+          price: 0,
+          monthlyKg: {},
+        });
       }
       result.sort((a, b) => b.totalKg - a.totalKg);
       for (let i = 0; i < result.length; i++) {
@@ -74,18 +80,18 @@ export const ProductionGenerator = {
         const price = (fish.priceMin + fish.priceMax) / 2;
         const monthlyKg: Record<number, number> = {};
         months.forEach((m) => (monthlyKg[m] = Math.round(totalKg / 8)));
-        return { name: fish.name, totalKg, price, monthlyKg };
+        return { id: fish.id, name: fish.name, totalKg, price, monthlyKg };
       });
     }
-    const finalTotal = bestResult.reduce((s, p) => s + p.totalKg * p.price, 0);
+    const finalTotal = bestResult!.reduce((s, p) => s + p.totalKg * p.price, 0);
     console.log(
       `Produção Gerada (${gender}): Total R$ ${finalTotal.toFixed(2)}`,
     );
-    bestResult.forEach((p) =>
+    bestResult!.forEach((p) =>
       console.log(
         `  ${p.name}: ${p.totalKg}kg x R$${p.price.toFixed(2)} = R$${(p.totalKg * p.price).toFixed(2)}`,
       ),
     );
-    return bestResult;
+    return bestResult!;
   },
 };

@@ -3,6 +3,7 @@ import { State } from "./state";
 import { Icons } from "./utils/icons";
 import { DaysGenerator } from "./generators/schedule";
 import { ProductionGenerator } from "./generators/fish";
+import { MUNICIPIOS_LIST } from "./data/municipios";
 const Draggable = {
   init(el: HTMLElement) {
     let isDragging = false,
@@ -198,10 +199,10 @@ const injectButton = () => {
              areaRealizacao: {
                localPesca: settings.mpaLocalPesca || 6,
                uf: settings.mpaUF || 5,
-               municipio: settings.mpaMunicipio || 4718,
-               petrechosPesca: [settings.mpaPetrecho || 4],
-               ambientePesca: settings.mpaAmbiente || 1
-             },
+                municipio: settings.mpaMunicipio || MUNICIPIOS_LIST[0].id,
+                petrechosPesca: [settings.mpaPetrecho || 4],
+                ambientePesca: settings.mpaAmbiente || 1
+              },
              meses: []
           };
           
@@ -211,7 +212,7 @@ const injectButton = () => {
                    const monthlyKg = fish.monthlyKg[i] || 0;
                    if (monthlyKg <= 0) return null;
                    return {
-                     especiePescado: settings.mpaEspeciePescado || 12,
+                     especiePescado: fish.id,
                      unidadeMedida: 1,
                      quantidade: monthlyKg,
                      valorMedioQuilo: fish.price

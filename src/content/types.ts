@@ -1,4 +1,5 @@
 export interface FishData {
+  id: number;
   name: string;
   kgMin: number;
   kgMax: number;
@@ -6,6 +7,7 @@ export interface FishData {
   priceMax: number;
 }
 export interface FishProduction {
+  id: number;
   name: string;
   totalKg: number;
   price: number;

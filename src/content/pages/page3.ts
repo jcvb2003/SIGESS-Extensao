@@ -3,6 +3,7 @@ import { DaysGenerator } from "../generators/schedule";
 import { ProductionGenerator } from "../generators/fish";
 import { Utils } from "../utils";
 import { IWorkflowManager } from "../types";
+import { MUNICIPIOS_LIST } from "../data/municipios";
 const MONTHS_MAP: {
   [key: string]: number;
 } = {
@@ -171,7 +172,7 @@ export const Page3 = {
           if (munSelect) {
             let attempts = 0;
             let filled = false;
-            const targetMunicipio = settings.mpaMunicipioLabel || "Oeiras do Pará";
+            const targetMunicipio = settings.mpaMunicipioLabel || MUNICIPIOS_LIST[0].nome;
             while (attempts < 10 && !filled && !State.stopRequested) {
               filled = await Utils.fillAutocomplete(
                 munSelect,

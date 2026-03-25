@@ -11,7 +11,6 @@ export interface AppSettings {
   valorComercializado: string;
   reapData: Record<string, string>;
   reapTurboConfig?: string;
-  // REAP MPA Configs
   mpaEspeciePescado?: number;
   mpaMunicipio?: number;
   mpaUF?: number;
