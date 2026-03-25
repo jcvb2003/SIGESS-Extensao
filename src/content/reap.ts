@@ -1,3 +1,4 @@
+import "../shared/utils/browser-shim";
 import { initUI } from "./ui";
 import { initAgroUI } from "./agro";
 if ((window as any).hasReapExtensionActive) {

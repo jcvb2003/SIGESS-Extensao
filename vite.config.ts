@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 import obfuscator from 'vite-plugin-javascript-obfuscator';
 
+const outputDir = process.env.BUILD_OUTPUT_DIR || 'dist';
+
 // Build apenas do Popup (React/Module)
 export default defineConfig({
     plugins: [
@@ -23,7 +25,7 @@ export default defineConfig({
         })
     ],
     build: {
-        outDir: 'dist',
+        outDir: outputDir,
         emptyOutDir: true, // Limpa na primeira passada
         rollupOptions: {
             input: {

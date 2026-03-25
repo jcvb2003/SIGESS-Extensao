@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 // Capturar target via variável de ambiente do processo
 const target = process.env.TARGET;
+const outputDir = process.env.BUILD_OUTPUT_DIR || 'dist';
 
 if (!target) {
     throw new Error('TARGET env var is required for scripts build (e.g. TARGET=background)');
@@ -31,7 +32,7 @@ export default defineConfig(({ mode }) => {
         },
         plugins: [],
         build: {
-            outDir: 'dist',
+            outDir: outputDir,
             emptyOutDir: false,
             minify: true,
             lib: {

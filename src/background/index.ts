@@ -1,16 +1,15 @@
+import "../shared/utils/browser-shim";
 import { TabManager } from "./services/TabManager";
 import { StorageService } from "./utils/storage";
 import { MessageRequest, MessageResponse } from "../shared/types";
 import { LicenseService } from "../shared/services/license";
-const tabManager = new TabManager();
-tabManager.init();
-(async () => {
-  try {
-    await LicenseService.checkLicense(true);
-  } catch (e) {
-    console.error("License pre-check failed:", e);
-  }
-})();
+let tabManager: TabManager | null = null;
+
+function getTabManager() {
+  if (!tabManager) tabManager = new TabManager();
+  return tabManager;
+}
+
 console.log("SIGESS Background Service Initialized");
 browser.runtime.onMessage.addListener(
   (
@@ -81,7 +80,7 @@ async function handleStartBatchLogin(message: MessageRequest) {
   if (!targetUrl) return { success: false, error: "Tipo de login inválido" };
   const results = await Promise.allSettled(
     credentials.map((cred, index) =>
-      tabManager.createSession(targetUrl, cred.cpf, cred.senha, index + 1),
+      getTabManager().createSession(targetUrl, cred.cpf, cred.senha, index + 1),
     ),
   );
   const succeeded = results.filter((r) => r.status === "fulfilled").length;
@@ -101,7 +100,7 @@ async function handleAbrirAbaContainer(message: MessageRequest) {
     return { success: false, error: "URL inválida" };
   }
   const randIndex = Math.floor(Math.random() * 1000);
-  await tabManager.createSession(url, cpf, senha, randIndex);
+  await getTabManager().createSession(url, cpf, senha, randIndex);
   return { success: true };
 }
 
@@ -133,6 +132,12 @@ async function handleTurboFillReap(message: MessageRequest) {
   }
 }
 browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  try {
+    await getTabManager().handleTabUpdate(tabId, changeInfo, tab);
+  } catch (e) {
+    console.error("TabManager onUpdated error:", e);
+  }
+
   const currentUrl = changeInfo.url || tab.url;
   if (!currentUrl || !currentUrl.includes("#")) return;
   try {
@@ -156,5 +161,13 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     console.error("Hash Auto Error:", e);
   } finally {
     await StorageService.remove(`processing_${tabId}`);
+  }
+});
+
+browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+  try {
+    await getTabManager().handleTabRemoval(tabId, removeInfo);
+  } catch (e) {
+    console.error("TabManager onRemoved error:", e);
   }
 });

@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { UserCredentials } from "../../shared/types";
 import ConfigPanel from "./ConfigPanel";
 import BatchLoginModal from "./BatchLoginModal";
-import ReapPanel from "./ReapPanel";
+import ReapAgroPanel from "./ReapAgroPanel";
+import ReapMpaPanel from "./ReapMpaPanel";
 import LicenseInfo from "./LicenseInfo";
 import { ToastProvider, useToast } from "./Toast";
 import { Skeleton, SkeletonBadge, SkeletonCard } from "./Skeleton";
@@ -18,7 +19,8 @@ const AppContent: React.FC = () => {
   const [openSections, setOpenSections] = useState({
     login: false,
     esocial: false,
-    reap: false,
+    reapAgro: false,
+    reapMpa: false,
   });
   const [activationKey, setActivationKey] = useState("");
 
@@ -29,11 +31,11 @@ const AppContent: React.FC = () => {
   const onHandleActivate = async () => {
     if (!activationKey.trim()) return;
     const result = await activate(activationKey.trim());
-    if (!result.ok) {
-      showToast(getLicenseErrorMessage(result.reason), "error");
-    } else {
+    if (result.ok) {
       showToast("Licença ativada com sucesso!", "success");
       setActivationKey("");
+    } else {
+      showToast(getLicenseErrorMessage(result.reason), "error");
     }
   };
 
@@ -55,15 +57,17 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const toggleSection = (key: "login" | "esocial" | "reap") => {
+  const toggleSection = (key: keyof typeof openSections) => {
     setOpenSections((prev) => {
       const nextOpen = !prev[key];
-      return {
+      const newState = {
         login: false,
         esocial: false,
-        reap: false,
-        [key]: nextOpen,
+        reapAgro: false,
+        reapMpa: false,
       };
+      newState[key] = nextOpen;
+      return newState;
     });
   };
 
@@ -71,7 +75,7 @@ const AppContent: React.FC = () => {
     return <LoadingState />;
   }
 
-  if (!license || !license.ok) {
+  if (!(license?.ok)) {
     return (
       <div className="container activation-screen">
         <header className="header">
@@ -214,11 +218,18 @@ const AppContent: React.FC = () => {
           </div>
         </section>
 
-        <ReapPanel
+        <ReapAgroPanel
           settings={settings}
           onUpdate={updateSettings}
-          isOpen={openSections.reap}
-          onToggle={() => toggleSection("reap")}
+          isOpen={openSections.reapAgro}
+          onToggle={() => toggleSection("reapAgro")}
+        />
+
+        <ReapMpaPanel
+          settings={settings}
+          onUpdate={updateSettings}
+          isOpen={openSections.reapMpa}
+          onToggle={() => toggleSection("reapMpa")}
         />
       </main>
 
@@ -228,7 +239,7 @@ const AppContent: React.FC = () => {
           onClick={() => setShowLicenseModal(true)}
           title="Clique para ver detalhes da licença"
         >
-          {license.plan === "trial" ? (
+          {license?.plan === "trial" ? (
             <span className="badge badge-trial">
               Trial: {license.usage_count}/{license.max_usage}
             </span>

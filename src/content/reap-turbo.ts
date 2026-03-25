@@ -1,347 +1,303 @@
 import { TurboReapConfig } from '../shared/types';
 
-// Constants
-const FALLBACK_ACTION_HASH = "0e19fa9cd1721c7395e62a3a725505d58b5b5630";
-const REAP_ID_REGEX = /\/manutencao\/(\d+)\//;
-let lastDetectedActionHash: string | null = null;
-
-function extractActionHashCandidates(html: string): string[] {
-  const candidates = new Set<string>();
-
-  for (const m of html.matchAll(/\$ACTION_ID_[a-zA-Z0-9_]*([a-f0-9]{40})/g)) {
-    if (m[1]) candidates.add(m[1]);
-  }
-  for (const m of html.matchAll(/next-action["':\s=]+([a-f0-9]{40})/gi)) {
-    if (m[1]) candidates.add(m[1].toLowerCase());
-  }
-
-  return Array.from(candidates);
-}
-
 /**
- * Dinamicamente encontra o hash de Server Action do Next.js
- * Utiliza o HTML e RSC payloads da página atual.
+ * 🛠️ SIGESS Turbo Debug Module
  */
-async function getActionHash(): Promise<string> {
-  try {
-    const html = document.documentElement.innerHTML;
-    // Prioriza hash dinâmico do DOM para evitar fixar em hash de outra action.
-    const actionInputs = Array.from(document.querySelectorAll('input[name^="$ACTION_ID_"]')) as HTMLInputElement[];
-    const hashesFromDom = actionInputs
-      .map((input) => input.getAttribute('name') ?? "")
-      .map((nameAttr) => nameAttr.split('_').pop() as string)
-      .filter((hash) => Boolean(hash) && hash.length === 40);
-
-    const domPreferredHash = hashesFromDom.find((hash) => hash !== FALLBACK_ACTION_HASH) ?? hashesFromDom[0];
-    if (domPreferredHash) {
-      console.log("[SIGESS Turbo] Action hash detectado via DOM:", domPreferredHash);
-      return domPreferredHash;
+class TurboLogger {
+    private overlay: HTMLDivElement | null = null;
+    constructor() { if (typeof document !== 'undefined') this.createOverlay(); }
+    private createOverlay() {
+        let container = document.getElementById('sigess-turbo-debug');
+        if (container) container.remove();
+        this.overlay = document.createElement('div');
+        this.overlay.id = 'sigess-turbo-debug';
+        Object.assign(this.overlay.style, {
+            position: 'fixed', bottom: '10px', right: '10px', width: '450px', maxHeight: '400px',
+            backgroundColor: 'rgba(0, 0, 0, 0.9)', color: '#00ff00', fontFamily: 'monospace',
+            fontSize: '11px', padding: '12px', borderRadius: '8px', zIndex: '999999',
+            overflowY: 'auto', border: '1px solid #333', boxShadow: '0 8px 25px rgba(0,0,0,0.7)',
+            pointerEvents: 'auto'
+        });
+        const header = document.createElement('div');
+        header.innerHTML = '<b style="color:#00ffff">🚀 SIGESS TURBO TELEMETRY</b> <hr style="border:0;border-top:1px solid #444;margin:5px 0">';
+        this.overlay.appendChild(header);
+        document.body.appendChild(this.overlay);
     }
-
-    // Fallback intermediário: tenta extrair hashes diretamente do HTML.
-    const htmlHashes = Array.from(html.matchAll(/\$ACTION_ID_[a-zA-Z0-9_]*([a-f0-9]{40})/g)).map((m) => m[1]);
-    const htmlPreferredHash = htmlHashes.find((hash) => hash !== FALLBACK_ACTION_HASH) ?? htmlHashes[0];
-    if (htmlPreferredHash) {
-      console.log("[SIGESS Turbo] Action hash detectado via HTML:", htmlPreferredHash);
-      return htmlPreferredHash;
+    log(msg: string, type: 'info' | 'warn' | 'error' | 'success' | 'payload' = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        const colors: Record<string, string> = { info: '#00ff00', warn: '#ffaa00', error: '#ff3333', success: '#00ffff', payload: '#ff00ff' };
+        const color = colors[type] || '#fff';
+        console.log(`%c[SIGESS Turbo] ${msg}`, `color: ${color}`);
+        if (this.overlay) {
+            const entry = document.createElement('div');
+            entry.style.marginBottom = '6px';
+            entry.style.borderLeft = `3px solid ${color}`;
+            entry.style.paddingLeft = '6px';
+            entry.innerHTML = `<span style="color:#888;font-size:9px">[${timestamp}]</span> <span style="color:${color}">${msg}</span>`;
+            this.overlay.appendChild(entry);
+            this.overlay.scrollTop = this.overlay.scrollHeight;
+        }
     }
-
-    if (lastDetectedActionHash) {
-      console.log("[SIGESS Turbo] Action hash detectado via HTML fresco:", lastDetectedActionHash);
-      return lastDetectedActionHash;
-    }
-
-    // Se nenhuma abordagem funcionar, avisamos
-    console.warn("[SIGESS Turbo] Hash de Server Action não detectado dinamicamente. Utilizando Fallback.");
-    return fallbackHash();
-  } catch (error) {
-    console.error("[SIGESS Turbo] Erro ao extrair action hash", error);
-    return fallbackHash();
-  }
+    show() { if (this.overlay) this.overlay.style.display = 'block'; }
 }
 
-function fallbackHash() {
-  return FALLBACK_ACTION_HASH;
-}
+class ReapTurbo {
+    private readonly turboLogger: TurboLogger;
+    private lastActionHash: string = "0e19fa9cd1721c7395e62a3a725505d58b5b5630";
 
+    constructor() { this.turboLogger = new TurboLogger(); }
 
-
-
-
-
-async function getReapState(): Promise<any> {
-    console.log("[SIGESS Turbo] Buscando estado via HTML puro (bypass DOM mutation e Next.js Cache)...");
-    
-    // Obter HTML original do servidor adicionando um timestamp para fazer BYPASS no cache agressivo do Next.js App Router
-    // Se não fizermos isso, o Next.js retorna o RSC salvo em CDN e o dataAtualizacao acaba sendo antigo, gerando 500 (Optimistic Lock)
-    const urlCorrente = new URL(window.location.href);
-    urlCorrente.searchParams.set('_t', Date.now().toString());
-
-    const response = await fetch(urlCorrente.toString(), { 
-        headers: { 
-            "Accept": "text/html",
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache"
-        },
-        cache: 'no-store' 
-    });
-    if (!response.ok) {
-        throw new Error("Falha ao carregar os dados da página (status " + response.status + ").");
-    }
-    const html = await response.text();
-
-    const freshHashes = extractActionHashCandidates(html);
-    const preferredFreshHash = freshHashes.find((hash) => hash !== FALLBACK_ACTION_HASH) ?? freshHashes[0] ?? null;
-    if (preferredFreshHash) {
-        lastDetectedActionHash = preferredFreshHash;
-        console.log("[SIGESS Turbo] Action hash detectado no HTML fresco:", preferredFreshHash);
+    private extractActionHashCandidates(html: string): string[] {
+        const candidates = new Set<string>();
+        const actionRegex = /\$ACTION_ID_\w*([a-f0-9]{40})/g;
+        const nextActionRegex = /next-action["':\s=]+([a-f0-9]{40})/gi;
+        let m;
+        while ((m = actionRegex.exec(html)) !== null) { if (m[1]) candidates.add(m[1]); }
+        while ((m = nextActionRegex.exec(html)) !== null) { if (m[1]) candidates.add(m[1].toLowerCase()); }
+        return Array.from(candidates);
     }
 
-    console.log("[SIGESS Turbo] HTML obtido. Buscando blocos RSC...");
+    private findReapStateInObject(o: any): any {
+        if (!o || typeof o !== 'object') return null;
+        if (o.id && o.pescador && o.informesMensais && o.dataAtualizacao) return o;
+        if (Array.isArray(o)) {
+            for (const item of o) {
+                const res = this.findReapStateInObject(item);
+                if (res) return res;
+            }
+            return null;
+        }
+        for (const k of Object.keys(o)) {
+            const res = this.findReapStateInObject(o[k]);
+            if (res) return res;
+        }
+        return null;
+    }
 
-    const regex = /self\.__next_f\.push\((\[[\s\S]*?\])\)/g;
-    let match: RegExpExecArray | null;
-    
-    while ((match = regex.exec(html)) !== null) {
-        try {
-            const arr = JSON.parse(match[1]);
-            if (arr[0] === 1 && typeof arr[1] === 'string') {
-                const str = arr[1]; // Exemplo de string: "1c:[\"$\",\"$L2f\",...]"
-                const colonIdx = str.indexOf(':');
-                if (colonIdx !== -1) {
-                    const jsonStr = str.substring(colonIdx + 1);
-                    
-                    // Só tenta o parse caro se a string conter nossas chaves
-                    if (jsonStr.includes("informesMensais") && jsonStr.includes("pescador")) {
-                        try {
-                            const obj = JSON.parse(jsonStr);
-                            
-                            const check = (o: any): any => {
-                                 if (!o || typeof o !== 'object') return null;
-                                 if (o.pescador && o.informesMensais) return o;
-                                 if (o.defaultValues?.pescador && o.defaultValues?.informesMensais) return o.defaultValues;
-                                 if (Array.isArray(o)) {
-                                     for (const item of o) {
-                                         const res = check(item);
-                                         if (res) return res;
-                                     }
-                                 }
-                                 // Navega fundo nas chaves do objeto
-                                 for (const k in o) {
-                                     if (o[k] && typeof o[k] === 'object') {
-                                         const res = check(o[k]);
-                                         if (res) return res;
-                                     }
-                                 }
-                                 return null;
-                             };
-                             
-                             const foundObj = check(obj);
-                             if (foundObj) {
-                                 console.log("[SIGESS Turbo] Estado RSC capturado perfeitamente via Fetch HTML.");
-                                 return foundObj;
-                             }
-                        } catch (e) {
-                            console.warn("[SIGESS Turbo DEBUG] Falha no parse do chunk JSON:", e);
+    private async getReapState(): Promise<any> {
+        const url = new URL(globalThis.location.href);
+        url.searchParams.set('_v', Date.now().toString());
+        const response = await fetch(url.toString(), { cache: 'no-store' });
+        const html = await response.text();
+        const freshHashes = this.extractActionHashCandidates(html);
+        if (freshHashes.length > 0) this.lastActionHash = freshHashes[0];
+        const regex = /self\.__next_f\.push\((\[[\s\S]*?\])\)/g;
+        let match;
+        while ((match = regex.exec(html)) !== null) {
+            try {
+                const arr = JSON.parse(match[1]);
+                if (arr[0] === 1 && typeof arr[1] === 'string') {
+                    const payload = arr[1];
+                    const colonIdx = payload.indexOf(':');
+                    if (colonIdx !== -1) {
+                        const jsonStr = payload.substring(colonIdx + 1);
+                        if (jsonStr.includes("informesMensais")) {
+                            const state = this.findReapStateInObject(JSON.parse(jsonStr));
+                            if (state) return state;
                         }
                     }
                 }
-            }
-        } catch (e) {
-            // Ignora falhas de parse de chunks individuais
+            } catch (e) {}
         }
+        return null;
     }
 
-    throw new Error("Não foi possível encontrar o estado 'pescador' e 'informesMensais' no payload da página. Verifique se o formulário carregou completamente.");
-}
-
-function buildPayload(reapId: string, stateOriginal: any, mesIndex: number, userConfig: TurboReapConfig) {
-    if (!stateOriginal) throw new Error("Estado nulo");
-
-    // Deep clone para evitar que a modificação de um mês afete os dados do próximo mes iterado.
-    const state = JSON.parse(JSON.stringify(stateOriginal));
-
-    // Limpa erros residuais
-    state.errosValidacao = {};
-
-    // Força o form a aceitar nosso envio
-    if (state.configuracoes) {
-        state.configuracoes.podeEnviar = "true";
-    }
-
-    if (state.informesMensais && Array.isArray(state.informesMensais)) {
-        state.informesMensais = state.informesMensais.map((oldMes: any, idx: number) => {
-            const mes = { ...oldMes };
-            
-            // Só alteramos os dados do mês corrente que estamos salvando (simulando a aba ativa real do usuário)
-            // Os outros 11 meses vão intocados, exatamente como o servidor os retornou no fetch.
-            if (idx !== mesIndex) {
-                 if (mes.houvePesca === null || mes.houvePesca === undefined) {
-                    mes.houvePesca = false;
-                 }
-                 return mes;
-            }
-
-            const config = userConfig.meses.find((m: any) => m.mes === mes.mes);
-
-            // Determina houvePesca
-            const temEspecies = config?.especies && config.especies.length > 0;
-            const houvePesca = config && temEspecies 
-                ? Boolean(config.houvePesca) 
-                : false;
-
-            // Organiza as chaves para garantir que houvePesca venha antes de preenchido/áreas
-            // Isso ajuda alguns parsers rígidos de servidor
-            const newMes: any = {
-                configuracoes: mes.configuracoes || { diasAtivo: "30" },
-                id: mes.id,
-                mes: mes.mes,
-                houvePesca: houvePesca
-            };
-
-            if (houvePesca) {
-                newMes.diasTrabalhados = typeof config!.diasTrabalhados === 'number'
-                    ? config!.diasTrabalhados
-                    : 15;
-                newMes.justificativasNaoDeclaracao = [];
-                newMes.areasRealizacaoPesca = [{
-                    ...userConfig.areaRealizacao,
-                    id: mes.areasRealizacaoPesca?.[0]?.id ?? null
-                }];
-                newMes.resultadosOperacaoPesca = config!.especies!.map(
-                    (esp: any, i: number) => ({
-                        ...esp,
-                        id: mes.resultadosOperacaoPesca?.[i]?.id ?? null
-                    })
-                );
-            } else {
-                delete newMes.diasTrabalhados; // O backend não aceita null explícito
-                newMes.areasRealizacaoPesca = [];
-                newMes.resultadosOperacaoPesca = [];
-                newMes.justificativasNaoDeclaracao = [1];
-            }
-
-            newMes.preenchido = true;
-            return newMes;
-        });
-    }
-
-    return [reapId.toString(), state, mesIndex];
-}
-
-async function submitMonth(url: string, payload: any[], actionHash: string): Promise<boolean> {
-    try {
-        console.log(`[SIGESS Turbo] Action Hash Mês ${payload[2] + 1}:`, actionHash);
-        
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'accept': 'text/x-component',
-                'content-type': 'text/plain;charset=UTF-8',
-                'next-action': actionHash,
+    private getNextRouterStateTree(): string {
+        const pathParts = globalThis.location.pathname.split('/').filter(Boolean);
+        const id = pathParts[1] || "";
+        const tipoVisualizacao = pathParts[2] || "cadastro";
+        const tree = [
+            "",
+            {
+                "children": [
+                    "manutencao",
+                    {
+                        "children": [
+                            ["id", id, "d"],
+                            {
+                                "children": [
+                                    ["tipoVisualizacao", tipoVisualizacao, "d"],
+                                    {
+                                        "children": [
+                                            "informe-mensal",
+                                            {
+                                                "children": [
+                                                    "__PAGE__",
+                                                    {},
+                                                    globalThis.location.pathname,
+                                                    "refresh"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
             },
-            body: JSON.stringify(payload)
-        });
+            null,
+            null,
+            true
+        ];
+        return encodeURIComponent(JSON.stringify(tree));
+    }
 
-        if (!response.ok) {
-            const errText = await response.text();
-            console.error(`[SIGESS Turbo] Falha requisição: Status ${response.status}`, errText);
-            console.error(`[SIGESS Turbo] PAYLOAD QUE FALHOU NO MÊS ${payload[2] + 1}:`, JSON.stringify(payload));
-            throw new Error(`Erro HTTP ${response.status} no mês ${payload[2] + 1}`);
-        }
-
-        const data = await response.text();
-        if (data.includes("errosValidacao")) {
-            console.error("[SIGESS Turbo] Resposta com erro de validação do servidor:", data);
-            throw new Error(`Erro de validação no servidor para o mês ${payload[2] + 1}. Verifique se todos os campos obrigatórios estão presentes.`);
-        }
+    private buildPayload(state: any, mesIndex: number, userConfig: TurboReapConfig): any {
+        const newState = structuredClone(state);
+        const mesConfig = userConfig.meses.find(m => m.mes === (mesIndex + 1));
         
-        return true;
-    } catch (e) {
-        throw e;
-    }
-}
+        newState.informesMensais = newState.informesMensais.map((oldMes: any, idx: number) => {
+            const m = { ...oldMes };
+            m.observacao = m.observacao || "";
 
-function isDeepEqual(obj1: any, obj2: any): boolean {
-    if (obj1 === obj2) return true;
-    if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 == null || obj2 == null) return false;
-    if (Array.isArray(obj1) && Array.isArray(obj2)) {
-        if (obj1.length !== obj2.length) return false;
-        for (let idx = 0; idx < obj1.length; idx++) {
-            if (!isDeepEqual(obj1[idx], obj2[idx])) return false;
-        }
-        return true;
-    }
-    if (Array.isArray(obj1) || Array.isArray(obj2)) return false;
-
-    const keys1 = Object.keys(obj1);
-    const keys2 = Object.keys(obj2);
-    if (keys1.length !== keys2.length) return false;
-
-    for (let key of keys1) {
-        if (!keys2.includes(key) || !isDeepEqual(obj1[key], obj2[key])) return false;
-    }
-    return true;
-}
-
-async function executeTurboFill(config: TurboReapConfig) {
-    console.log("[SIGESS Turbo] Iniciando Preenchimento Turbo...");
-    const matchReapId = window.location.pathname.match(REAP_ID_REGEX);
-    if (!matchReapId) {
-        throw new Error("ID do REAP não encontrado na URL. Navegue para a página do relatório.");
-    }
-    const reapId = matchReapId[1];
-
-    try {
-        console.log(`[SIGESS Turbo] Disparando Sequência de POSTs (12 meses)...`);
-        for (let i = 0; i < 12; i++) {
-            console.log(`[SIGESS Turbo] Obtendo estado fresco para o mês ${i + 1}/12...`);
-            // O build requer todos os meses com os "id"s de banco atualizados a cada iteração.
-            let state = await getReapState();
-            const actionHash = await getActionHash();
-
-            console.log(`[SIGESS Turbo] Construindo e salvando mês ${i + 1}/12...`);
-            // Construir payload limpo
-            const payload = buildPayload(reapId, state, i, config);
-            
-            // Bypass Inteligente: se as edições computadas forem identicas ao que já está no banco, não enviamos a request.
-            // O servidor backend SIGESS aparenta apresentar uma falha 500 digest se uma aba inalterada sequencial sofre update hard.
-            const originalMes = state.informesMensais[i];
-            const modificadoMes = payload[1].informesMensais[i];
-            
-            if (isDeepEqual(originalMes, modificadoMes)) {
-                console.log(`[SIGESS PAYLOAD MÊS ${i + 1}] Burlado! Estado Idêntico ao DB. (${originalMes.preenchido ? 'Preenchido' : 'Limpo'})`);
-                continue; 
+            // FIX: Next.js Zod expects ambientePesca as string everywhere.
+            // Additionally, the Native form explicitly strips out `id` from `areasRealizacaoPesca`.
+            if (m.areasRealizacaoPesca && Array.isArray(m.areasRealizacaoPesca)) {
+                m.areasRealizacaoPesca = m.areasRealizacaoPesca.map((a: any) => {
+                    const cloned = { ...a };
+                    delete cloned.id;
+                    cloned.ambientePesca = cloned.ambientePesca !== undefined ? String(cloned.ambientePesca) : cloned.ambientePesca;
+                    return cloned;
+                });
             }
 
-            console.log(`[SIGESS PAYLOAD MÊS ${i + 1}] DADOS NOVOS GERADOS:`, JSON.stringify(payload));
-            
-            await submitMonth(`${window.location.origin}/manutencao/${reapId}/cadastro/informe-mensal`, payload, actionHash);
-            console.log(`[SIGESS Turbo] Mês ${i + 1} salvo com sucesso.`);
-            
-            // Aumentando delay significativamente para evitar DB Pool Exhaustion / Rate Limiting (500)
-            await new Promise(resolve => setTimeout(resolve, 2500));
-        }
+            if (idx === mesIndex) {
+                const houvePesca = mesConfig ? Boolean(mesConfig.houvePesca) : false;
+                
+                m.houvePesca = houvePesca;
+                m.preenchido = true;
+                
+                if (houvePesca) {
+                    m.diasTrabalhados = mesConfig?.diasTrabalhados || 15;
+                    m.justificativasNaoDeclaracao = [];
+                    m.areasRealizacaoPesca = [{
+                        ...userConfig.areaRealizacao,
+                        ambientePesca: String(userConfig.areaRealizacao.ambientePesca)
+                    }];
+                    m.resultadosOperacaoPesca = mesConfig?.especies?.map((esp, i) => {
+                        const existingId = oldMes.resultadosOperacaoPesca?.[i]?.id;
+                        return {
+                            ...esp,
+                            ...(existingId ? { id: existingId } : {})
+                        };
+                    }) || [];
+                } else {
+                    delete m.diasTrabalhados;
+                    m.justificativasNaoDeclaracao = [mesConfig?.justificativa || 1];
+                    m.areasRealizacaoPesca = [];
+                    m.resultadosOperacaoPesca = [];
+                }
+                return m;
+            }
+            return m;
+        });
 
-        console.log(`[SIGESS Turbo] Prontinho! Recarregando...`);
-        alert("Preenchimento Turbo concluído com sucesso!");
-        window.location.reload();
-        
-        return { success: true };
-    } catch (error: any) {
-        console.error("[SIGESS Turbo Error]", error);
-        alert("Falha no preenchimento turbo: " + error.message);
-        return { success: false, error: error.message };
+        if (newState.configuracoes) newState.configuracoes.podeEnviar = "true";
+        return [String(newState.id), newState, 3];
+    }
+
+    private async submitMonth(monthNum: number, userConfig: TurboReapConfig): Promise<boolean> {
+        const mesIndex = monthNum - 1;
+        const mesConfig = userConfig.meses.find(mc => mc.mes === monthNum);
+        const desiredHouvePesca = mesConfig ? Boolean(mesConfig.houvePesca) : false;
+
+        this.turboLogger.log(`--- MÊS ${monthNum} ---`, 'success');
+        this.turboLogger.log(`Config: Houve Pesca = ${desiredHouvePesca}`, 'info');
+
+        const state = await this.getReapState();
+        if (!state) return false;
+
+        // Versão 2.7.1-FORCE: Não pula mais meses "verdes" para permitir correção de dados.
+        const payload = this.buildPayload(state, mesIndex, userConfig);
+        this.turboLogger.log(`Enviando Mês ${monthNum}...`);
+
+        try {
+            const resp = await fetch(globalThis.location.href, {
+                method: 'POST',
+                headers: { 
+                    'next-action': this.lastActionHash, 
+                    'content-type': 'text/plain;charset=UTF-8', 
+                    'accept': 'text/x-component',
+                    'next-router-state-tree': this.getNextRouterStateTree()
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) {
+                const errorBody = await resp.text();
+                throw new Error(`HTTP ${resp.status}. Body: ${errorBody}`);
+            }
+            
+            this.turboLogger.log(`Sincronizando...`);
+            await new Promise(r => setTimeout(r, 2000));
+            const freshState = await this.getReapState();
+            
+            if (freshState?.informesMensais[mesIndex]?.preenchido) {
+                const actuallyHouvePesca = freshState.informesMensais[mesIndex]?.houvePesca;
+                this.turboLogger.log(`Mês ${monthNum} OK! (Houve Pesca no Server: ${actuallyHouvePesca})`, 'success');
+                return true;
+            }
+            this.turboLogger.log(`Mês ${monthNum} falhou na persistência.`, 'warn');
+            return false;
+        } catch (e: any) {
+            this.turboLogger.log(`Erro Mês ${monthNum}: ${e.message}`, 'error');
+            return false;
+        }
+    }
+
+    public async run(config: TurboReapConfig) {
+        if ((globalThis as any).__sigessTurboRunning) return;
+        (globalThis as any).__sigessTurboRunning = true;
+        this.turboLogger.show();
+        this.turboLogger.log(`REAP TURBO v2.7.1-FORCE`);
+        try {
+            for (let m = 1; m <= 12; m++) {
+                if (!(await this.submitMonth(m, config))) break;
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            alert("Turbo Fill Concluído!");
+            globalThis.location.reload();
+        } finally { (globalThis as any).__sigessTurboRunning = false; }
     }
 }
 
-// Escuta mensagens do background (originadas pelo popup)
-if (typeof browser !== "undefined") {
-    browser.runtime.onMessage.addListener((message: any) => {
-        if (message.action === "executeTurboFill" && message.config) {
-            // Retorna a promise pro sendResponse resolver
-            return executeTurboFill(message.config);
+if (typeof globalThis.window !== 'undefined' && !(globalThis as any).__sigessTurboLoaded) {
+    const turbo = new ReapTurbo();
+    (globalThis as any).__sigessTurboLoaded = true;
+
+    // --- DIAGNOSTIC INTERCEPTOR ---
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async function(...args) {
+        const [url, options] = args;
+        if (options && options.method === 'POST' && typeof url === 'string' && url.includes('informe-mensal')) {
+            console.log("%c=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED ===", "color: #ff00ff; font-weight: bold; font-size: 14px;");
+            
+            const headersList: any = {};
+            if (options.headers instanceof Headers) {
+                options.headers.forEach((v, k) => { headersList[k] = v; });
+            } else {
+                Object.assign(headersList, options.headers || {});
+            }
+            
+            console.log("Headers:", JSON.stringify(headersList, null, 2));
+            if (typeof options.body === 'string') {
+                console.log("Body JSON:", JSON.stringify(JSON.parse(options.body), null, 2));
+            } else {
+                console.log("Body (Raw):", options.body);
+            }
+            console.log("%c=====================================================", "color: #ff00ff; font-weight: bold;");
+            alert("[SIGESS Turbo] Payload nativo capturado! Abra o Console (F12) e envie o texto para o desenvolvedor.");
         }
+        return origFetch.apply(this, args);
+    };
+
+    if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+        chrome.runtime.onMessage.addListener((msg: any) => {
+            if (msg.action === "executeTurboFill") turbo.run(msg.config).catch(console.error);
+        });
+    }
+    globalThis.addEventListener('message', async (e) => {
+        if (e.data.type === 'SIGESS_TURBO_START') await turbo.run(e.data.config);
     });
-    console.log("SIGESS Turbo Script Injected and Ready.");
+    console.log('[SIGESS Turbo] Ready v2.7.1-FORCE');
 }

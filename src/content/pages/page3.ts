@@ -167,13 +167,15 @@ export const Page3 = {
           const munSelect = areaTable.querySelector(
             "td:nth-child(3) .br-select",
           ) as HTMLElement;
+          const settings = (await browser.storage.local.get("settings")).settings || {};
           if (munSelect) {
             let attempts = 0;
             let filled = false;
+            const targetMunicipio = settings.mpaMunicipioLabel || "Oeiras do Pará";
             while (attempts < 10 && !filled && !State.stopRequested) {
               filled = await Utils.fillAutocomplete(
                 munSelect,
-                "Oeiras do Pará",
+                targetMunicipio,
               );
               if (!filled) await Utils.sleep(500);
               attempts++;
@@ -198,6 +200,9 @@ export const Page3 = {
           .find((el) => el.textContent?.includes("Resultado"))
           ?.closest(".br-table") as HTMLElement;
         if (prodTable) {
+          const settings = (await browser.storage.local.get("settings")).settings || {};
+          const targetSpeciesLabel = settings.mpaEspecieLabel || "";
+          
           for (let fishIdx = 0; fishIdx < State.production.length; fishIdx++) {
             const fish = State.production[fishIdx];
             const monthlyKg = fish.monthlyKg[realMonthIndex] || 0;
@@ -226,7 +231,7 @@ export const Page3 = {
             const specSelect = row.querySelector(
               "td:nth-child(1) .br-select",
             ) as HTMLElement;
-            if (specSelect) await Utils.fillAutocomplete(specSelect, fish.name);
+            if (specSelect) await Utils.fillAutocomplete(specSelect, targetSpeciesLabel || fish.name);
             await Utils.selectOption(
               row.querySelector("td:nth-child(2) .br-select") as HTMLElement,
               "Quilo",

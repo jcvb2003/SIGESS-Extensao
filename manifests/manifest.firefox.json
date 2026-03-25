@@ -1,0 +1,79 @@
+{
+  "manifest_version": 2,
+  "name": "SIGESS",
+  "version": "2.5.0",
+  "description": "Automatiza logins e preenchimento de formulÃ¡rios em sites governamentais",
+  "permissions": [
+    "contextualIdentities",
+    "cookies",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "storage",
+    "clipboardWrite",
+    "https://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+    "https://pesqbrasil-pescadorprofissional.mpa.gov.br/*",
+    "https://sso.acesso.gov.br/*",
+    "https://login.esocial.gov.br/*",
+    "https://www.esocial.gov.br/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": [
+      "assets/background.js"
+    ]
+  },
+  "web_accessible_resources": [
+    "assets/content_script.js",
+    "assets/content_reap.js",
+    "assets/content_reap_turbo.js",
+    "assets/content_esocial.js"
+  ],
+  "icons": {
+    "128": "icon.png"
+  },
+  "browser_action": {
+    "default_title": "SIGESS",
+    "default_icon": "icon.png",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "assets/content_script.js"
+      ]
+    },
+    {
+      "matches": [
+        "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+        "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*"
+      ],
+      "js": [
+        "assets/content_reap.js",
+        "assets/content_reap_turbo.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://www.esocial.gov.br/portal/Home/Inicial*",
+        "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias*",
+        "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/ListarPagamentos*"
+      ],
+      "js": [
+        "assets/content_esocial.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{e9df396f-bdd8-4e79-bc7c-92017a928891}",
+      "update_url": "https://raw.githubusercontent.com/jcvb2003/SIGESS-Extensao/main/updates.json"
+    }
+  }
+}
+

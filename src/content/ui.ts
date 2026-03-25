@@ -20,19 +20,19 @@ const Draggable = {
       el.style.cursor = "grabbing";
       e.preventDefault();
     });
-    window.addEventListener("mousemove", (e) => {
+    globalThis.addEventListener("mousemove", (e) => {
       if (!isDragging) return;
       el.style.top = `${startTop + (e.clientY - startY)}px`;
       el.style.bottom = "auto";
     });
-    window.addEventListener("mouseup", () => {
+    globalThis.addEventListener("mouseup", () => {
       isDragging = false;
       el.style.cursor = "move";
     });
   },
 };
 const isReapPage = () => {
-  const h = window.location.href;
+  const h = globalThis.location.href;
   return (
     h.includes("mpa.gov.br") &&
     (h.includes("/manutencao/") ||
@@ -87,7 +87,7 @@ const injectButton = () => {
         b.onclick = () => {
           if (!State.isRunning) {
             State.gender = value;
-            (window as any).refreshSigessUI();
+            (globalThis as any).refreshSigessUI();
           }
         };
         return { btn: b, update };
@@ -113,7 +113,7 @@ const injectButton = () => {
         segmentContainer.style.pointerEvents =
           State.isRunning || State.isPaused ? "none" : "auto";
       };
-      (window as any).refreshSigessUI = refreshUI;
+      (globalThis as any).refreshSigessUI = refreshUI;
       segmentContainer.appendChild(male.btn);
       segmentContainer.appendChild(female.btn);
       row.appendChild(lbl);
@@ -164,10 +164,10 @@ const injectButton = () => {
         "padding: 8px; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
       btn.onclick = (e) => {
         e.stopPropagation();
-        if (!State.isRunning) {
-          Manager.start();
-        } else {
+        if (State.isRunning) {
           Manager.pause();
+        } else {
+          Manager.start();
         }
       };
       container.appendChild(btn);
@@ -192,21 +192,15 @@ const injectButton = () => {
              State.production = ProductionGenerator.generate(State.daysMap, State.gender);
           }
           
-          const FISH_IDS: Record<string, number> = {
-            "Matrinxã ou Jatuarana": 15,
-            "Acará": 25,
-            "Aracu": 26,
-            "Traíra": 21,
-            "Mapará": 12
-          };
+          const settings = (await browser.storage.local.get("settings")).settings || {};
           
           const config: any = {
              areaRealizacao: {
-               localPesca: 6, // Rio
-               uf: 5,         // PA
-               municipio: 4718, // Oeiras do Pará
-               petrechosPesca: [4], // Emalhe
-               ambientePesca: 1 // Água Doce
+               localPesca: settings.mpaLocalPesca || 6,
+               uf: settings.mpaUF || 5,
+               municipio: settings.mpaMunicipio || 4718,
+               petrechosPesca: [settings.mpaPetrecho || 4],
+               ambientePesca: settings.mpaAmbiente || 1
              },
              meses: []
           };
@@ -217,7 +211,7 @@ const injectButton = () => {
                    const monthlyKg = fish.monthlyKg[i] || 0;
                    if (monthlyKg <= 0) return null;
                    return {
-                     especiePescado: FISH_IDS[fish.name] || 12,
+                     especiePescado: settings.mpaEspeciePescado || 12,
                      unidadeMedida: 1,
                      quantidade: monthlyKg,
                      valorMedioQuilo: fish.price
@@ -278,10 +272,8 @@ const injectButton = () => {
     } else if (container.style.display === "none") {
       container.style.display = "flex";
     }
-  } else {
-    if (container && container.style.display !== "none") {
-      container.style.display = "none";
-    }
+  } else if (container && container.style.display !== "none") {
+    container.style.display = "none";
   }
 };
 let filterTimeout: any = null;
@@ -290,7 +282,7 @@ export const initUI = () => {
     if (filterTimeout) return;
     const hasExternalMutation = mutations.some((m) => {
       const container = document.getElementById("sigess-reap-container");
-      return !container || !container.contains(m.target as Node);
+      return !(container?.contains(m.target as Node) ?? false);
     });
     if (hasExternalMutation) {
       filterTimeout = setTimeout(() => {
