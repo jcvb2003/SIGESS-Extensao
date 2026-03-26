@@ -60,6 +60,38 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleMultiLoginBatch = async (type: "pesqbrasil" | "esocial") => {
+    const queue = settings.multiLoginQueue || [];
+    const itemsToOpen = queue.filter(item => item.type === type);
+    
+    if (itemsToOpen.length === 0) {
+      showToast(`Nenhum login do ${type} na fila.`, "info");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (typeof browser !== 'undefined' && browser.runtime) {
+         // Abre em lote
+         await browser.runtime.sendMessage({
+           action: "startBatchLogin",
+           type,
+           credentials: itemsToOpen,
+         });
+
+         // Limpa APENAS os itens abertos da fila
+         const remaining = queue.filter(item => item.type !== type);
+         await updateSettings({ multiLoginQueue: remaining });
+         showToast(`${itemsToOpen.length} abas abertas.`, "success");
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("Erro ao iniciar lote de login múltiplo", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleSection = (key: keyof typeof openSections) => {
     setOpenSections((prev) => {
       const nextOpen = !prev[key];
@@ -102,7 +134,10 @@ const AppContent: React.FC = () => {
            isOpen={openSections.login} 
            onToggle={() => toggleSection("login")}
            loading={loading}
+           settings={settings}
+           onUpdate={updateSettings}
            onShowModal={(type) => setShowBatchModal(type)}
+           onOpenBatch={handleMultiLoginBatch}
         />
 
         <section className="section accordion">

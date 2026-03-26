@@ -3,6 +3,17 @@ export interface UserCredentials {
   senha: string;
   loginConcluido?: boolean;
 }
+
+export interface MultiLoginItem {
+  id: string;
+  nome: string;
+  cpf: string;
+  senha: string;
+  url: string;
+  type: 'pesqbrasil' | 'esocial';
+  timestamp: number;
+}
+
 export interface AppSettings {
   consultarGuias: boolean;
   gerarGps: boolean;
@@ -17,6 +28,8 @@ export interface AppSettings {
   mpaLocalPesca?: number;
   mpaPetrecho?: number;
   mpaAmbiente?: number;
+  multiLoginEnabled?: boolean;
+  multiLoginQueue?: MultiLoginItem[];
 
   // Novos campos para Multiespécies (Mockup/Config)
   mpaSpecies?: Array<{

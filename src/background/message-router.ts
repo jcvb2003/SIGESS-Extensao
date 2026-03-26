@@ -1,6 +1,7 @@
 import { StorageService } from "./services/storage";
 import { LicenseService } from "../shared/services/license";
-import { MessageRequest, MessageResponse } from "../shared/types";
+import { MessageRequest, MessageResponse, MultiLoginItem } from "../shared/types";
+import { BadgeService } from "./services/badge-service";
 
 export async function routeMessage(
   message: MessageRequest,
@@ -47,6 +48,12 @@ async function handleUpdateSettings(message: MessageRequest) {
     else if (message.settings.gerarGps) newSettings.consultarGuias = false;
   }
   await StorageService.saveSettings(newSettings);
+  
+  // Atualiza o badge caso a fila tenha mudado
+  if (message.settings.multiLoginQueue) {
+    await BadgeService.updateQueueBadge(newSettings.multiLoginQueue?.length || 0);
+  }
+  
   return { success: true, settings: newSettings };
 }
 
@@ -92,10 +99,40 @@ async function handleAbrirAbaContainer(
       error: `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }
-  const { url, cpf, senha } = message;
+  const { url, cpf, senha, nome } = message;
   if (!url?.startsWith("http")) {
     return { success: false, error: "URL inválida" };
   }
+
+  const settings = await StorageService.getSettings();
+  
+  // Se o login múltiplo estiver ATIVADO, enfileira
+  if (settings.multiLoginEnabled) {
+    const queue = settings.multiLoginQueue || [];
+    
+    // Limite de 5 itens conforme solicitado
+    if (queue.length >= 5) {
+      return { success: false, error: "Fila de login múltiplo cheia (máx 5). Abra o lote ou remova itens." };
+    }
+
+    const newItem: MultiLoginItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      nome: nome || cpf, // Usa nome se existir, senão CPF
+      cpf,
+      senha,
+      url,
+      type: url.includes("esocial") ? "esocial" : "pesqbrasil",
+      timestamp: Date.now()
+    };
+
+    const newQueue = [...queue, newItem];
+    await StorageService.saveSettings({ ...settings, multiLoginQueue: newQueue });
+    await BadgeService.updateQueueBadge(newQueue.length);
+    
+    return { success: true, queued: true, nome: newItem.nome };
+  }
+
+  // Se estiver DESATIVADO, abre a aba imediatamente (comportamento original)
   const randIndex = Math.floor(Math.random() * 1000);
   await getTabManager().createSession(url, cpf, senha, randIndex);
   return { success: true };
