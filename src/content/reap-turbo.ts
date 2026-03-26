@@ -7,21 +7,8 @@ class TurboLogger {
     private overlay: HTMLDivElement | null = null;
     constructor() { if (typeof document !== 'undefined') this.createOverlay(); }
     private createOverlay() {
-        let container = document.getElementById('sigess-turbo-debug');
-        if (container) container.remove();
-        this.overlay = document.createElement('div');
-        this.overlay.id = 'sigess-turbo-debug';
-        Object.assign(this.overlay.style, {
-            position: 'fixed', bottom: '10px', right: '10px', width: '450px', maxHeight: '400px',
-            backgroundColor: 'rgba(0, 0, 0, 0.9)', color: '#00ff00', fontFamily: 'monospace',
-            fontSize: '11px', padding: '12px', borderRadius: '8px', zIndex: '999999',
-            overflowY: 'auto', border: '1px solid #333', boxShadow: '0 8px 25px rgba(0,0,0,0.7)',
-            pointerEvents: 'auto'
-        });
-        const header = document.createElement('div');
-        header.innerHTML = '<b style="color:#00ffff">🚀 SIGESS TURBO TELEMETRY</b> <hr style="border:0;border-top:1px solid #444;margin:5px 0">';
-        this.overlay.appendChild(header);
-        document.body.appendChild(this.overlay);
+        console.log("[SIGESS Turbo] Overlay disabled by request.");
+        return;
     }
     log(msg: string, type: 'info' | 'warn' | 'error' | 'success' | 'payload' = 'info') {
         const timestamp = new Date().toLocaleTimeString();
@@ -248,7 +235,6 @@ class ReapTurbo {
     public async run(config: TurboReapConfig) {
         if ((globalThis as any).__sigessTurboRunning) return;
         (globalThis as any).__sigessTurboRunning = true;
-        this.turboLogger.show();
         this.turboLogger.log(`REAP TURBO v2.7.1-FORCE`);
         try {
             for (let m = 1; m <= 12; m++) {
@@ -286,7 +272,7 @@ if (typeof globalThis.window !== 'undefined' && !(globalThis as any).__sigessTur
                 console.log("Body (Raw):", options.body);
             }
             console.log("%c=====================================================", "color: #ff00ff; font-weight: bold;");
-            alert("[SIGESS Turbo] Payload nativo capturado! Abra o Console (F12) e envie o texto para o desenvolvedor.");
+            // Payload capture alert removed for speed
         }
         return origFetch.apply(this, args);
     };

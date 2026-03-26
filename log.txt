@@ -1,0 +1,1238 @@
+[SIGESS Turbo] REAP TURBO v2.7.1-FORCE content_reap_turbo.js:1:1200
+[SIGESS Turbo] Enviando Mês 5... content_reap_turbo.js:1:1200
+=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED === content_reap_turbo.js:1:6214
+Headers: {
+  "next-action": "0e19fa9cd1721c7395e62a3a725505d58b5b5630",
+  "content-type": "text/plain;charset=UTF-8",
+  "accept": "text/x-component",
+  "next-router-state-tree": "%5B%22%22%2C%7B%22children%22%3A%5B%22manutencao%22%2C%7B%22children%22%3A%5B%5B%22id%22%2C%222629000458%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%5B%22tipoVisualizacao%22%2C%22cadastro%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22informe-mensal%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fmanutencao%2F2629000458%2Fcadastro%2Finforme-mensal%22%2C%22refresh%22%5D%7D%5D%7D%5D%7D%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D"
+} content_reap_turbo.js:1:6447
+Body JSON: [
+  "2629000458",
+  {
+    "errosValidacao": {
+      "informesMensaisCompletos": "deve ser verdadeiro",
+      "informesMensais[10].houvePesca": "não deve ser nulo",
+      "informesMensais[11].houvePesca": "não deve ser nulo",
+      "informesMensais[4].houvePesca": "não deve ser nulo",
+      "informesMensais[5].houvePesca": "não deve ser nulo",
+      "informesMensais[6].houvePesca": "não deve ser nulo",
+      "informesMensais[7].houvePesca": "não deve ser nulo",
+      "informesMensais[8].houvePesca": "não deve ser nulo",
+      "informesMensais[9].houvePesca": "não deve ser nulo"
+    },
+    "configuracoes": {
+      "podeEnviar": "true"
+    },
+    "id": 2629000458,
+    "pescador": {
+      "id": 1344662,
+      "perfil": 6,
+      "cpf": "55098193249",
+      "nome": "SUELLEN LOPES DE JESUS",
+      "situacao": 2,
+      "registro": {
+        "id": 1275109,
+        "solicitacaoId": 1841696,
+        "tipoSolicitacaoId": 2,
+        "registroComProtocolo": false,
+        "codigoRGP": "PAPA55098193249",
+        "codigoPrimeiroRGP": "PAP40511401    ",
+        "dataPrimeiroRGP": "2014-08-17T00:00:00.000-03:00",
+        "uf": 5,
+        "orgao": 1,
+        "dataEmissao": "2021-12-20T17:10:08.644-03:00"
+      },
+      "dataNascimento": "1996-08-28T00:00:00.000-03:00"
+    },
+    "situacao": 2,
+    "anoReferencia": 2025,
+    "dataCriacao": "2026-03-26T08:40:46.112-03:00",
+    "dataAtualizacao": "2026-03-26T08:40:46.112-03:00",
+    "identificacaoPescador": {
+      "id": 2629000458,
+      "categoria": 2,
+      "embarcado": 2,
+      "numeroCtps": "16613610497",
+      "tipoCtps": 10,
+      "uf": 5,
+      "municipio": 4718
+    },
+    "dadosAtividade": {
+      "id": 2629000458,
+      "prestacaoServico": 2,
+      "estadosComercializacao": [
+        5
+      ],
+      "gruposAlvo": [
+        5
+      ],
+      "compradoresPescado": [
+        6
+      ],
+      "areasRealizacaoPesca": []
+    },
+    "informesMensais": [
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000065,
+        "mes": 1,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "28"
+        },
+        "id": 14643000066,
+        "mes": 2,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000067,
+        "mes": 3,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000068,
+        "mes": 4,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000069,
+        "mes": 5,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [
+          {
+            "localPesca": 6,
+            "uf": 5,
+            "municipio": 4820,
+            "petrechosPesca": [
+              4
+            ],
+            "ambientePesca": "1"
+          }
+        ],
+        "resultadosOperacaoPesca": [
+          {
+            "especiePescado": 12,
+            "unidadeMedida": 1,
+            "quantidade": 16,
+            "valorMedioQuilo": 5.5
+          },
+          {
+            "especiePescado": 21,
+            "unidadeMedida": 1,
+            "quantidade": 11,
+            "valorMedioQuilo": 10.5
+          },
+          {
+            "especiePescado": 15,
+            "unidadeMedida": 1,
+            "quantidade": 9,
+            "valorMedioQuilo": 14.5
+          },
+          {
+            "especiePescado": 25,
+            "unidadeMedida": 1,
+            "quantidade": 7,
+            "valorMedioQuilo": 6.5
+          },
+          {
+            "especiePescado": 26,
+            "unidadeMedida": 1,
+            "quantidade": 3,
+            "valorMedioQuilo": 6.5
+          }
+        ],
+        "preenchido": true,
+        "observacao": "",
+        "houvePesca": true,
+        "diasTrabalhados": 17
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000070,
+        "mes": 6,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000071,
+        "mes": 7,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000072,
+        "mes": 8,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000073,
+        "mes": 9,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000074,
+        "mes": 10,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000075,
+        "mes": 11,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000076,
+        "mes": 12,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      }
+    ]
+  },
+  3
+] content_reap_turbo.js:1:6520
+===================================================== content_reap_turbo.js:1:6622
+[SIGESS Turbo] Sincronizando... content_reap_turbo.js:1:1200
+[SIGESS Turbo] Mês 5 OK! (Houve Pesca no Server: true) content_reap_turbo.js:1:1200
+[SIGESS Turbo] --- MÊS 6 --- content_reap_turbo.js:1:1200
+[SIGESS Turbo] Config: Houve Pesca = true content_reap_turbo.js:1:1200
+[SIGESS Turbo] Enviando Mês 6... content_reap_turbo.js:1:1200
+=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED === content_reap_turbo.js:1:6214
+Headers: {
+  "next-action": "0e19fa9cd1721c7395e62a3a725505d58b5b5630",
+  "content-type": "text/plain;charset=UTF-8",
+  "accept": "text/x-component",
+  "next-router-state-tree": "%5B%22%22%2C%7B%22children%22%3A%5B%22manutencao%22%2C%7B%22children%22%3A%5B%5B%22id%22%2C%222629000458%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%5B%22tipoVisualizacao%22%2C%22cadastro%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22informe-mensal%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fmanutencao%2F2629000458%2Fcadastro%2Finforme-mensal%22%2C%22refresh%22%5D%7D%5D%7D%5D%7D%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D"
+} content_reap_turbo.js:1:6447
+Body JSON: [
+  "2629000458",
+  {
+    "errosValidacao": {
+      "informesMensaisCompletos": "deve ser verdadeiro",
+      "informesMensais[10].houvePesca": "não deve ser nulo",
+      "informesMensais[11].houvePesca": "não deve ser nulo",
+      "informesMensais[5].houvePesca": "não deve ser nulo",
+      "informesMensais[6].houvePesca": "não deve ser nulo",
+      "informesMensais[7].houvePesca": "não deve ser nulo",
+      "informesMensais[8].houvePesca": "não deve ser nulo",
+      "informesMensais[9].houvePesca": "não deve ser nulo"
+    },
+    "configuracoes": {
+      "podeEnviar": "true"
+    },
+    "id": 2629000458,
+    "pescador": {
+      "id": 1344662,
+      "perfil": 6,
+      "cpf": "55098193249",
+      "nome": "SUELLEN LOPES DE JESUS",
+      "situacao": 2,
+      "registro": {
+        "id": 1275109,
+        "solicitacaoId": 1841696,
+        "tipoSolicitacaoId": 2,
+        "registroComProtocolo": false,
+        "codigoRGP": "PAPA55098193249",
+        "codigoPrimeiroRGP": "PAP40511401    ",
+        "dataPrimeiroRGP": "2014-08-17T00:00:00.000-03:00",
+        "uf": 5,
+        "orgao": 1,
+        "dataEmissao": "2021-12-20T17:10:08.644-03:00"
+      },
+      "dataNascimento": "1996-08-28T00:00:00.000-03:00"
+    },
+    "situacao": 2,
+    "anoReferencia": 2025,
+    "dataCriacao": "2026-03-26T08:40:46.112-03:00",
+    "dataAtualizacao": "2026-03-26T08:40:46.112-03:00",
+    "identificacaoPescador": {
+      "id": 2629000458,
+      "categoria": 2,
+      "embarcado": 2,
+      "numeroCtps": "16613610497",
+      "tipoCtps": 10,
+      "uf": 5,
+      "municipio": 4718
+    },
+    "dadosAtividade": {
+      "id": 2629000458,
+      "prestacaoServico": 2,
+      "estadosComercializacao": [
+        5
+      ],
+      "gruposAlvo": [
+        5
+      ],
+      "compradoresPescado": [
+        6
+      ],
+      "areasRealizacaoPesca": []
+    },
+    "informesMensais": [
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000065,
+        "mes": 1,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "28"
+        },
+        "id": 14643000066,
+        "mes": 2,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000067,
+        "mes": 3,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000068,
+        "mes": 4,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000069,
+        "mes": 5,
+        "houvePesca": true,
+        "diasTrabalhados": 17,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [
+          {
+            "localPesca": 6,
+            "uf": 5,
+            "municipio": 4820,
+            "petrechosPesca": [
+              4
+            ],
+            "ambientePesca": "1"
+          }
+        ],
+        "resultadosOperacaoPesca": [
+          {
+            "id": 32062000342,
+            "especiePescado": 12,
+            "unidadeMedida": 1,
+            "quantidade": 16,
+            "valorMedioQuilo": 5.5
+          },
+          {
+            "id": 32062000343,
+            "especiePescado": 21,
+            "unidadeMedida": 1,
+            "quantidade": 11,
+            "valorMedioQuilo": 10.5
+          },
+          {
+            "id": 32062000344,
+            "especiePescado": 15,
+            "unidadeMedida": 1,
+            "quantidade": 9,
+            "valorMedioQuilo": 14.5
+          },
+          {
+            "id": 32062000345,
+            "especiePescado": 25,
+            "unidadeMedida": 1,
+            "quantidade": 7,
+            "valorMedioQuilo": 6.5
+          },
+          {
+            "id": 32062000346,
+            "especiePescado": 26,
+            "unidadeMedida": 1,
+            "quantidade": 3,
+            "valorMedioQuilo": 6.5
+          }
+        ],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000070,
+        "mes": 6,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [
+          {
+            "localPesca": 6,
+            "uf": 5,
+            "municipio": 4820,
+            "petrechosPesca": [
+              4
+            ],
+            "ambientePesca": "1"
+          }
+        ],
+        "resultadosOperacaoPesca": [
+          {
+            "especiePescado": 12,
+            "unidadeMedida": 1,
+            "quantidade": 14,
+            "valorMedioQuilo": 5.5
+          },
+          {
+            "especiePescado": 21,
+            "unidadeMedida": 1,
+            "quantidade": 9,
+            "valorMedioQuilo": 10.5
+          },
+          {
+            "especiePescado": 15,
+            "unidadeMedida": 1,
+            "quantidade": 8,
+            "valorMedioQuilo": 14.5
+          },
+          {
+            "especiePescado": 25,
+            "unidadeMedida": 1,
+            "quantidade": 6,
+            "valorMedioQuilo": 6.5
+          },
+          {
+            "especiePescado": 26,
+            "unidadeMedida": 1,
+            "quantidade": 3,
+            "valorMedioQuilo": 6.5
+          }
+        ],
+        "preenchido": true,
+        "observacao": "",
+        "houvePesca": true,
+        "diasTrabalhados": 15
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000071,
+        "mes": 7,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000072,
+        "mes": 8,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000073,
+        "mes": 9,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000074,
+        "mes": 10,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000075,
+        "mes": 11,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000076,
+        "mes": 12,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      }
+    ]
+  },
+  3
+] content_reap_turbo.js:1:6520
+===================================================== content_reap_turbo.js:1:6622
+[SIGESS Turbo] Sincronizando... content_reap_turbo.js:1:1200
+[SIGESS Turbo] Mês 6 OK! (Houve Pesca no Server: true) content_reap_turbo.js:1:1200
+[SIGESS Turbo] --- MÊS 7 --- content_reap_turbo.js:1:1200
+[SIGESS Turbo] Config: Houve Pesca = true content_reap_turbo.js:1:1200
+[SIGESS Turbo] Enviando Mês 7... content_reap_turbo.js:1:1200
+=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED === content_reap_turbo.js:1:6214
+Headers: {
+  "next-action": "0e19fa9cd1721c7395e62a3a725505d58b5b5630",
+  "content-type": "text/plain;charset=UTF-8",
+  "accept": "text/x-component",
+  "next-router-state-tree": "%5B%22%22%2C%7B%22children%22%3A%5B%22manutencao%22%2C%7B%22children%22%3A%5B%5B%22id%22%2C%222629000458%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%5B%22tipoVisualizacao%22%2C%22cadastro%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22informe-mensal%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fmanutencao%2F2629000458%2Fcadastro%2Finforme-mensal%22%2C%22refresh%22%5D%7D%5D%7D%5D%7D%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D"
+} content_reap_turbo.js:1:6447
+Body JSON: [
+  "2629000458",
+  {
+    "errosValidacao": {
+      "informesMensaisCompletos": "deve ser verdadeiro",
+      "informesMensais[10].houvePesca": "não deve ser nulo",
+      "informesMensais[11].houvePesca": "não deve ser nulo",
+      "informesMensais[6].houvePesca": "não deve ser nulo",
+      "informesMensais[7].houvePesca": "não deve ser nulo",
+      "informesMensais[8].houvePesca": "não deve ser nulo",
+      "informesMensais[9].houvePesca": "não deve ser nulo"
+    },
+    "configuracoes": {
+      "podeEnviar": "true"
+    },
+    "id": 2629000458,
+    "pescador": {
+      "id": 1344662,
+      "perfil": 6,
+      "cpf": "55098193249",
+      "nome": "SUELLEN LOPES DE JESUS",
+      "situacao": 2,
+      "registro": {
+        "id": 1275109,
+        "solicitacaoId": 1841696,
+        "tipoSolicitacaoId": 2,
+        "registroComProtocolo": false,
+        "codigoRGP": "PAPA55098193249",
+        "codigoPrimeiroRGP": "PAP40511401    ",
+        "dataPrimeiroRGP": "2014-08-17T00:00:00.000-03:00",
+        "uf": 5,
+        "orgao": 1,
+        "dataEmissao": "2021-12-20T17:10:08.644-03:00"
+      },
+      "dataNascimento": "1996-08-28T00:00:00.000-03:00"
+    },
+    "situacao": 2,
+    "anoReferencia": 2025,
+    "dataCriacao": "2026-03-26T08:40:46.112-03:00",
+    "dataAtualizacao": "2026-03-26T08:40:46.112-03:00",
+    "identificacaoPescador": {
+      "id": 2629000458,
+      "categoria": 2,
+      "embarcado": 2,
+      "numeroCtps": "16613610497",
+      "tipoCtps": 10,
+      "uf": 5,
+      "municipio": 4718
+    },
+    "dadosAtividade": {
+      "id": 2629000458,
+      "prestacaoServico": 2,
+      "estadosComercializacao": [
+        5
+      ],
+      "gruposAlvo": [
+        5
+      ],
+      "compradoresPescado": [
+        6
+      ],
+      "areasRealizacaoPesca": []
+    },
+    "informesMensais": [
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000065,
+        "mes": 1,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "28"
+        },
+        "id": 14643000066,
+        "mes": 2,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000067,
+        "mes": 3,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000068,
+        "mes": 4,
+        "houvePesca": false,
+        "justificativasNaoDeclaracao": [
+          1
+        ],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000069,
+        "mes": 5,
+        "houvePesca": true,
+        "diasTrabalhados": 17,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [
+          {
+            "localPesca": 6,
+            "uf": 5,
+            "municipio": 4820,
+            "petrechosPesca": [
+              4
+            ],
+            "ambientePesca": "1"
+          }
+        ],
+        "resultadosOperacaoPesca": [
+          {
+            "id": 32062000342,
+            "especiePescado": 12,
+            "unidadeMedida": 1,
+            "quantidade": 16,
+            "valorMedioQuilo": 5.5
+          },
+          {
+            "id": 32062000343,
+            "especiePescado": 21,
+            "unidadeMedida": 1,
+            "quantidade": 11,
+            "valorMedioQuilo": 10.5
+          },
+          {
+            "id": 32062000344,
+            "especiePescado": 15,
+            "unidadeMedida": 1,
+            "quantidade": 9,
+            "valorMedioQuilo": 14.5
+          },
+          {
+            "id": 32062000345,
+            "especiePescado": 25,
+            "unidadeMedida": 1,
+            "quantidade": 7,
+            "valorMedioQuilo": 6.5
+          },
+          {
+            "id": 32062000346,
+            "especiePescado": 26,
+            "unidadeMedida": 1,
+            "quantidade": 3,
+            "valorMedioQuilo": 6.5
+          }
+        ],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000070,
+        "mes": 6,
+        "houvePesca": true,
+        "diasTrabalhados": 15,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [
+          {
+            "localPesca": 6,
+            "uf": 5,
+            "municipio": 4820,
+            "petrechosPesca": [
+              4
+            ],
+            "ambientePesca": "1"
+          }
+        ],
+        "resultadosOperacaoPesca": [
+          {
+            "id": 32053001842,
+            "especiePescado": 12,
+            "unidadeMedida": 1,
+            "quantidade": 14,
+            "valorMedioQuilo": 5.5
+          },
+          {
+            "id": 32053001843,
+            "especiePescado": 21,
+            "unidadeMedida": 1,
+            "quantidade": 9,
+            "valorMedioQuilo": 10.5
+          },
+          {
+            "id": 32053001844,
+            "especiePescado": 15,
+            "unidadeMedida": 1,
+            "quantidade": 8,
+            "valorMedioQuilo": 14.5
+          },
+          {
+            "id": 32053001845,
+            "especiePescado": 25,
+            "unidadeMedida": 1,
+            "quantidade": 6,
+            "valorMedioQuilo": 6.5
+          },
+          {
+            "id": 32053001846,
+            "especiePescado": 26,
+            "unidadeMedida": 1,
+            "quantidade": 3,
+            "valorMedioQuilo": 6.5
+          }
+        ],
+        "preenchido": true,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000071,
+        "mes": 7,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [
+          {
+            "localPesca": 6,
+            "uf": 5,
+            "municipio": 4820,
+            "petrechosPesca": [
+              4
+            ],
+            "ambientePesca": "1"
+          }
+        ],
+        "resultadosOperacaoPesca": [
+          {
+            "especiePescado": 12,
+            "unidadeMedida": 1,
+            "quantidade": 12,
+            "valorMedioQuilo": 5.5
+          },
+          {
+            "especiePescado": 21,
+            "unidadeMedida": 1,
+            "quantidade": 8,
+            "valorMedioQuilo": 10.5
+          },
+          {
+            "especiePescado": 15,
+            "unidadeMedida": 1,
+            "quantidade": 7,
+            "valorMedioQuilo": 14.5
+          },
+          {
+            "especiePescado": 25,
+            "unidadeMedida": 1,
+            "quantidade": 5,
+            "valorMedioQuilo": 6.5
+          },
+          {
+            "especiePescado": 26,
+            "unidadeMedida": 1,
+            "quantidade": 2,
+            "valorMedioQuilo": 6.5
+          }
+        ],
+        "preenchido": true,
+        "observacao": "",
+        "houvePesca": true,
+        "diasTrabalhados": 13
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000072,
+        "mes": 8,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000073,
+        "mes": 9,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000074,
+        "mes": 10,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "30"
+        },
+        "id": 14643000075,
+        "mes": 11,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      },
+      {
+        "configuracoes": {
+          "diasAtivo": "31"
+        },
+        "id": 14643000076,
+        "mes": 12,
+        "justificativasNaoDeclaracao": [],
+        "areasRealizacaoPesca": [],
+        "resultadosOperacaoPesca": [],
+        "preenchido": false,
+        "observacao": ""
+      }
+    ]
+  },
+  3
+] content_reap_turbo.js:1:6520
+===================================================== content_reap_turbo.js:1:6622
+[SIGESS Turbo] Sincronizando... content_reap_turbo.js:1:1200
+[SIGESS Turbo] Mês 7 OK! (Houve Pesca no Server: true) content_reap_turbo.js:1:1200
+[SIGESS Turbo] --- MÊS 8 --- content_reap_turbo.js:1:1200
+[SIGESS Turbo] Config: Houve Pesca = true content_reap_turbo.js:1:1200
+[SIGESS Turbo] Enviando Mês 8... content_reap_turbo.js:1:1200
+=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED === content_reap_turbo.js:1:6214
+Headers: {
+  "next-action": "0e19fa9cd1721c7395e62a3a725505d58b5b5630",
+  "content-type": "text/plain;charset=UTF-8",
+  "accept": "text/x-component",
+  "next-router-state-tree": "%5B%22%22%2C%7B%22children%22%3A%5B%22manutencao%22%2C%7B%22children%22%3A%5B%5B%22id%22%2C%222629000458%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%5B%22tipoVisualizacao%22%2C%22cadastro%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22informe-mensal%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fmanutencao%2F2629000458%2Fcadastro%2Finforme-mensal%22%2C%22refresh%22%5D%7D%5D%7D%5D%7D%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D"
+} content_reap_turbo.js:1:6447
+Body JSON: 
+[
+  "2629000458",
+  {
+    "errosValidacao": {
+      "informesMensaisCompletos": "deve ser verdadeiro",
+      "informesMensais[10].houvePesca": "não deve ser nulo",
+      "informesMensais[11].houvePesca": "não deve ser nulo",
+      "informesMensais[7].houvePesca": "não deve ser nulo",
+      "informesMensais[8].houvePesca": "não deve ser nulo",
+      "informesMensais[9].houvePesca": "não deve ser nulo"
+    },
+    "configuracoes": {
+      "podeEnviar": "true"
+    },
+    "id": 2629000458,
+    "pescador": {
+      "id": 1344662,
+      "perfil": 6,
+      "cpf": "55098193249",
+      "nome": "SUELLEN LOPES DE JESUS",
+      "situacao": 2,
+      "registro": {
+        "id": 1275109,
+        "solicitacaoId": 1841696,
+        "tipoSolicitacaoId": 2,
+        "registroComProtocolo": false,
+        "codigoRGP": "PAPA55098193249",
+        "codigoPrimeiroRGP": "PAP40511401    ",
+        "dataPrimeiroRGP": "2014-08-17T00:00:00.000-03:00",
+        "uf": 5,
+        "orgao": 1,
+        "dataEmissao": "2021-1…
+content_reap_turbo.js:1:6520
+===================================================== content_reap_turbo.js:1:6622
+[SIGESS Turbo] Sincronizando... content_reap_turbo.js:1:1200
+[SIGESS Turbo] Mês 8 OK! (Houve Pesca no Server: true) content_reap_turbo.js:1:1200
+[SIGESS Turbo] --- MÊS 9 --- content_reap_turbo.js:1:1200
+[SIGESS Turbo] Config: Houve Pesca = true content_reap_turbo.js:1:1200
+[SIGESS Turbo] Enviando Mês 9... content_reap_turbo.js:1:1200
+=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED === content_reap_turbo.js:1:6214
+Headers: {
+  "next-action": "0e19fa9cd1721c7395e62a3a725505d58b5b5630",
+  "content-type": "text/plain;charset=UTF-8",
+  "accept": "text/x-component",
+  "next-router-state-tree": "%5B%22%22%2C%7B%22children%22%3A%5B%22manutencao%22%2C%7B%22children%22%3A%5B%5B%22id%22%2C%222629000458%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%5B%22tipoVisualizacao%22%2C%22cadastro%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22informe-mensal%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fmanutencao%2F2629000458%2Fcadastro%2Finforme-mensal%22%2C%22refresh%22%5D%7D%5D%7D%5D%7D%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D"
+} content_reap_turbo.js:1:6447
+Body JSON: 
+[
+  "2629000458",
+  {
+    "errosValidacao": {
+      "informesMensaisCompletos": "deve ser verdadeiro",
+      "informesMensais[10].houvePesca": "não deve ser nulo",
+      "informesMensais[11].houvePesca": "não deve ser nulo",
+      "informesMensais[8].houvePesca": "não deve ser nulo",
+      "informesMensais[9].houvePesca": "não deve ser nulo"
+    },
+    "configuracoes": {
+      "podeEnviar": "true"
+    },
+    "id": 2629000458,
+    "pescador": {
+      "id": 1344662,
+      "perfil": 6,
+      "cpf": "55098193249",
+      "nome": "SUELLEN LOPES DE JESUS",
+      "situacao": 2,
+      "registro": {
+        "id": 1275109,
+        "solicitacaoId": 1841696,
+        "tipoSolicitacaoId": 2,
+        "registroComProtocolo": false,
+        "codigoRGP": "PAPA55098193249",
+        "codigoPrimeiroRGP": "PAP40511401    ",
+        "dataPrimeiroRGP": "2014-08-17T00:00:00.000-03:00",
+        "uf": 5,
+        "orgao": 1,
+        "dataEmissao": "2021-12-20T17:10:08.644-03:00"
+      },
+      "dataNascimento": "1…
+content_reap_turbo.js:1:6520
+===================================================== content_reap_turbo.js:1:6622
+[SIGESS Turbo] Sincronizando... content_reap_turbo.js:1:1200
+[SIGESS Turbo] Mês 9 OK! (Houve Pesca no Server: true) content_reap_turbo.js:1:1200
+[SIGESS Turbo] --- MÊS 10 --- content_reap_turbo.js:1:1200
+[SIGESS Turbo] Config: Houve Pesca = true content_reap_turbo.js:1:1200
+[SIGESS Turbo] Enviando Mês 10... content_reap_turbo.js:1:1200
+=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED === content_reap_turbo.js:1:6214
+Headers: {
+  "next-action": "0e19fa9cd1721c7395e62a3a725505d58b5b5630",
+  "content-type": "text/plain;charset=UTF-8",
+  "accept": "text/x-component",
+  "next-router-state-tree": "%5B%22%22%2C%7B%22children%22%3A%5B%22manutencao%22%2C%7B%22children%22%3A%5B%5B%22id%22%2C%222629000458%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%5B%22tipoVisualizacao%22%2C%22cadastro%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22informe-mensal%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fmanutencao%2F2629000458%2Fcadastro%2Finforme-mensal%22%2C%22refresh%22%5D%7D%5D%7D%5D%7D%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D"
+} content_reap_turbo.js:1:6447
+Body JSON: 
+[
+  "2629000458",
+  {
+    "errosValidacao": {
+      "informesMensaisCompletos": "deve ser verdadeiro",
+      "informesMensais[10].houvePesca": "não deve ser nulo",
+      "informesMensais[11].houvePesca": "não deve ser nulo",
+      "informesMensais[9].houvePesca": "não deve ser nulo"
+    },
+    "configuracoes": {
+      "podeEnviar": "true"
+    },
+    "id": 2629000458,
+    "pescador": {
+      "id": 1344662,
+      "perfil": 6,
+      "cpf": "55098193249",
+      "nome": "SUELLEN LOPES DE JESUS",
+      "situacao": 2,
+      "registro": {
+        "id": 1275109,
+        "solicitacaoId": 1841696,
+        "tipoSolicitacaoId": 2,
+        "registroComProtocolo": false,
+        "codigoRGP": "PAPA55098193249",
+        "codigoPrimeiroRGP": "PAP40511401    ",
+        "dataPrimeiroRGP": "2014-08-17T00:00:00.000-03:00",
+        "uf": 5,
+        "orgao": 1,
+        "dataEmissao": "2021-12-20T17:10:08.644-03:00"
+      },
+      "dataNascimento": "1996-08-28T00:00:00.000-03:00"
+    },
+    "situacao": 2,
+    …
+content_reap_turbo.js:1:6520
+===================================================== content_reap_turbo.js:1:6622
+[SIGESS Turbo] Sincronizando... content_reap_turbo.js:1:1200
+[SIGESS Turbo] Mês 10 OK! (Houve Pesca no Server: true) content_reap_turbo.js:1:1200
+[SIGESS Turbo] --- MÊS 11 --- content_reap_turbo.js:1:1200
+[SIGESS Turbo] Config: Houve Pesca = true content_reap_turbo.js:1:1200
+[SIGESS Turbo] Enviando Mês 11... content_reap_turbo.js:1:1200
+=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED === content_reap_turbo.js:1:6214
+Headers: {
+  "next-action": "0e19fa9cd1721c7395e62a3a725505d58b5b5630",
+  "content-type": "text/plain;charset=UTF-8",
+  "accept": "text/x-component",
+  "next-router-state-tree": "%5B%22%22%2C%7B%22children%22%3A%5B%22manutencao%22%2C%7B%22children%22%3A%5B%5B%22id%22%2C%222629000458%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%5B%22tipoVisualizacao%22%2C%22cadastro%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22informe-mensal%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fmanutencao%2F2629000458%2Fcadastro%2Finforme-mensal%22%2C%22refresh%22%5D%7D%5D%7D%5D%7D%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D"
+} content_reap_turbo.js:1:6447
+Body JSON: 
+[
+  "2629000458",
+  {
+    "errosValidacao": {
+      "informesMensaisCompletos": "deve ser verdadeiro",
+      "informesMensais[10].houvePesca": "não deve ser nulo",
+      "informesMensais[11].houvePesca": "não deve ser nulo"
+    },
+    "configuracoes": {
+      "podeEnviar": "true"
+    },
+    "id": 2629000458,
+    "pescador": {
+      "id": 1344662,
+      "perfil": 6,
+      "cpf": "55098193249",
+      "nome": "SUELLEN LOPES DE JESUS",
+      "situacao": 2,
+      "registro": {
+        "id": 1275109,
+        "solicitacaoId": 1841696,
+        "tipoSolicitacaoId": 2,
+        "registroComProtocolo": false,
+        "codigoRGP": "PAPA55098193249",
+        "codigoPrimeiroRGP": "PAP40511401    ",
+        "dataPrimeiroRGP": "2014-08-17T00:00:00.000-03:00",
+        "uf": 5,
+        "orgao": 1,
+        "dataEmissao": "2021-12-20T17:10:08.644-03:00"
+      },
+      "dataNascimento": "1996-08-28T00:00:00.000-03:00"
+    },
+    "situacao": 2,
+    "anoReferencia": 2025,
+    "dataCriacao": "2026-03-26T08:40:…
+content_reap_turbo.js:1:6520
+===================================================== content_reap_turbo.js:1:6622
+[SIGESS Turbo] Sincronizando... content_reap_turbo.js:1:1200
+[SIGESS Turbo] Mês 11 OK! (Houve Pesca no Server: true) content_reap_turbo.js:1:1200
+[SIGESS Turbo] --- MÊS 12 --- content_reap_turbo.js:1:1200
+[SIGESS Turbo] Config: Houve Pesca = true content_reap_turbo.js:1:1200
+[SIGESS Turbo] Enviando Mês 12... content_reap_turbo.js:1:1200
+=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED === content_reap_turbo.js:1:6214
+Headers: {
+  "next-action": "0e19fa9cd1721c7395e62a3a725505d58b5b5630",
+  "content-type": "text/plain;charset=UTF-8",
+  "accept": "text/x-component",
+  "next-router-state-tree": "%5B%22%22%2C%7B%22children%22%3A%5B%22manutencao%22%2C%7B%22children%22%3A%5B%5B%22id%22%2C%222629000458%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%5B%22tipoVisualizacao%22%2C%22cadastro%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22informe-mensal%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fmanutencao%2F2629000458%2Fcadastro%2Finforme-mensal%22%2C%22refresh%22%5D%7D%5D%7D%5D%7D%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D"
+} content_reap_turbo.js:1:6447
+Body JSON: 
+[
+  "2629000458",
+  {
+    "errosValidacao": {
+      "informesMensaisCompletos": "deve ser verdadeiro",
+      "informesMensais[11].houvePesca": "não deve ser nulo"
+    },
+    "configuracoes": {
+      "podeEnviar": "true"
+    },
+    "id": 2629000458,
+    "pescador": {
+      "id": 1344662,
+      "perfil": 6,
+      "cpf": "55098193249",
+      "nome": "SUELLEN LOPES DE JESUS",
+      "situacao": 2,
+      "registro": {
+        "id": 1275109,
+        "solicitacaoId": 1841696,
+        "tipoSolicitacaoId": 2,
+        "registroComProtocolo": false,
+        "codigoRGP": "PAPA55098193249",
+        "codigoPrimeiroRGP": "PAP40511401    ",
+        "dataPrimeiroRGP": "2014-08-17T00:00:00.000-03:00",
+        "uf": 5,
+        "orgao": 1,
+        "dataEmissao": "2021-12-20T17:10:08.644-03:00"
+      },
+      "dataNascimento": "1996-08-28T00:00:00.000-03:00"
+    },
+    "situacao": 2,
+    "anoReferencia": 2025,
+    "dataCriacao": "2026-03-26T08:40:46.112-03:00",
+    "dataAtualizacao": "2026-03-26T08:40:46.11…
+content_reap_turbo.js:1:6520
+===================================================== content_reap_turbo.js:1:6622
+[SIGESS Turbo] Sincronizando... content_reap_turbo.js:1:1200
+[SIGESS Turbo] Mês 12 OK! (Houve Pesca no Server: true) content_reap_turbo.js:1:1200
+Navegou para https://pesqbrasil-pescadorprofissional.mpa.gov.br/manutencao/2629000458/cadastro/informe-mensal
+[SIGESS Turbo] Ready v2.7.1-FORCE content_reap_turbo.js:1:7147
+SIGESS: MPA REAP Initialized content_reap.js:31:1165
+SIGESS: Content Script active content_script.js:1:34
+
+​
+

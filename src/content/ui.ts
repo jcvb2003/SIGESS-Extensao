@@ -178,6 +178,9 @@ const injectButton = () => {
       btnTurbo.style.cssText =
         "padding: 8px; background: #6f42c1; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
       btnTurbo.innerHTML = `⚡ Turbo API`;
+      btnTurbo.disabled = true;
+      btnTurbo.innerHTML = "⏳ Enviando...";
+      btnTurbo.style.background = "#ffc107";
       btnTurbo.onclick = async (e) => {
         e.stopPropagation();
         if (State.isRunning) return;
@@ -248,11 +251,13 @@ const injectButton = () => {
             alert(response?.error || 'Erro desconhecido');
             btnTurbo.innerHTML = `⚡ Turbo API`;
             btnTurbo.style.background = "#6f42c1";
+            btnTurbo.disabled = false;
           }
         } catch (err: any) {
           alert("Erro: " + err.message);
           btnTurbo.innerHTML = `⚡ Turbo API`;
           btnTurbo.style.background = "#6f42c1";
+          btnTurbo.disabled = false;
         }
       };
       container.appendChild(btnTurbo);

@@ -18,7 +18,6 @@ export const ProductionGenerator = {
           Math.floor(Math.random() * (fish.kgMax - fish.kgMin + 1)) +
           fish.kgMin;
         result.push({
-          id: fish.id,
           name: fish.name,
           totalKg,
           price: 0,
@@ -80,7 +79,7 @@ export const ProductionGenerator = {
         const price = (fish.priceMin + fish.priceMax) / 2;
         const monthlyKg: Record<number, number> = {};
         months.forEach((m) => (monthlyKg[m] = Math.round(totalKg / 8)));
-        return { id: fish.id, name: fish.name, totalKg, price, monthlyKg };
+        return { name: fish.name, totalKg, price, monthlyKg };
       });
     }
     const finalTotal = bestResult!.reduce((s, p) => s + p.totalKg * p.price, 0);

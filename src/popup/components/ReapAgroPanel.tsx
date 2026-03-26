@@ -12,10 +12,7 @@ const ReapAgroPanel: React.FC<ReapAgroPanelProps> = ({
   isOpen,
   onToggle,
 }) => {
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 4 }, (_, i) =>
-    String(currentYear - 3 + i),
-  );
+  const years = ["2021", "2022", "2023", "2024"];
   const [activeYear, setActiveYear] = useState(years.at(-1) || years[0]);
   const handleDataChange = (year: string, data: string) => {
     const newData = { ...settings.reapData, [year]: data };
