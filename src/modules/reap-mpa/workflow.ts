@@ -20,20 +20,32 @@ export const WorkflowManager: IWorkflowManager & {
   },
   pause() {
     State.stopRequested = true;
-    State.isRunning = false;
-    State.isPaused = true;
-    console.log("REAP: Pausado.");
+    State.isRunning = true;
+    State.isPausing = true;
+    State.isPaused = false;
+    console.log("REAP: Pausando...");
     if ((window as any).refreshSigessUI) (window as any).refreshSigessUI();
   },
   stop() {
     State.stopRequested = true;
     State.isRunning = false;
     State.isPaused = false;
+    State.isPausing = false;
     console.log("REAP: Stop total.");
     if ((window as any).refreshSigessUI) (window as any).refreshSigessUI();
   },
   async loop() {
-    if (!State.isRunning || State.stopRequested) return;
+    if (!State.isRunning) return;
+    if (State.stopRequested) {
+        if (State.isPausing) {
+           State.isRunning = false;
+           State.isPaused = true;
+           State.isPausing = false;
+           console.log("REAP: Pausado com sucesso.");
+           if ((window as any).refreshSigessUI) (window as any).refreshSigessUI();
+        }
+        return;
+    }
     try {
       if (Page1.isCurrentPage()) {
         await Page1.execute(this);
@@ -48,7 +60,17 @@ export const WorkflowManager: IWorkflowManager & {
         await Utils.waitFor(() => !Page2.isCurrentPage(), 5000);
         setTimeout(() => this.loop(), 1000);
       } else if (Page3.isCurrentPage()) {
-        await Page3.execute(this);
+        if (State.turboMode) {
+          console.log("REAP: Interceptando Página 3 para Injeção Direta Turbo API.");
+          this.stop(); // Desliga a UI visual
+          if ((globalThis as any).startTurboApi) {
+             (globalThis as any).startTurboApi();
+          } else {
+             alert("A página não injetou o painel invisível do Turbo ainda.");
+          }
+        } else {
+          await Page3.execute(this);
+        }
       } else {
         setTimeout(() => this.loop(), 2000);
       }

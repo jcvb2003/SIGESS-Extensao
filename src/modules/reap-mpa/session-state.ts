@@ -2,7 +2,9 @@ import { FishProduction } from "./types";
 class StateManager {
   public isRunning = false;
   public isPaused = false;
+  public isPausing = false;
   public stopRequested = false;
+  public turboMode = false;
   public gender: "MASCULINO" | "FEMININO" = "MASCULINO";
   public daysMap: Record<number, number> = {};
   public production: FishProduction[] = [];
@@ -15,7 +17,9 @@ class StateManager {
   reset() {
     this.isRunning = false;
     this.isPaused = false;
+    this.isPausing = false;
     this.stopRequested = false;
+    this.turboMode = false;
     this.currentMonthIndex = 0;
     this.daysMap = {};
     this.production = [];
