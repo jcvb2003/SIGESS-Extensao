@@ -1,6 +1,6 @@
 import { UserCredentials } from "../../shared/types";
-import { DOMInjector } from "../utils/dom-injector";
-import { StorageService } from "../utils/storage";
+import { DOMInjector } from "./dom-injector";
+import { StorageService } from "./storage";
 export interface AuthStrategy {
   name: string;
   urlTrigger: string;

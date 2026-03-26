@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { StorageService } from "../../background/utils/storage";
+import { StorageService } from "../../background/services/storage";
 import { AppSettings } from "../../shared/types";
 
 const DEFAULT_SETTINGS: AppSettings = {

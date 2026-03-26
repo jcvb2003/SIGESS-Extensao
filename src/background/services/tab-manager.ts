@@ -1,9 +1,9 @@
-import { StorageService } from "../utils/storage";
+import { StorageService } from "./storage";
 import {
   AuthStrategy,
   PesqBrasilStrategy,
   ESocialStrategy,
-} from "./AuthStrategy";
+} from "./auth-strategy";
 
 export class TabManager {
   private strategies: AuthStrategy[] = [];
