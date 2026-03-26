@@ -1,6 +1,6 @@
 import "../shared/utils/browser-shim";
-import { initUI } from "./ui";
-import { initAgroUI } from "./agro";
+import { initUI } from "../modules/reap-mpa/overlay";
+import { initAgroUI } from "../modules/reap-agro/form-automation";
 if ((window as any).hasReapExtensionActive) {
   throw new Error("SIGESS: REAP already active");
 }

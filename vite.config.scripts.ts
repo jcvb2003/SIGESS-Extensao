@@ -11,10 +11,10 @@ if (!target) {
 
 const entries = {
     background: resolve(__dirname, 'src/background/index.ts'),
-    content_esocial: resolve(__dirname, 'src/content/esocial.ts'),
-    content_reap: resolve(__dirname, 'src/content/reap.ts'),
-    content_reap_turbo: resolve(__dirname, 'src/content/reap-turbo.ts'),
-    content_script: resolve(__dirname, 'src/content/content-script.ts')
+    content_esocial: resolve(__dirname, 'src/modules/esocial/form-automation.ts'),
+    content_reap: resolve(__dirname, 'src/entries/reap.ts'),
+    content_reap_turbo: resolve(__dirname, 'src/modules/reap-mpa/turbo-filler.ts'),
+    content_script: resolve(__dirname, 'src/entries/content-script.ts')
 };
 
 const entryFile = entries[target as keyof typeof entries];
