@@ -114,7 +114,7 @@ class ReapTurbo {
         return encodeURIComponent(JSON.stringify(tree));
     }
 
-    private buildPayload(state: any, mesIndex: number, userConfig: TurboReapConfig): any {
+    private updateStateWithMonth(state: any, mesIndex: number, userConfig: TurboReapConfig): any {
         const newState = structuredClone(state);
         const mesConfig = userConfig.meses.find(m => m.mes === (mesIndex + 1));
         
@@ -163,21 +163,10 @@ class ReapTurbo {
         });
 
         if (newState.configuracoes) newState.configuracoes.podeEnviar = "true";
-        return [String(newState.id), newState, 3];
+        return newState;
     }
 
-    private async submitMonth(monthNum: number, userConfig: TurboReapConfig): Promise<boolean> {
-        const mesIndex = monthNum - 1;
-        const mesConfig = userConfig.meses.find(mc => mc.mes === monthNum);
-        const desiredHouvePesca = mesConfig ? Boolean(mesConfig.houvePesca) : false;
-
-        this.turboLogger.log(`--- MÊS ${monthNum} ---`, 'success');
-        this.turboLogger.log(`Config: Houve Pesca = ${desiredHouvePesca}`, 'info');
-
-        const state = await this.getReapState();
-        if (!state) return false;
-
-        const payload = this.buildPayload(state, mesIndex, userConfig);
+    private async submitMonth(monthNum: number, payload: any): Promise<boolean> {
         this.turboLogger.log(`Enviando Mês ${monthNum}...`);
 
         try {
@@ -191,25 +180,43 @@ class ReapTurbo {
                 },
                 body: JSON.stringify(payload)
             });
+            
             if (!resp.ok) {
                 const errorBody = await resp.text();
                 throw new Error(`HTTP ${resp.status}. Body: ${errorBody}`);
             }
             
-            this.turboLogger.log(`Sincronizando...`);
-            await new Promise(r => setTimeout(r, 2000));
-            const freshState = await this.getReapState();
-            
-            if (freshState?.informesMensais[mesIndex]?.preenchido) {
-                const actuallyHouvePesca = freshState.informesMensais[mesIndex]?.houvePesca;
-                this.turboLogger.log(`Mês ${monthNum} OK! (Houve Pesca no Server: ${actuallyHouvePesca})`, 'success');
-                return true;
-            }
-            this.turboLogger.log(`Mês ${monthNum} falhou na persistência.`, 'warn');
-            return false;
+            this.turboLogger.log(`Mês ${monthNum} enviado com sucesso.`, 'success');
+            return true;
         } catch (e: any) {
             this.turboLogger.log(`Erro Mês ${monthNum}: ${e.message}`, 'error');
             return false;
+        }
+    }
+
+    private async processMonths(startMonth: number, config: any, initialState: any) {
+        let currentState = structuredClone(initialState);
+        
+        for (let m = startMonth; m <= 12; m++) {
+            if (State.stopRequested) {
+                this.turboLogger.log("Interrupção solicitada pelo usuário.", "warn");
+                break;
+            }
+
+            this.turboLogger.log(`--- MÊS ${m} ---`, 'success');
+            
+            // 1. Atualizar o estado CUMULATIVO local
+            currentState = this.updateStateWithMonth(currentState, m - 1, config);
+            
+            // 2. Construir payload final com o estado completo
+            const payload = [String(currentState.id), currentState, 3];
+
+            // 3. Enviar
+            if (!(await this.submitMonth(m, payload))) break;
+            
+            State.monthlyProgress[m-1] = "done";
+            if (m < 12) State.currentMonthIndex = m;
+            if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
         }
     }
 
@@ -217,25 +224,20 @@ class ReapTurbo {
         if ((globalThis as any).__sigessTurboRunning) return;
         (globalThis as any).__sigessTurboRunning = true;
         State.stopRequested = false;
+        
         if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
         if ((globalThis as any).showTurboOverlay) (globalThis as any).showTurboOverlay();
         
         const startMonth = config.startMonth || 1;
-        this.turboLogger.log(`REAP TURBO v2.7.2-FLEX (Início: Mês ${startMonth})`);
+        this.turboLogger.log(`REAP TURBO ULTRA-FAST (Início: Mês ${startMonth})`);
+
         try {
-            for (let m = startMonth; m <= 12; m++) {
-                if (State.stopRequested) {
-                    this.turboLogger.log("Interrupção solicitada pelo usuário.", "warn");
-                    break;
-                }
-                if (!(await this.submitMonth(m, config))) break;
-                
-                State.monthlyProgress[m-1] = "done";
-                if (m < 12) State.currentMonthIndex = m;
-                if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
-                
-                await new Promise(r => setTimeout(r, 1000));
-            }
+            this.turboLogger.log("Obtendo estado inicial...");
+            const initialState = await this.getReapState();
+            if (!initialState) throw new Error("Não foi possível carregar o estado atual do SIGESS.");
+
+            await this.processMonths(startMonth, config, initialState);
+
             if (!State.stopRequested) {
                 alert("Turbo Fill Concluído!");
                 globalThis.location.reload();
@@ -256,7 +258,7 @@ if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded)
     const origFetch = globalThis.fetch;
     globalThis.fetch = async function(...args) {
         const [url, options] = args;
-        if (options && options.method === 'POST' && typeof url === 'string' && url.includes('informe-mensal')) {
+        if (options?.method === 'POST' && typeof url === 'string' && url.includes('informe-mensal')) {
             console.log("%c=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED ===", "color: #ff00ff; font-weight: bold; font-size: 14px;");
             
             const headersList: any = {};
