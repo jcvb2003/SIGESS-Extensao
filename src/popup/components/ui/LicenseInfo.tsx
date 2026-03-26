@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { LicenseService, LicenseResult } from "../../shared/services/license";
+import { LicenseService, LicenseResult } from "../../../shared/services/license";
 import { Skeleton } from "./Skeleton";
 
 interface LicenseInfoProps {

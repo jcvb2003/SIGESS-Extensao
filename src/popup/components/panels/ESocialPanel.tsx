@@ -1,5 +1,5 @@
 ﻿import React from "react";
-import { AppSettings } from "../../shared/types";
+import { AppSettings } from "../../../shared/types";
 interface ConfigPanelProps {
   settings: AppSettings;
   onUpdate: (s: Partial<AppSettings>) => void;

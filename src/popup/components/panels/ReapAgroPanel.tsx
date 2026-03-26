@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AppSettings } from "../../shared/types";
+import { AppSettings } from "../../../shared/types";
 interface ReapAgroPanelProps {
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void;

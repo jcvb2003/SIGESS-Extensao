@@ -1,5 +1,5 @@
 ﻿import React, { useState } from "react";
-import { UserCredentials } from "../../shared/types";
+import { UserCredentials } from "../../../shared/types";
 interface BatchLoginModalProps {
   type: "pesqbrasil" | "esocial";
   onConfirm: (creds: UserCredentials[]) => void;

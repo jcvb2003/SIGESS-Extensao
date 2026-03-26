@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AppSettings, TurboReapConfig } from "../../shared/types";
+import { AppSettings, TurboReapConfig } from "../../../shared/types";
 
 interface ReapMpaPanelProps {
   settings: AppSettings;
