@@ -1,9 +1,10 @@
 import { Manager } from "./manager";
 import { State } from "./state";
 import { Icons } from "./utils/icons";
+import { Utils } from "./utils";
 import { DaysGenerator } from "./generators/schedule";
 import { ProductionGenerator } from "./generators/fish";
-import { MUNICIPIOS_LIST } from "./data/municipios";
+// MUNICIPIOS_LIST import removed as it was unused
 const Draggable = {
   init(el: HTMLElement) {
     let isDragging = false,
@@ -85,10 +86,13 @@ const injectButton = () => {
             b.style.boxShadow = "none";
           }
         };
-        b.onclick = () => {
+        b.onclick = async () => {
           if (!State.isRunning) {
             State.gender = value;
-            (globalThis as any).refreshSigessUI();
+            if ((globalThis as any).refreshSigessUI) {
+              (globalThis as any).refreshSigessUI();
+              await Utils.sleep(50); // Forçar repaint
+            }
           }
         };
         return { btn: b, update };
@@ -132,11 +136,10 @@ const injectButton = () => {
           let bgColor = "#f0f0f0";
           let textColor = "#666";
           let border = "1px solid #ccc";
-          if (State.currentMonthIndex === i) {
-            bgColor = "#007bff";
-            textColor = "white";
-            border = "1px solid #0056b3";
-          } else if (State.monthlyProgress[i] === "done") {
+
+          let opacity = "1";
+
+          if (State.monthlyProgress[i] === "done") {
             bgColor = "#28a745";
             textColor = "white";
             border = "1px solid #1e7e34";
@@ -144,9 +147,17 @@ const injectButton = () => {
             bgColor = "#6c757d";
             textColor = "white";
             border = "1px solid #545b62";
-            mBtn.style.opacity = "0.5";
+            opacity = "0.5";
           }
-          mBtn.style.cssText = `cursor: pointer; text-align: center; font-size: 10px; padding: 4px 0; border-radius: 4px; background: ${bgColor}; color: ${textColor}; border: ${border}; font-weight: bold;`;
+
+          mBtn.style.cssText = `cursor: pointer; text-align: center; font-size: 10px; padding: 4px 0; border-radius: 4px; background: ${bgColor}; color: ${textColor}; border: ${border}; font-weight: bold; transition: all 0.2s; opacity: ${opacity};`;
+          
+          if (State.currentMonthIndex === i) {
+             mBtn.style.boxShadow = "0 0 8px #007bff";
+             if (State.monthlyProgress[i] !== "done") {
+                mBtn.style.border = "2px solid #007bff";
+             }
+          }
           mBtn.onclick = () => {
             if (!State.isRunning && !State.isPaused) {
               State.currentMonthIndex = i;
@@ -170,6 +181,7 @@ const injectButton = () => {
         } else {
           Manager.start();
         }
+        refreshUI();
       };
       container.appendChild(btn);
 
@@ -178,9 +190,6 @@ const injectButton = () => {
       btnTurbo.style.cssText =
         "padding: 8px; background: #6f42c1; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
       btnTurbo.innerHTML = `⚡ Turbo API`;
-      btnTurbo.disabled = true;
-      btnTurbo.innerHTML = "⏳ Enviando...";
-      btnTurbo.style.background = "#ffc107";
       btnTurbo.onclick = async (e) => {
         e.stopPropagation();
         if (State.isRunning) return;
@@ -199,10 +208,11 @@ const injectButton = () => {
           const settings = (await browser.storage.local.get("settings")).settings || {};
           
           const config: any = {
+             startMonth: State.currentMonthIndex + 1,
              areaRealizacao: {
                localPesca: settings.mpaLocalPesca || 6,
                uf: settings.mpaUF || 5,
-                municipio: settings.mpaMunicipio || MUNICIPIOS_LIST[0].id,
+                municipio: 4718, // Oeiras do Pará (Padrão Global)
                 petrechosPesca: [settings.mpaPetrecho || 4],
                 ambientePesca: settings.mpaAmbiente || 1
               },
@@ -238,7 +248,6 @@ const injectButton = () => {
                  });
              }
           }
-          
           const response = await browser.runtime.sendMessage({
             action: "turboFillReap",
             config
@@ -247,11 +256,14 @@ const injectButton = () => {
           if (response?.success) {
             btnTurbo.innerHTML = "✅ Concluído!";
             btnTurbo.style.background = "#28a745";
+            setTimeout(() => {
+              btnTurbo.innerHTML = `⚡ Turbo API`;
+              btnTurbo.style.background = "#6f42c1";
+            }, 3000);
           } else {
-            alert(response?.error || 'Erro desconhecido');
+            alert(response?.error || 'Ocorreu um erro no modo Turbo.');
             btnTurbo.innerHTML = `⚡ Turbo API`;
             btnTurbo.style.background = "#6f42c1";
-            btnTurbo.disabled = false;
           }
         } catch (err: any) {
           alert("Erro: " + err.message);
@@ -288,7 +300,7 @@ export const initUI = () => {
     if (filterTimeout) return;
     const hasExternalMutation = mutations.some((m) => {
       const container = document.getElementById("sigess-reap-container");
-      return !(container?.contains(m.target as Node) ?? false);
+      return !(container?.contains(m.target) ?? false);
     });
     if (hasExternalMutation) {
       filterTimeout = setTimeout(() => {

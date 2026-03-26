@@ -32,6 +32,7 @@ export interface MessageResponse {
 }
 
 export interface TurboReapConfig {
+  startMonth?: number;
   meses: TurboMesConfig[];
   areaRealizacao: TurboAreaConfig;
 }

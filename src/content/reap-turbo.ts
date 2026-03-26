@@ -1,14 +1,14 @@
 import { TurboReapConfig } from '../shared/types';
+import { State } from './state';
 
 /**
  * 🛠️ SIGESS Turbo Debug Module
  */
 class TurboLogger {
-    private overlay: HTMLDivElement | null = null;
-    constructor() { if (typeof document !== 'undefined') this.createOverlay(); }
+    private readonly overlay: HTMLDivElement | null = null;
+    constructor() { if (globalThis.document !== undefined) this.createOverlay(); }
     private createOverlay() {
         console.log("[SIGESS Turbo] Overlay disabled by request.");
-        return;
     }
     log(msg: string, type: 'info' | 'warn' | 'error' | 'success' | 'payload' = 'info') {
         const timestamp = new Date().toLocaleTimeString();
@@ -61,6 +61,14 @@ class ReapTurbo {
         return null;
     }
 
+    private async decodeNextFPayload(payload: string): Promise<any> {
+        const colonIdx = payload.indexOf(':');
+        if (colonIdx === -1) return null;
+        const jsonStr = payload.substring(colonIdx + 1);
+        if (!jsonStr.includes("informesMensais")) return null;
+        return this.findReapStateInObject(JSON.parse(jsonStr));
+    }
+
     private async getReapState(): Promise<any> {
         const url = new URL(globalThis.location.href);
         url.searchParams.set('_v', Date.now().toString());
@@ -74,17 +82,12 @@ class ReapTurbo {
             try {
                 const arr = JSON.parse(match[1]);
                 if (arr[0] === 1 && typeof arr[1] === 'string') {
-                    const payload = arr[1];
-                    const colonIdx = payload.indexOf(':');
-                    if (colonIdx !== -1) {
-                        const jsonStr = payload.substring(colonIdx + 1);
-                        if (jsonStr.includes("informesMensais")) {
-                            const state = this.findReapStateInObject(JSON.parse(jsonStr));
-                            if (state) return state;
-                        }
-                    }
+                    const state = await this.decodeNextFPayload(arr[1]);
+                    if (state) return state;
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.debug("[SIGESS Turbo] Failed to parse payload chunk:", e);
+            }
         }
         return null;
     }
@@ -144,7 +147,7 @@ class ReapTurbo {
                 m.areasRealizacaoPesca = m.areasRealizacaoPesca.map((a: any) => {
                     const cloned = { ...a };
                     delete cloned.id;
-                    cloned.ambientePesca = cloned.ambientePesca !== undefined ? String(cloned.ambientePesca) : cloned.ambientePesca;
+                    cloned.ambientePesca = cloned.ambientePesca === undefined ? cloned.ambientePesca : String(cloned.ambientePesca);
                     return cloned;
                 });
             }
@@ -232,12 +235,14 @@ class ReapTurbo {
         }
     }
 
-    public async run(config: TurboReapConfig) {
+    public async run(config: any) {
         if ((globalThis as any).__sigessTurboRunning) return;
         (globalThis as any).__sigessTurboRunning = true;
-        this.turboLogger.log(`REAP TURBO v2.7.1-FORCE`);
+        const startMonth = config.startMonth || 1;
+        this.turboLogger.log(`REAP TURBO v2.7.2-FLEX (Início: Mês ${startMonth})`);
         try {
-            for (let m = 1; m <= 12; m++) {
+            for (let m = startMonth; m <= 12; m++) {
+                if (State.stopRequested) break;
                 if (!(await this.submitMonth(m, config))) break;
                 await new Promise(r => setTimeout(r, 1000));
             }
@@ -247,7 +252,7 @@ class ReapTurbo {
     }
 }
 
-if (typeof globalThis.window !== 'undefined' && !(globalThis as any).__sigessTurboLoaded) {
+if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded) {
     const turbo = new ReapTurbo();
     (globalThis as any).__sigessTurboLoaded = true;
 
@@ -255,14 +260,15 @@ if (typeof globalThis.window !== 'undefined' && !(globalThis as any).__sigessTur
     const origFetch = globalThis.fetch;
     globalThis.fetch = async function(...args) {
         const [url, options] = args;
-        if (options && options.method === 'POST' && typeof url === 'string' && url.includes('informe-mensal')) {
+        if (options?.method === 'POST' && typeof url === 'string' && url.includes('informe-mensal')) {
             console.log("%c=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED ===", "color: #ff00ff; font-weight: bold; font-size: 14px;");
             
             const headersList: any = {};
-            if (options.headers instanceof Headers) {
-                options.headers.forEach((v, k) => { headersList[k] = v; });
+            const headers = options.headers;
+            if (headers instanceof Headers) {
+                headers.forEach((v, k) => { headersList[k] = v; });
             } else {
-                Object.assign(headersList, options.headers || {});
+                Object.assign(headersList, headers || {});
             }
             
             console.log("Headers:", JSON.stringify(headersList, null, 2));
@@ -278,12 +284,19 @@ if (typeof globalThis.window !== 'undefined' && !(globalThis as any).__sigessTur
     };
 
     if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
-        chrome.runtime.onMessage.addListener((msg: any) => {
-            if (msg.action === "executeTurboFill") turbo.run(msg.config).catch(console.error);
+        chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
+            if (msg.action === "executeTurboFill") {
+                turbo.run(msg.config)
+                    .then(res => sendResponse({ success: true, result: res }))
+                    .catch(err => sendResponse({ success: false, error: err.message }));
+                return true; // Keep message channel open
+            }
         });
     }
     globalThis.addEventListener('message', async (e) => {
-        if (e.data.type === 'SIGESS_TURBO_START') await turbo.run(e.data.config);
+        // Only accept messages from the same origin
+        if (e.origin !== globalThis.location.origin) return;
+        if (e.data?.type === 'SIGESS_TURBO_START') await turbo.run(e.data.config);
     });
     console.log('[SIGESS Turbo] Ready v2.7.1-FORCE');
 }
