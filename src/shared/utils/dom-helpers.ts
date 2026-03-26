@@ -6,7 +6,7 @@ export function simulateClick(element: HTMLElement) {
     const mouseEvt = new MouseEvent(evt, {
       bubbles: true,
       cancelable: true,
-      view: window,
+      view: globalThis as unknown as Window,
       detail: 1,
     });
     element.dispatchEvent(mouseEvt);
@@ -51,7 +51,7 @@ export function setReactInput(input: HTMLInputElement, value: string) {
   const tracker = (input as any)._valueTracker;
   if (tracker) tracker.setValue(value);
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype,
+    globalThis.HTMLInputElement.prototype,
     "value",
   )?.set;
   if (nativeInputValueSetter) nativeInputValueSetter.call(input, value);
@@ -72,9 +72,9 @@ export async function fillAutocomplete(
   value: string,
   signal?: { stopRequested?: boolean }
 ) {
-  const input = container.querySelector(
+  const input = container.querySelector<HTMLInputElement>(
     'input[type="text"]',
-  ) as HTMLInputElement;
+  );
   if (!input) return false;
   input.focus();
   setReactInput(input, "");
@@ -124,9 +124,9 @@ export async function fillAutocomplete(
     : null;
     
   if (!item) {
-    const trigger = container.querySelector(
+    const trigger = container.querySelector<HTMLButtonElement>(
       "button[data-trigger]",
-    ) as HTMLElement;
+    );
     if (trigger) {
       trigger.click();
       await waitFor(() => findItem() !== null, 2500, signal);
@@ -136,9 +136,9 @@ export async function fillAutocomplete(
   
   if (item) {
     item.scrollIntoView({ block: "nearest" });
-    const radioInput = item.querySelector(
+    const radioInput = item.querySelector<HTMLInputElement>(
       'input[type="radio"]',
-    ) as HTMLInputElement;
+    );
     const label = item.querySelector("label") as HTMLElement;
     if (radioInput) {
       radioInput.checked = true;
@@ -157,25 +157,42 @@ export async function fillAutocomplete(
   return false;
 }
 
+function findInList(container: HTMLElement, text: string): boolean {
+  const list =
+    container.parentElement?.querySelector(".br-list") ||
+    container.querySelector(".br-list") ||
+    document.body.querySelector(".br-list");
+  if (!list) return false;
+  
+  const listLabel = Array.from(list.querySelectorAll("label, .br-item")).find(
+    (l) => l.textContent?.trim().includes(text),
+  );
+  if (listLabel) {
+    (listLabel as HTMLElement).click();
+    return true;
+  }
+  return false;
+}
+
 export async function selectOption(
   containerSelector: string | HTMLElement,
   valueOrText: string,
   signal?: { stopRequested?: boolean }
 ) {
-  let container: HTMLElement | null;
-  if (typeof containerSelector === "string")
-    container = document.querySelector(containerSelector);
-  else container = containerSelector;
-  if (!container) return false;
-  if (signal?.stopRequested) return false;
+  const container =
+    typeof containerSelector === "string"
+      ? document.querySelector<HTMLElement>(containerSelector)
+      : containerSelector;
+      
+  if (!container || signal?.stopRequested) return false;
   
   const inputs = Array.from(container.querySelectorAll("input"));
   const matchingInput = inputs.find((i) => i.value === valueOrText);
   if (matchingInput) {
     if (!matchingInput.checked) {
-      const label = container.querySelector(
+      const label = container.querySelector<HTMLElement>(
         `label[for="${matchingInput.id}"]`,
-      ) as HTMLElement;
+      );
       if (label) label.click();
       else {
         matchingInput.checked = true;
@@ -196,37 +213,13 @@ export async function selectOption(
     return true;
   }
   
-  const list =
-    container.parentElement?.querySelector(".br-list") ||
-    container.querySelector(".br-list") ||
-    document.body.querySelector(".br-list");
-  if (list) {
-    const listLabel = Array.from(list.querySelectorAll("label, .br-item")).find(
-      (l) => l.textContent?.trim().includes(valueOrText),
-    );
-    if (listLabel) {
-      (listLabel as HTMLElement).click();
-      return true;
-    }
-  }
+  if (findInList(container, valueOrText)) return true;
   
-  const trigger = container.querySelector("button[data-trigger]");
+  const trigger = container.querySelector<HTMLElement>("button[data-trigger]");
   if (trigger) {
-    (trigger as HTMLElement).click();
+    trigger.click();
     await sleep(800);
-    const refreshedList =
-      container.parentElement?.querySelector(".br-list") ||
-      container.querySelector(".br-list") ||
-      document.querySelector(".br-list");
-    if (refreshedList) {
-      const listLabel = Array.from(
-        refreshedList.querySelectorAll("label, .br-item"),
-      ).find((l) => l.textContent?.trim().includes(valueOrText));
-      if (listLabel) {
-        (listLabel as HTMLElement).click();
-        return true;
-      }
-    }
+    if (findInList(container, valueOrText)) return true;
   }
   return false;
 }
