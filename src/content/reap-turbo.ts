@@ -1,6 +1,11 @@
 import { TurboReapConfig } from '../shared/types';
 import { State } from './state';
 
+if (!(globalThis as any).__sigessTurboLogSilenced) {
+    (globalThis as any).__sigessTurboLogSilenced = true;
+    console.log('[SIGESS Turbo] Module Loaded');
+}
+
 /**
  * 🛠️ SIGESS Turbo Debug Module
  */
@@ -238,17 +243,30 @@ class ReapTurbo {
     public async run(config: any) {
         if ((globalThis as any).__sigessTurboRunning) return;
         (globalThis as any).__sigessTurboRunning = true;
+        State.stopRequested = false;
+        if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+        if ((globalThis as any).showTurboOverlay) (globalThis as any).showTurboOverlay();
+        
         const startMonth = config.startMonth || 1;
         this.turboLogger.log(`REAP TURBO v2.7.2-FLEX (Início: Mês ${startMonth})`);
         try {
             for (let m = startMonth; m <= 12; m++) {
-                if (State.stopRequested) break;
+                if (State.stopRequested) {
+                    this.turboLogger.log("Interrupção solicitada pelo usuário.", "warn");
+                    break;
+                }
                 if (!(await this.submitMonth(m, config))) break;
                 await new Promise(r => setTimeout(r, 1000));
             }
-            alert("Turbo Fill Concluído!");
-            globalThis.location.reload();
-        } finally { (globalThis as any).__sigessTurboRunning = false; }
+            if (!State.stopRequested) {
+                alert("Turbo Fill Concluído!");
+                globalThis.location.reload();
+            }
+        } finally { 
+            (globalThis as any).__sigessTurboRunning = false;
+            if ((globalThis as any).hideTurboOverlay) (globalThis as any).hideTurboOverlay();
+            if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+        }
     }
 }
 
@@ -298,5 +316,8 @@ if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded)
         if (e.origin !== globalThis.location.origin) return;
         if (e.data?.type === 'SIGESS_TURBO_START') await turbo.run(e.data.config);
     });
-    console.log('[SIGESS Turbo] Ready v2.7.1-FORCE');
+    if (!(globalThis as any).__sigessTurboLogSilencedOnce) {
+        (globalThis as any).__sigessTurboLogSilencedOnce = true;
+        console.log('[SIGESS Turbo] Ready v2.7.2-FLEX');
+    }
 }

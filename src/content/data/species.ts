@@ -8,11 +8,11 @@ export interface FishData {
 }
 
 export const DEFAULT_SPECIES: FishData[] = [
-  { id: 12, name: "Mapará", kgMin: 50, kgMax: 150, priceMin: 5, priceMax: 10 },
-  { id: 21, name: "Traíra", kgMin: 30, kgMax: 80, priceMin: 8, priceMax: 15 },
-  { id: 25, name: "Acará", kgMin: 20, kgMax: 50, priceMin: 4, priceMax: 8 },
-  { id: 26, name: "Aracu", kgMin: 15, kgMax: 40, priceMin: 3, priceMax: 7 },
-  { id: 15, name: "Matrinxã", kgMin: 40, kgMax: 100, priceMin: 10, priceMax: 20 },
+  { id: 15, name: "Matrinxã", kgMin: 45, kgMax: 50, priceMin: 13, priceMax: 16 },
+  { id: 25, name: "Acará", kgMin: 55, kgMax: 60, priceMin: 10, priceMax: 13 },
+  { id: 26, name: "Aracu", kgMin: 55, kgMax: 60, priceMin: 9, priceMax: 13 },
+  { id: 21, name: "Traíra", kgMin: 55, kgMax: 60, priceMin: 8, priceMax: 12 },
+  { id: 12, name: "Mapará", kgMin: 60, kgMax: 70, priceMin: 8, priceMax: 11 },
 ];
 
 export const SPECIES_LIST = DEFAULT_SPECIES;

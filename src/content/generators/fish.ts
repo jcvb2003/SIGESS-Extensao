@@ -7,8 +7,8 @@ export const ProductionGenerator = {
   ): FishProduction[] {
     const months = MONTHS;
     const totalDays = months.reduce((s, m) => s + (daysMap[m] || 16), 0);
-    const targetMin = gender === "MASCULINO" ? 2950 : 2850;
-    const targetMax = gender === "MASCULINO" ? 3075 : 2950;
+    const targetMin = gender === "MASCULINO" ? 2850 : 2550;
+    const targetMax = gender === "MASCULINO" ? 3075 : 2850;
     let bestResult: FishProduction[] | null = null;
     let attempts = 0;
     while (attempts < 300) {

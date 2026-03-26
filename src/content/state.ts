@@ -23,4 +23,10 @@ class StateManager {
     this.monthlyProgress = {};
   }
 }
-export const State = new StateManager();
+
+const GLOBAL_KEY = "__sigessState";
+if (!(globalThis as any)[GLOBAL_KEY]) {
+  (globalThis as any)[GLOBAL_KEY] = new StateManager();
+}
+
+export const State = (globalThis as any)[GLOBAL_KEY] as StateManager;
