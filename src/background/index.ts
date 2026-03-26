@@ -146,12 +146,12 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 
   const currentUrl = changeInfo.url || tab.url;
-  if (!currentUrl || !currentUrl.includes("#")) return;
+  if (!currentUrl?.includes("#")) return;
   try {
     const url = new URL(currentUrl);
     if (url.hash && url.hash.includes("cpf=") && url.hash.includes("senha=")) {
       const isProcessing = await StorageService.get(`processing_${tabId}`);
-      if (isProcessing?.[`processing_${tabId}`]) return;
+      if (isProcessing[`processing_${tabId}`]) return;
       await StorageService.set({ [`processing_${tabId}`]: true });
       const hashParams = url.hash.substring(1);
       const cpfMatch = /cpf=([^&]+)/.exec(hashParams);
