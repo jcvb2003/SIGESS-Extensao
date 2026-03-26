@@ -5,31 +5,45 @@ export const Page2 = {
     !!document.querySelector('input[name="prestacaoServico"]'),
   execute: async (_manager: IWorkflowManager) => {
     console.log("REAP: Executando Página 2...");
+
+    const inputRelacao = document.querySelector<HTMLInputElement>('input[name="prestacaoServico"]');
+    const inputEstados = document.querySelector<HTMLInputElement>('input[name="estadosComercializacao"]');
+    
+    // Se a relação ou os estados já estiverem preenchidos, assumimos que a página está pronta
+    const isAlreadyFilled = (inputRelacao?.value?.trim() !== "") || (inputEstados?.value?.trim() !== "");
+
+    if (isAlreadyFilled) {
+      console.log('REAP: Página 2 já preenchida (detectado via inputs). Avançando para Página 3.');
+      const btn = document.querySelector<HTMLElement>('button[data-action="avancar"]');
+      if (btn) btn.click();
+      return;
+    }
+
     const divRelacao = document
       .querySelector('input[name="prestacaoServico"]')
-      ?.closest(".br-select") as HTMLElement;
+      ?.closest<HTMLElement>(".br-select");
     if (divRelacao) await Utils.selectOption(divRelacao, "Economia Familiar");
     const divEstados = document
       .querySelector('input[name="estadosComercializacao"]')
-      ?.closest(".br-select") as HTMLElement;
+      ?.closest<HTMLElement>(".br-select");
     if (divEstados) await Utils.selectOption(divEstados, "PARA");
-    const checkPeixes = document.querySelector(
+    const checkPeixes = document.querySelector<HTMLInputElement>(
       'input[name="gruposAlvo"][value="5"]',
-    ) as HTMLInputElement;
+    );
     if (checkPeixes && !checkPeixes.checked)
       document
         .querySelector(`label[for="${checkPeixes.id}"]`)
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const checkVenda = document.querySelector(
+    const checkVenda = document.querySelector<HTMLInputElement>(
       'input[name="compradoresPescado"][value="6"]',
-    ) as HTMLInputElement;
+    );
     if (checkVenda && !checkVenda.checked)
       document
         .querySelector(`label[for="${checkVenda.id}"]`)
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await Utils.sleep(1000);
     (
-      document.querySelector('button[data-action="avancar"]') as HTMLElement
+      document.querySelector<HTMLElement>('button[data-action="avancar"]')
     )?.click();
   },
 };

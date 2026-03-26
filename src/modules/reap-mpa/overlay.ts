@@ -107,41 +107,91 @@ const injectButton = async () => {
     const male = createGenderBtn("🧔 Masc", "MASCULINO", "#007bff");
     const female = createGenderBtn("👩 Fem", "FEMININO", "#e91e63");
 
+    const updateMainButton = () => {
+      const mBtn = document.getElementById("sigess-reap-btn") as HTMLButtonElement;
+      if (!mBtn) return;
+      if (State.isRunning) {
+        mBtn.innerHTML = State.isPausing ? `${Icons.pause} Pausando...` : `${Icons.pause} Pausar`;
+        mBtn.style.background = "#ffc107";
+      } else if (State.isPaused) {
+        mBtn.innerHTML = `${Icons.play} Continuar`;
+        mBtn.style.background = "#28a745";
+      } else {
+        mBtn.innerHTML = `${Icons.play} Iniciar`;
+        mBtn.style.background = "#007bff";
+      }
+    };
+
+    const updateTurboButton = () => {
+      const tBtn = document.getElementById("sigess-reap-turbo-btn");
+      if (!tBtn) return;
+      if ((globalThis as any).__sigessTurboRunning) {
+        tBtn.innerHTML = State.stopRequested ? "Interrompendo..." : `Interromper`;
+        tBtn.style.background = "#dc3545";
+      } else {
+        tBtn.innerHTML = `Preenchimento direto`;
+        tBtn.style.background = "#6f42c1";
+      }
+    };
+
     const refreshUI = () => {
       updateGrid();
       male.update();
       female.update();
-      
-      const mBtn = document.getElementById("sigess-reap-btn") as HTMLButtonElement;
-      if (mBtn) {
-        if (State.isRunning) {
-          mBtn.innerHTML = `${Icons.pause} Pausar`;
-          mBtn.style.background = "#ffc107";
-        } else if (State.isPaused) {
-          mBtn.innerHTML = `${Icons.play} Continuar`;
-          mBtn.style.background = "#28a745";
-        } else {
-          mBtn.innerHTML = `${Icons.play} Iniciar`;
-          mBtn.style.background = "#007bff";
-        }
-      }
-
-      const tBtn = document.getElementById("sigess-reap-turbo-btn");
-      if (tBtn) {
-        if ((globalThis as any).__sigessTurboRunning) {
-          tBtn.innerHTML = `⚠️ Interromper`;
-          tBtn.style.background = "#dc3545";
-        } else {
-          tBtn.innerHTML = `⚡ Turbo API`;
-          tBtn.style.background = "#6f42c1";
-        }
-      }
+      updateMainButton();
+      updateTurboButton();
 
       segmentContainer.style.opacity = (State.isRunning || State.isPaused) ? "0.6" : "1";
       segmentContainer.style.pointerEvents = (State.isRunning || State.isPaused) ? "none" : "auto";
     };
 
     (globalThis as any).refreshSigessUI = refreshUI;
+
+    (globalThis as any).startTurboApi = async () => {
+      try {
+        const oBtn = document.getElementById("sigess-reap-turbo-btn");
+        if (oBtn) { oBtn.innerHTML = "⏳ Aguarde..."; oBtn.style.background = "#5a32a3"; }
+        
+        const settings = (await browser.storage.local.get("settings")).settings || {};
+        const config: any = {
+           startMonth: State.currentMonthIndex + 1,
+           areaRealizacao: {
+             localPesca: settings.mpaLocalPesca || 6,
+             uf: settings.mpaUF || 5,
+             municipio: 4718, 
+             petrechosPesca: [settings.mpaPetrecho || 4],
+             ambientePesca: settings.mpaAmbiente || 1
+            },
+           meses: []
+        };
+        
+        for (let i = 0; i < 12; i++) {
+           const especies = State.production.map((fish: any) => {
+             const monthlyKg = fish.monthlyKg[i] || 0;
+             return monthlyKg > 0 ? { especiePescado: fish.id, unidadeMedida: 1, quantidade: monthlyKg, valorMedioQuilo: fish.price } : null;
+           }).filter((f: any) => f !== null);
+
+           if (especies.length === 0) config.meses.push({ mes: i + 1, houvePesca: false, justificativa: 1 });
+           else config.meses.push({ mes: i + 1, houvePesca: true, diasTrabalhados: State.daysMap[i] || 16, especies });
+        }
+        
+        const response = await browser.runtime.sendMessage({ action: "turboFillReap", config });
+        if (response?.success) {
+          if (oBtn) {
+            oBtn.innerHTML = "✅ Concluído!";
+            oBtn.style.background = "#28a745";
+            setTimeout(() => { oBtn.innerHTML = "Preenchimento direto"; oBtn.style.background = "#6f42c1"; }, 3000);
+          }
+        } else {
+          alert(response?.error || 'Ocorreu um erro no Preenchimento Direto.');
+          if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+        }
+      } catch (err: any) {
+        alert("Erro: " + err.message);
+        if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+      }
+    };
+    
     (globalThis as any).showTurboOverlay = () => {
         let overlay = document.getElementById("sigess-turbo-overlay");
         if (!overlay) {
@@ -221,57 +271,20 @@ const injectButton = async () => {
     const btnTurbo = document.createElement("button");
     btnTurbo.id = "sigess-reap-turbo-btn";
     btnTurbo.style.cssText = "padding: 8px; background: #6f42c1; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
-    btnTurbo.innerHTML = `⚡ Turbo API`;
+    btnTurbo.innerHTML = `Preenchimento direto`;
     btnTurbo.onclick = async (e) => {
       e.stopPropagation();
       if ((globalThis as any).__sigessTurboRunning) {
         State.stopRequested = true;
+        btnTurbo.innerHTML = "Interrompendo...";
         return;
       }
       
-      btnTurbo.innerHTML = "⏳ Aguarde...";
-      btnTurbo.style.background = "#5a32a3";
+      if (!State.daysMap || Object.keys(State.daysMap).length === 0) State.daysMap = DaysGenerator.generate(State.gender);
+      if (!State.production || State.production.length === 0) State.production = ProductionGenerator.generate(State.daysMap, State.gender);
       
-      try {
-        if (!State.daysMap || Object.keys(State.daysMap).length === 0) State.daysMap = DaysGenerator.generate(State.gender);
-        if (!State.production || State.production.length === 0) State.production = ProductionGenerator.generate(State.daysMap, State.gender);
-        
-        const settings = (await browser.storage.local.get("settings")).settings || {};
-        const config: any = {
-           startMonth: State.currentMonthIndex + 1,
-           areaRealizacao: {
-             localPesca: settings.mpaLocalPesca || 6,
-             uf: settings.mpaUF || 5,
-             municipio: 4718, 
-             petrechosPesca: [settings.mpaPetrecho || 4],
-             ambientePesca: settings.mpaAmbiente || 1
-            },
-           meses: []
-        };
-        
-        for (let i = 0; i < 12; i++) {
-           const especies = State.production.map((fish: any) => {
-             const monthlyKg = fish.monthlyKg[i] || 0;
-             return monthlyKg > 0 ? { especiePescado: fish.id, unidadeMedida: 1, quantidade: monthlyKg, valorMedioQuilo: fish.price } : null;
-           }).filter((f: any) => f !== null);
-
-           if (especies.length === 0) config.meses.push({ mes: i + 1, houvePesca: false, justificativa: 1 });
-           else config.meses.push({ mes: i + 1, houvePesca: true, diasTrabalhados: State.daysMap[i] || 16, especies });
-        }
-        
-        const response = await browser.runtime.sendMessage({ action: "turboFillReap", config });
-        if (response?.success) {
-          btnTurbo.innerHTML = "✅ Concluído!";
-          btnTurbo.style.background = "#28a745";
-          setTimeout(() => { btnTurbo.innerHTML = `⚡ Turbo API`; btnTurbo.style.background = "#6f42c1"; }, 3000);
-        } else {
-          alert(response?.error || 'Ocorreu um erro no modo Turbo.');
-          if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
-        }
-      } catch (err: any) {
-        alert("Erro: " + err.message);
-        if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
-      }
+      State.turboMode = true;
+      WorkflowManager.start();
     };
     container.appendChild(btnTurbo);
 

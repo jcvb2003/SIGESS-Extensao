@@ -65,7 +65,7 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
         <div className="section-header">
           <h2 className="section-title">REAP MPA (Pesca)</h2>
           <p className="section-description">
-            Configurações e Preenchimento Turbo para Pesca
+            Configurações e Preenchimento Direto para Pesca
           </p>
         </div>
         <ChevronIcon isOpen={isOpen} />
@@ -75,7 +75,7 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
         <div className="section-content">
           <div className="stack" style={{ gap: '15px' }}>
             <div className="config-group" style={{ background: '#f9f9f9', padding: '12px', borderRadius: '8px', border: '1px solid #eee' }}>
-              <h3 style={{ fontSize: '13px', marginBottom: '10px', color: '#B53030' }}>⚙️ CONFIGURAÇÕES DE AUTOMAÇÃO</h3>
+              <h3 style={{ fontSize: '13px', marginBottom: '10px', color: '#B53030' }}>CONFIGURAÇÕES DE AUTOMAÇÃO</h3>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div className="form-item">
@@ -142,10 +142,10 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                   }}
                >
-                  {turboLoading ? "EXECUTANDO..." : "⚡ CADASTRAR REAP TURBO (12 MESES)"}
+                  {turboLoading ? "EXECUTANDO..." : "PREENCHIMENTO DIRETO (12 MESES)"}
                </button>
                <p style={{ fontSize: '10px', color: '#666', marginTop: '8px', textAlign: 'center' }}>
-                 * O preenchimento turbo utiliza as configurações acima para todos os meses.
+                 * O preenchimento direto utiliza as configurações acima para todos os meses.
                </p>
             </div>
           </div>

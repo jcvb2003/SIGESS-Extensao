@@ -229,6 +229,11 @@ class ReapTurbo {
                     break;
                 }
                 if (!(await this.submitMonth(m, config))) break;
+                
+                State.monthlyProgress[m-1] = "done";
+                if (m < 12) State.currentMonthIndex = m;
+                if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+                
                 await new Promise(r => setTimeout(r, 1000));
             }
             if (!State.stopRequested) {
