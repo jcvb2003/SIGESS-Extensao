@@ -1,46 +1,4 @@
-const Utils = {
-  sleep: (ms: number) => new Promise((r) => setTimeout(r, ms)),
-  
-  simulateClick: function(element: HTMLElement) {
-    const events = ["mousedown", "mouseup", "click"];
-    events.forEach((evt) => {
-      const mouseEvt = new MouseEvent(evt, { bubbles: true, cancelable: true, view: window, detail: 1 });
-      element.dispatchEvent(mouseEvt);
-    });
-  },
-
-  waitFor: async function(cond: () => boolean, timeout = 10000) {
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-      if (cond()) return true;
-      await this.sleep(200);
-    }
-    return false;
-  },
-
-  waitForElement: async function(selector: string, timeout: number = 10000, context: HTMLElement | Document = document, mustBeVisible: boolean = true): Promise<HTMLElement | null> {
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-      const el = context.querySelector(selector);
-      if (el) {
-        if (!mustBeVisible || (el as HTMLElement).clientHeight > 0) return el as HTMLElement;
-      }
-      await this.sleep(200);
-    }
-    return null;
-  },
-
-  setReactInput: function(input: HTMLInputElement, value: string) {
-    const tracker = (input as any)._valueTracker;
-    if (tracker) tracker.setValue(value);
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-    if (nativeInputValueSetter) nativeInputValueSetter.call(input, value);
-    else input.value = value;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    input.dispatchEvent(new Event("blur", { bubbles: true }));
-  }
-};
+import { Utils } from "../../shared/utils/dom-helpers";
 import { AppSettings } from "../../shared/types";
 function processarConfiguracoes(settings: AppSettings, force: boolean = false) {
   const canRedirect = (key: string, value: string) => {
