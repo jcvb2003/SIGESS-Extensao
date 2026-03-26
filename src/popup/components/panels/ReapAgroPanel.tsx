@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { AppSettings } from "../../../shared/types";
+
 interface ReapAgroPanelProps {
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void;
   isOpen: boolean;
   onToggle: () => void;
 }
+
 const ReapAgroPanel: React.FC<ReapAgroPanelProps> = ({
   settings,
   onUpdate,
@@ -14,6 +16,7 @@ const ReapAgroPanel: React.FC<ReapAgroPanelProps> = ({
 }) => {
   const years = ["2021", "2022", "2023", "2024"];
   const [activeYear, setActiveYear] = useState(years.at(-1) || years[0]);
+
   const handleDataChange = (year: string, data: string) => {
     const newData = { ...settings.reapData, [year]: data };
     onUpdate({ reapData: newData });
@@ -33,7 +36,7 @@ const ReapAgroPanel: React.FC<ReapAgroPanelProps> = ({
             Preenchimento automático para setor Agro
           </p>
         </div>
-        <span className={`accordion-icon ${isOpen ? "open" : ""}`}>▾</span>
+        <ChevronIcon isOpen={isOpen} />
       </button>
       <div className={`accordion-content ${isOpen ? "open" : "collapsed"}`}>
         <div className="section-content">
@@ -72,4 +75,21 @@ const ReapAgroPanel: React.FC<ReapAgroPanelProps> = ({
     </section>
   );
 };
+
+const ChevronIcon: React.FC<{ isOpen: boolean }> = ({ isOpen }) => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`accordion-icon ${isOpen ? "open" : ""}`}
+  >
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+
 export default ReapAgroPanel;

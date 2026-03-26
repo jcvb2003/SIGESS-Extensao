@@ -344,6 +344,23 @@ body {
     font-size: var(--text-body);
     color: var(--color-text);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    -moz-appearance: textfield; /* Firefox */
+    appearance: none; /* Standard */
+}
+
+/* Chrome, Safari, Edge, Opera */
+.input-base::-webkit-outer-spin-button,
+.input-base::-webkit-inner-spin-button,
+.dropdown-select::-webkit-outer-spin-button,
+.dropdown-select::-webkit-inner-spin-button,
+.gps-input::-webkit-outer-spin-button,
+.gps-input::-webkit-inner-spin-button,
+.gps-select::-webkit-outer-spin-button,
+.gps-select::-webkit-inner-spin-button,
+.input-key::-webkit-outer-spin-button,
+.input-key::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 .dropdown-select,

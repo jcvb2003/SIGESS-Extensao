@@ -17,6 +17,25 @@ export interface AppSettings {
   mpaLocalPesca?: number;
   mpaPetrecho?: number;
   mpaAmbiente?: number;
+
+  // Novos campos para Multiespécies (Mockup/Config)
+  mpaSpecies?: Array<{
+    id?: number;
+    kgMin?: string;
+    kgMax?: string;
+    priceMin?: string;
+    priceMax?: string;
+  }>;
+
+  // Parâmetros de Gênero
+  mpaMascProdMin?: string;
+  mpaMascProdMax?: string;
+  mpaMascDaysMin?: string;
+  mpaMascDaysMax?: string;
+  mpaFemProdMin?: string;
+  mpaFemProdMax?: string;
+  mpaFemDaysMin?: string;
+  mpaFemDaysMax?: string;
 }
 export interface MessageRequest {
   action: string;
