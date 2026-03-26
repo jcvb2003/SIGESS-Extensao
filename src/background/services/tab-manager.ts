@@ -6,7 +6,7 @@ import {
 } from "./auth-strategy";
 
 export class TabManager {
-  private strategies: AuthStrategy[] = [];
+  private readonly strategies: AuthStrategy[] = [];
   private static readonly TAB_CONTAINER_PREFIX = "tab_container_";
 
   constructor() {
@@ -40,13 +40,14 @@ export class TabManager {
     cpf: string,
     senha: string,
     index: number,
+    nome?: string,
   ): Promise<void> {
     try {
       let tab: browser.tabs.Tab;
 
       if (this.supportsContextualIdentities()) {
         const container = await (browser as any).contextualIdentities.create({
-          name: `SessÃ£o-${index}-${cpf.slice(-4)}`,
+          name: nome || `Sessão-${index}-${cpf.slice(-4)}`,
           color: "blue",
           icon: "fingerprint",
         });
@@ -71,7 +72,7 @@ export class TabManager {
         });
       }
     } catch (error) {
-      console.error("Erro ao criar sessÃ£o:", error);
+      console.error("Erro ao criar sessão:", error);
     }
   }
 

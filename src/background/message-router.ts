@@ -80,7 +80,7 @@ async function handleStartBatchLogin(
   if (!targetUrl) return { success: false, error: "Tipo de login inválido" };
   const results = await Promise.allSettled(
     credentials.map((cred: any, index: number) =>
-      getTabManager().createSession(targetUrl, cred.cpf, cred.senha, index + 1),
+      getTabManager().createSession(targetUrl, cred.cpf, cred.senha, index + 1, cred.nome),
     ),
   );
   const succeeded = results.filter((r) => r.status === "fulfilled").length;
@@ -116,7 +116,7 @@ async function handleAbrirAbaContainer(
     }
 
     const newItem: MultiLoginItem = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).substring(2, 11),
       nome: nome || cpf, // Usa nome se existir, senão CPF
       cpf,
       senha,
@@ -134,7 +134,7 @@ async function handleAbrirAbaContainer(
 
   // Se estiver DESATIVADO, abre a aba imediatamente (comportamento original)
   const randIndex = Math.floor(Math.random() * 1000);
-  await getTabManager().createSession(url, cpf, senha, randIndex);
+  await getTabManager().createSession(url, cpf, senha, randIndex, nome);
   return { success: true };
 }
 
