@@ -16,9 +16,9 @@ const LicenseInfo: React.FC<LicenseInfoProps> = ({ onClose }) => {
     loadLicense();
   }, []);
 
-  const loadLicense = async () => {
+  const loadLicense = async (forceLive = false, forceConsume = false) => {
     setLoading(true);
-    const result = await LicenseService.checkLicense();
+    const result = await LicenseService.checkLicense(forceLive, forceConsume);
     setLicense(result);
     setLastRefresh(new Date());
     setLoading(false);
@@ -26,7 +26,7 @@ const LicenseInfo: React.FC<LicenseInfoProps> = ({ onClose }) => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadLicense();
+    await loadLicense(true, false);
     setRefreshing(false);
   };
 
@@ -65,8 +65,8 @@ const LicenseInfo: React.FC<LicenseInfoProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="license-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') onClose(); }}>
+      <div className="license-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabIndex={-1}>
         <header className="license-modal-header">
           <div className="header-brand">
             <img src="../../icon.png" alt="SIGESS" className="brand-logo" />
@@ -81,90 +81,96 @@ const LicenseInfo: React.FC<LicenseInfoProps> = ({ onClose }) => {
         </header>
 
         <main className="license-modal-content">
-          {loading ? (
-            <div className="license-loading">
-              <Skeleton height={20} width="40%" />
-              <Skeleton height={14} width="100%" />
-              <Skeleton height={14} width="80%" />
-              <Skeleton height={14} width="60%" />
-              <Skeleton height={14} width="70%" />
-            </div>
-          ) : !license ? (
-            <div className="error-state">Erro ao carregar informações</div>
-          ) : (
-            <>
-              <div className="info-grid">
-                <div className="info-item">
-                  <span className="info-label">Plano</span>
-                  <span className="info-value">{getPlanBadge()}</span>
+          {(() => {
+            if (loading) {
+              return (
+                <div className="license-loading">
+                  <Skeleton height={20} width="40%" />
+                  <Skeleton height={14} width="100%" />
+                  <Skeleton height={14} width="80%" />
+                  <Skeleton height={14} width="60%" />
+                  <Skeleton height={14} width="70%" />
+                </div>
+              );
+            }
+            if (!license) {
+              return <div className="error-state">Erro ao carregar informações</div>;
+            }
+            return (
+              <>
+                <div className="info-grid">
+                  <div className="info-item">
+                    <span className="info-label">Plano</span>
+                    <span className="info-value">{getPlanBadge()}</span>
+                  </div>
+
+                  {license.plan === "trial" && (
+                    <div className="info-item">
+                      <span className="info-label">Usos Disponíveis</span>
+                      <span className="info-value usage-count">
+                        {license.usage_count ?? 0} / {license.max_usage ?? 0}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="info-item">
+                    <span className="info-label">Validade</span>
+                    <span className="info-value">{formatDate(license.expires_at)}</span>
+                  </div>
+
+                  <div className="info-item">
+                    <span className="info-label">Dispositivo</span>
+                    <span className="info-value">{getStatusBadge()}</span>
+                  </div>
+
+                  <div className="info-item">
+                    <span className="info-label">Dispositivos</span>
+                    <span className="info-value">
+                      <span className={(license.devices ?? 0) >= (license.max_devices ?? 1) ? 'status-warning' : ''}>
+                        {license.devices ?? 1} / {license.max_devices ?? 2}
+                      </span>
+                    </span>
+                  </div>
+
+                  <div className="info-item">
+                    <span className="info-label">Última Verificação</span>
+                    <span className="info-value">
+                      {lastRefresh
+                        ? lastRefresh.toLocaleTimeString("pt-BR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })
+                        : "N/A"}
+                    </span>
+                  </div>
                 </div>
 
-                {license.plan === "trial" && (
-                  <div className="info-item">
-                    <span className="info-label">Usos Disponíveis</span>
-                    <span className="info-value usage-count">
-                      {license.usage_count ?? 0} / {license.max_usage ?? 0}
+                {license.reason && !license.ok && (
+                  <div className="error-message">
+                    <span className="error-icon">⚠</span>
+                    <span className="error-text">
+                      {getReasonMessage(license.reason)}
                     </span>
                   </div>
                 )}
 
-                <div className="info-item">
-                  <span className="info-label">Validade</span>
-                  <span className="info-value">{formatDate(license.expires_at)}</span>
-                </div>
-
-                <div className="info-item">
-                  <span className="info-label">Dispositivo</span>
-                  <span className="info-value">{getStatusBadge()}</span>
-                </div>
-
-                <div className="info-item">
-                  <span className="info-label">Dispositivos</span>
-                  <span className="info-value">
-                    <span className={(license.devices ?? 0) >= (license.max_devices ?? 1) ? 'status-warning' : ''}>
-                      {license.devices ?? 1} / {license.max_devices ?? 2}
-                    </span>
-                  </span>
-                </div>
-
-                <div className="info-item">
-                  <span className="info-label">Última Verificação</span>
-                  <span className="info-value">
-                    {lastRefresh
-                      ? lastRefresh.toLocaleTimeString("pt-BR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                        })
-                      : "N/A"}
-                  </span>
-                </div>
-              </div>
-
-              {license.reason && !license.ok && (
-                <div className="error-message">
-                  <span className="error-icon">⚠</span>
-                  <span className="error-text">
-                    {getReasonMessage(license.reason)}
-                  </span>
-                </div>
-              )}
-
-              {(license.reason === "wrong_device" || (license.ok && (license.devices ?? 0) >= (license.max_devices ?? 1))) && (
-                <div className="support-section-info">
-                  <p>Atingiu o limite de dispositivos ou este PC é novo?</p>
-                  <a 
-                    href="https://wa.me/5591993193461" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="btn-whatsapp-small"
-                  >
-                    Solicitar Liberação no WhatsApp
-                  </a>
-                </div>
-              )}
-            </>
-          )}
+                {(license.reason === "wrong_device" || (license.ok && (license.devices ?? 0) >= (license.max_devices ?? 1))) && (
+                  <div className="support-section-info">
+                    <p>Atingiu o limite de dispositivos ou este PC é novo?</p>
+                    <a 
+                      href="https://wa.me/5591993193461" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="btn-whatsapp-small"
+                    >
+                      Solicitar Liberação no WhatsApp
+                    </a>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </main>
 
         <footer className="license-modal-footer">

@@ -70,7 +70,8 @@ export class LicenseService {
     forceLive = false,
     forceConsume = false,
   ): Promise<LicenseResult> {
-    if (!forceConsume) {
+    // Se forceLive for verdadeiro, ignoramos o cache de memória e storage
+    if (!forceConsume && !forceLive) {
       const memory = this.getMemoryCache(forceLive);
       if (memory) return memory;
       const storage = await this.getStorageCache(forceLive);

@@ -174,6 +174,46 @@ export const AgroManager = {
     const btn = document.querySelector(
       'button[data-sigess-reap="iniciar"]',
     ) as HTMLButtonElement;
+    
+    // Verificação de Licença (Consome uso se trial)
+    const browserAPI = typeof browser !== "undefined" ? browser : (window as any).chrome;
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Validando Licença...";
+      }
+      
+      const lic = await new Promise<any>((resolve) => {
+        browserAPI.runtime.sendMessage({ action: "consumeLicense" }, (response: any) => {
+          resolve(response);
+        });
+      });
+
+      if (!lic?.ok) {
+        const reasonMap: Record<string, string> = {
+          trial_expired: "Seu período de teste (Trial) expirou.",
+          expired: "Sua licença expirou.",
+          wrong_device: "Licença vinculada a outro dispositivo.",
+          invalid_key: "Chave de licença inválida.",
+        };
+        const msg = reasonMap[lic?.reason] || `Erro de licença: ${lic?.reason || 'Sem Resposta'}`;
+        alert(`${msg}\n\nEntre em contato para renovar: (91) 99319-3461`);
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Iniciar Automação REAP";
+        }
+        return;
+      }
+    } catch (e) {
+      console.error("Erro ao validar licença:", e);
+      alert("Erro ao validar licença. Verifique sua conexão.");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Iniciar Automação REAP";
+      }
+      return;
+    }
+
     if (btn) {
       btn.disabled = true;
       btn.textContent = "Executando...";

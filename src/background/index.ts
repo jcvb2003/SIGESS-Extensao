@@ -6,7 +6,7 @@ import { LicenseService } from "../shared/services/license";
 let tabManager: TabManager | null = null;
 
 function getTabManager() {
-  if (!tabManager) tabManager = new TabManager();
+  tabManager ??= new TabManager();
   return tabManager;
 }
 
@@ -24,6 +24,10 @@ browser.runtime.onMessage.addListener(
           case "checkLicense": {
             const lic = await LicenseService.checkLicense();
             return { success: true, ...lic };
+          }
+          case "consumeLicense": {
+            const lic = await LicenseService.checkLicense(true, true);
+            return { success: lic.ok, ...lic };
           }
           case "updateESocialSettings":
             return await handleUpdateSettings(message);
@@ -61,7 +65,8 @@ async function handleUpdateSettings(message: MessageRequest) {
   return { success: true, settings: newSettings };
 }
 async function handleStartBatchLogin(message: MessageRequest) {
-  const license = await LicenseService.checkLicense(true, true);
+  // Funções de login são "livres" mas limitadas pelo período de teste (não consomem uso)
+  const license = await LicenseService.checkLicense(true, false);
   if (!license.ok) {
     return {
       success: false,
@@ -88,7 +93,8 @@ async function handleStartBatchLogin(message: MessageRequest) {
   return { success: true, count: succeeded, failed };
 }
 async function handleAbrirAbaContainer(message: MessageRequest) {
-  const license = await LicenseService.checkLicense(true, true);
+  // Funções de container são "livres" mas limitadas pelo período de teste (não consomem uso)
+  const license = await LicenseService.checkLicense(true, false);
   if (!license.ok) {
     return {
       success: false,
@@ -105,6 +111,7 @@ async function handleAbrirAbaContainer(message: MessageRequest) {
 }
 
 async function handleTurboFillReap(message: MessageRequest) {
+  // Preenchimento REAP CONSOME uso
   const license = await LicenseService.checkLicense(true, true);
   if (!license.ok) {
     return {
@@ -144,7 +151,7 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const url = new URL(currentUrl);
     if (url.hash && url.hash.includes("cpf=") && url.hash.includes("senha=")) {
       const isProcessing = await StorageService.get(`processing_${tabId}`);
-      if (isProcessing[`processing_${tabId}`]) return;
+      if (isProcessing?.[`processing_${tabId}`]) return;
       await StorageService.set({ [`processing_${tabId}`]: true });
       const hashParams = url.hash.substring(1);
       const cpfMatch = /cpf=([^&]+)/.exec(hashParams);
