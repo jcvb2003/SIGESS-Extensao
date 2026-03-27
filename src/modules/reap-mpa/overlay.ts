@@ -36,7 +36,7 @@ const Draggable = {
 
 const isReapPage = () => {
   const h = globalThis.location.href;
-  return /mpa\.gov\.br\/manutencao\/[^/]+\/cadastro\//.test(h);
+  return /mpa\.gov\.br\/manutencao\/[^/]+\/cadastro/.test(h);
 };
 
 const injectButton = async () => {
@@ -88,7 +88,10 @@ const injectButton = async () => {
 
       b.onclick = async () => {
         if (!State.isRunning) {
-          State.gender = value;
+          if (State.gender !== value) {
+            State.gender = value;
+            State.clearData();
+          }
           if ((globalThis as any).refreshSigessUI) {
             (globalThis as any).refreshSigessUI();
             await Utils.sleep(50);
@@ -352,6 +355,10 @@ const injectButton = async () => {
 
 let filterTimeout: any = null;
 export const initUI = () => {
+  const handleVisibility = () => {
+    injectButton();
+  };
+
   const observer = new MutationObserver((mutations) => {
     if (filterTimeout) return;
     const hasExternalMutation = mutations.some((m) => {
@@ -360,11 +367,16 @@ export const initUI = () => {
     });
     if (hasExternalMutation) {
       filterTimeout = setTimeout(() => {
-        injectButton();
+        handleVisibility();
         filterTimeout = null;
       }, 500);
     }
   });
+
   observer.observe(document.body, { childList: true, subtree: true });
-  injectButton();
+  
+  globalThis.addEventListener("popstate", handleVisibility);
+  globalThis.addEventListener("hashchange", handleVisibility);
+  
+  handleVisibility();
 };

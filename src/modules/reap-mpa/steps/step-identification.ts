@@ -1,6 +1,3 @@
-import { State } from '../session-state';
-import { DaysGenerator } from '../generators/days-schedule';
-import { ProductionGenerator } from '../generators/fish-production';
 import { Utils } from '../utils/dom-utils';
 import { IWorkflowManager } from "../types";
 export const Page1 = {
@@ -9,11 +6,6 @@ export const Page1 = {
     !!document.querySelector('input[name="codigoRGP"]'),
   execute: async (manager: IWorkflowManager) => {
     console.log("REAP: Validando Página 1...");
-    State.daysMap = DaysGenerator.generate(State.gender);
-    State.production = ProductionGenerator.generate(
-      State.daysMap,
-      State.gender,
-    );
     const validate = (name: string, expected: string) => {
       const input = document.querySelector(
         `input[name="${name}"]`,

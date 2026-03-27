@@ -22,21 +22,12 @@ const checkLicenseBeforeInit = async () => {
   }
 };
 
-const href = globalThis.location.href;
-const isMpa = /mpa\.gov\.br\/manutencao\/[^/]+\/cadastro\//.test(href);
-const isAgro = /agro\.gov\.br\/reap-simplificada\//.test(href);
-
-if (isMpa || isAgro) {
-  const init = async () => {
-    const ok = await checkLicenseBeforeInit();
-    if (!ok) return;
-    if (isMpa) {
-      initUI();
-      console.log("SIGESS: MPA REAP Initialized");
-    } else if (isAgro) {
-      initAgroUI();
-      console.log("SIGESS: Agro REAP Initialized");
-    }
-  };
-  init();
-}
+const init = async () => {
+  const ok = await checkLicenseBeforeInit();
+  if (!ok) return;
+  
+  initUI();
+  initAgroUI();
+  console.log("SIGESS: REAP Observers Initialized");
+};
+init();
