@@ -1,10 +1,12 @@
 import "../shared/utils/browser-shim";
 import { initUI } from "../modules/reap-mpa/overlay";
 import { initAgroUI } from "../modules/reap-agro/form-automation";
-if ((window as any).hasReapExtensionActive) {
+
+if ((globalThis as any).hasReapExtensionActive) {
   throw new Error("SIGESS: REAP already active");
 }
-(window as any).hasReapExtensionActive = true;
+(globalThis as any).hasReapExtensionActive = true;
+
 const checkLicenseBeforeInit = async () => {
   try {
     const response = await browser.runtime.sendMessage({
@@ -19,14 +21,22 @@ const checkLicenseBeforeInit = async () => {
     return false;
   }
 };
-const hostname = window.location.hostname;
-checkLicenseBeforeInit().then((ok) => {
-  if (!ok) return;
-  if (hostname.includes("mpa.gov.br")) {
-    initUI();
-    console.log("SIGESS: MPA REAP Initialized");
-  } else if (hostname.includes("agro.gov.br")) {
-    initAgroUI();
-    console.log("SIGESS: Agro REAP Initialized");
-  }
-});
+
+const href = globalThis.location.href;
+const isMpa = /mpa\.gov\.br\/manutencao\/[^/]+\/cadastro\//.test(href);
+const isAgro = /agro\.gov\.br\/reap-simplificada\//.test(href);
+
+if (isMpa || isAgro) {
+  const init = async () => {
+    const ok = await checkLicenseBeforeInit();
+    if (!ok) return;
+    if (isMpa) {
+      initUI();
+      console.log("SIGESS: MPA REAP Initialized");
+    } else if (isAgro) {
+      initAgroUI();
+      console.log("SIGESS: Agro REAP Initialized");
+    }
+  };
+  init();
+}

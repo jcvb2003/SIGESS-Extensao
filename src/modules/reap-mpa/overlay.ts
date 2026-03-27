@@ -36,13 +36,7 @@ const Draggable = {
 
 const isReapPage = () => {
   const h = globalThis.location.href;
-  return (
-    h.includes("mpa.gov.br") &&
-    (h.includes("/manutencao/") ||
-      h.includes("/reap-simplificada/") ||
-      h.includes("cadastro/") ||
-      h.includes("informe-mensal"))
-  );
+  return /mpa\.gov\.br\/manutencao\/[^/]+\/cadastro\//.test(h);
 };
 
 const injectButton = async () => {
@@ -110,27 +104,40 @@ const injectButton = async () => {
     const updateMainButton = () => {
       const mBtn = document.getElementById("sigess-reap-btn") as HTMLButtonElement;
       if (!mBtn) return;
-      if (State.isRunning) {
-        mBtn.innerHTML = State.isPausing ? `${Icons.pause} Pausando...` : `${Icons.pause} Pausar`;
+      
+      const isRunning = State.isRunning;
+      const isPausing = State.isPausing;
+      const isPaused = State.isPaused;
+
+      if (isRunning) {
+        mBtn.innerHTML = isPausing ? `${Icons.pause} Pausando...` : `${Icons.pause} Pausar`;
         mBtn.style.background = "#ffc107";
-      } else if (State.isPaused) {
+        mBtn.disabled = isPausing; // Desabilita se estiver pausando
+      } else if (isPaused) {
         mBtn.innerHTML = `${Icons.play} Continuar`;
         mBtn.style.background = "#28a745";
+        mBtn.disabled = false;
       } else {
         mBtn.innerHTML = `${Icons.play} Iniciar`;
         mBtn.style.background = "#007bff";
+        mBtn.disabled = (globalThis as any).__sigessTurboRunning === true;
       }
     };
 
     const updateTurboButton = () => {
-      const tBtn = document.getElementById("sigess-reap-turbo-btn");
+      const tBtn = document.getElementById("sigess-reap-turbo-btn") as HTMLButtonElement;
       if (!tBtn) return;
-      if ((globalThis as any).__sigessTurboRunning) {
+      
+      const isTurboRunning = (globalThis as any).__sigessTurboRunning === true;
+
+      if (isTurboRunning) {
         tBtn.innerHTML = State.stopRequested ? "Interrompendo..." : `Interromper`;
         tBtn.style.background = "#dc3545";
+        tBtn.disabled = State.stopRequested;
       } else {
-        tBtn.innerHTML = `Preenchimento direto`;
+        tBtn.innerHTML = `Preenchimento Turbo`;
         tBtn.style.background = "#6f42c1";
+        tBtn.disabled = State.isRunning || State.isPaused;
       }
     };
 
@@ -180,7 +187,7 @@ const injectButton = async () => {
           if (oBtn) {
             oBtn.innerHTML = "✅ Concluído!";
             oBtn.style.background = "#28a745";
-            setTimeout(() => { oBtn.innerHTML = "Preenchimento direto"; oBtn.style.background = "#6f42c1"; }, 3000);
+            setTimeout(() => { oBtn.innerHTML = "Preenchimento Turbo"; oBtn.style.background = "#6f42c1"; }, 3000);
           }
         } else {
           alert(response?.error || 'Ocorreu um erro no Preenchimento Direto.');
@@ -267,6 +274,12 @@ const injectButton = async () => {
         refreshUI();
         return;
       }
+
+      if (State.isPaused) {
+        WorkflowManager.start();
+        refreshUI();
+        return;
+      }
       
       // Validação de Licença Manual
       btn.disabled = true;
@@ -290,7 +303,7 @@ const injectButton = async () => {
     const btnTurbo = document.createElement("button");
     btnTurbo.id = "sigess-reap-turbo-btn";
     btnTurbo.style.cssText = "padding: 8px; background: #6f42c1; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
-    btnTurbo.innerHTML = `Preenchimento direto`;
+    btnTurbo.innerHTML = `Preenchimento Turbo`;
     btnTurbo.onclick = async (e) => {
       e.stopPropagation();
       if ((globalThis as any).__sigessTurboRunning) {
@@ -299,14 +312,12 @@ const injectButton = async () => {
         return;
       }
 
-      // Validação de Licença Turbo
+      // Validação de Licença Turbo (Apenas verifica, o background consome)
       btnTurbo.disabled = true;
-      btnTurbo.innerText = "Validando...";
-      const lic = await browser.runtime.sendMessage({ action: "consumeLicense", usageType: "turbo" });
+      btnTurbo.innerHTML = "Validando...";
+      const lic = await browser.runtime.sendMessage({ action: "checkLicense" });
       if (!lic.ok) {
-        alert(lic.reason === "limit_reached_turbo" 
-          ? "Limite de 3 usos (Turbo) atingido. Você ainda poderá usar o preenchimento manual passo a passo." 
-          : `Erro de licença: ${lic.reason}`);
+        alert(`Erro de licença: ${lic.reason}`);
         refreshUI();
         btnTurbo.disabled = false;
         return;
@@ -328,8 +339,8 @@ const injectButton = async () => {
     resetBtn.style.cssText = "padding: 6px; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;";
     resetBtn.onclick = (e) => {
       e.stopPropagation();
-      State.reset();
-      WorkflowManager.stop();
+      State.clearData();
+      refreshUI();
     };
     container.appendChild(resetBtn);
     Draggable.init(container);

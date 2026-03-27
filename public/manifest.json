@@ -16,7 +16,7 @@
         "https://sso.acesso.gov.br/*",
         "https://login.esocial.gov.br/*",
         "https://www.esocial.gov.br/*",
-        "<all_urls>"
+        "*://*.vercel.app/*"
     ],
     "background": {
         "scripts": [
@@ -40,7 +40,8 @@
     "content_scripts": [
         {
             "matches": [
-                "<all_urls>"
+                "*://*.gov.br/*",
+                "*://*.vercel.app/*"
             ],
             "js": [
                 "assets/content_script.js"
@@ -48,8 +49,8 @@
         },
         {
             "matches": [
-                "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
-                "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*"
+                "*://pesqbrasil-pescadorprofissional.mpa.gov.br/manutencao/*",
+                "*://pesqbrasil-pescadorprofissional.agro.gov.br/reap-simplificada/*"
             ],
             "js": [
                 "assets/content_reap.js",

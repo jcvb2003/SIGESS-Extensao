@@ -21,10 +21,15 @@ class StateManager {
     this.stopRequested = false;
     this.turboMode = false;
     this.currentMonthIndex = 0;
+    this.clearData();
+  }
+  
+  clearData() {
     this.daysMap = {};
     this.production = [];
     this.currentPage = 0;
     this.monthlyProgress = {};
+    console.log("REAP: Dados limpos (reset).");
   }
 }
 

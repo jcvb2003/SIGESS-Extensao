@@ -28,36 +28,44 @@ export const WorkflowManager: IWorkflowManager & {
     this.loop();
   },
   pause() {
-    State.stopRequested = true;
-    State.isRunning = true;
-    State.isPausing = true;
-    State.isPaused = false;
-    console.log("REAP: Pausando...");
-    refreshUI();
+    if (State.isRunning) {
+      State.stopRequested = true;
+      State.isPausing = true;
+      console.log("REAP: Pausando...");
+      refreshUI();
+    }
   },
   stop() {
     State.stopRequested = true;
     State.isRunning = false;
     State.isPaused = false;
     State.isPausing = false;
+    (globalThis as any).__sigessTurboRunning = false;
     console.log("REAP: Stop total.");
     refreshUI();
   },
   handlePauseIfRequested() {
-    if (State.stopRequested) {
-        if (State.isPausing) {
-           State.isRunning = false;
-           State.isPaused = true;
-           State.isPausing = false;
-           console.log("REAP: Pausado com sucesso.");
-           refreshUI();
-        }
-        return true;
+    if (!State.stopRequested) return false;
+
+    if (State.isPausing) {
+      State.isRunning = false;
+      State.isPaused = true;
+      State.isPausing = false;
+      console.log("REAP: Pausa efetivada (isPausing -> isPaused).");
+    } else {
+      State.isRunning = false;
+      State.isPaused = false;
+      State.isPausing = false;
+      console.log("REAP: Stop efetivado (Interrompido).");
     }
-    return false;
+    
+    refreshUI();
+    return true;
   },
   async runPage(page: any) {
     await page.execute(this);
+    if (this.handlePauseIfRequested()) return; // Pausa imediata se solicitado
+    
     refreshUI();
     await Utils.waitFor(() => !page.isCurrentPage(), 5000);
     setTimeout(() => this.loop(), 1000);
@@ -73,6 +81,12 @@ export const WorkflowManager: IWorkflowManager & {
       }
     } else {
       await Page3.execute(this);
+      
+      if (this.handlePauseIfRequested()) return;
+      
+      if (State.isRunning) {
+        setTimeout(() => this.loop(), 1000);
+      }
     }
   },
   async loop() {
