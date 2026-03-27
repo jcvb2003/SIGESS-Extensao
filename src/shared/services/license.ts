@@ -42,6 +42,7 @@ export interface LicenseResult {
   reason?: LicenseReason;
   valid_until?: string;
   sig?: string;
+  device_name?: string;
 }
 
 export class LicenseService {
@@ -142,8 +143,9 @@ export class LicenseService {
   }
 
   private static async performLiveCheck(
-    action: "check" | "status" = "status",
-    usageType?: string
+    action: "check" | "status" | "update_name" = "status",
+    usageType?: string,
+    deviceName?: string
   ): Promise<LicenseResult> {
     const key = await this.getSavedKey();
     const fingerprint = await getFingerprint();
@@ -160,7 +162,8 @@ export class LicenseService {
            key, 
            fingerprint, 
            action, 
-           usage_type: usageType 
+           usage_type: usageType,
+           device_name: deviceName
         }),
       });
 
@@ -186,5 +189,9 @@ export class LicenseService {
 
   static async getStatus(): Promise<LicenseResult> {
     return this.checkLicense();
+  }
+
+  static async updateDeviceName(name: string): Promise<LicenseResult> {
+    return this.performLiveCheck("update_name", undefined, name);
   }
 }

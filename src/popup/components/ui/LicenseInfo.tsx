@@ -99,6 +99,8 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [inputKey, setInputKey] = useState("");
   const [activating, setActivating] = useState(false);
+  const [deviceName, setDeviceName] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
 
   const loadLicense = useCallback(async (forceLive = false) => {
     setRefreshing(true);
@@ -116,6 +118,26 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   useEffect(() => {
     loadLicense();
   }, [loadLicense]);
+
+  useEffect(() => {
+    if (license?.device_name) {
+      setDeviceName(license.device_name);
+    }
+  }, [license]);
+
+  const handleSaveName = async (newName: string) => {
+    if (!newName.trim() || newName === license?.device_name) return;
+    setIsSavingName(true);
+    try {
+      await LicenseService.updateDeviceName(newName.trim());
+      // Apenas atualiza o estado local para evitar re-render pesado se necessário, 
+      // mas o ideal é deixar o cache do service gerenciar
+    } catch (e) {
+      console.error("Erro ao salvar nome:", e);
+    } finally {
+      setIsSavingName(false);
+    }
+  };
 
   const handleActivate = async () => {
     if (!inputKey.trim()) return;
@@ -191,6 +213,32 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '310px', overflowY: 'auto' }}>
           {license && license.ok ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Nome do Dispositivo (Editável) */}
+              <div style={{ position: 'relative', marginBottom: '4px' }}>
+                <input
+                  type="text"
+                  placeholder="Nome deste computador (ex: Notebook José)"
+                  value={deviceName}
+                  onChange={e => setDeviceName(e.target.value)}
+                  onBlur={() => handleSaveName(deviceName)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px 12px 10px 38px', 
+                    borderRadius: '12px', 
+                    border: '1px solid var(--color-border)', 
+                    fontSize: '12px', 
+                    fontWeight: '600',
+                    background: 'var(--color-surface)', 
+                    color: 'var(--color-text)', 
+                    boxSizing: 'border-box', 
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                />
+                <Monitor size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-muted)' }} />
+                {isSavingName && <RefreshCw size={12} className="animate-spin" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-accent)', animation: 'spin 1s linear infinite' }} />}
+              </div>
+
               {/* Status Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 {renderItem("Expira em", license.expires_at ? new Date(license.expires_at).toLocaleDateString() : "Sem expiração", "Expiração da chave", <Calendar size={18} />, "#3b82f6")}
@@ -264,15 +312,31 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               <div style={{ textAlign: 'center', color: 'var(--color-muted)', fontSize: '12px', lineHeight: '1.5' }}>
                 Insira sua chave de licença abaixo para ativar todos os recursos premium do SIGESS.
               </div>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
-                  value={inputKey}
-                  onChange={e => setInputKey(e.target.value)}
-                  style={{ width: '100%', padding: '14px 14px 14px 40px', borderRadius: '12px', border: '2px solid var(--color-border)', fontSize: '13px', background: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box', outline: 'none' }}
-                />
-                <Key size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-muted)' }} />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Nome deste PC (ex: Escritório)"
+                    value={deviceName}
+                    onChange={e => setDeviceName(e.target.value)}
+                    onBlur={() => handleSaveName(deviceName)}
+                    style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '12px', border: '2px solid var(--color-border)', fontSize: '13px', background: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                  <Monitor size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-muted)' }} />
+                  {isSavingName && <RefreshCw size={12} className="animate-spin" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-accent)', animation: 'spin 1s linear infinite' }} />}
+                </div>
+
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
+                    value={inputKey}
+                    onChange={e => setInputKey(e.target.value)}
+                    style={{ width: '100%', padding: '14px 14px 14px 40px', borderRadius: '12px', border: '2px solid var(--color-border)', fontSize: '13px', background: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                  <Key size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-muted)' }} />
+                </div>
               </div>
               <button
                 onClick={handleActivate}

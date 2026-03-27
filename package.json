@@ -1,6 +1,6 @@
 {
     "name": "sigess-extension",
-    "version": "3.0.1",
+    "version": "3.0.2",
     "description": "Automatiza logins e preenchimento de formulários em sites governamentais",
     "scripts": {
         "dev": "vite",
