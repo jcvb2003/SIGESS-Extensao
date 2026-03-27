@@ -15,7 +15,8 @@ export async function routeMessage(
         return { success: true, ...lic };
       }
       case "consumeLicense": {
-        const lic = await LicenseService.checkLicense(true, true);
+        const usageType = message.usageType || "manual";
+        const lic = await LicenseService.checkLicense(true, true, usageType);
         return { success: lic.ok, ...lic };
       }
       case "updateESocialSettings":
@@ -139,11 +140,13 @@ async function handleAbrirAbaContainer(
 }
 
 async function handleTurboFillReap(message: MessageRequest) {
-  const license = await LicenseService.checkLicense(true, true);
+  const license = await LicenseService.checkLicense(true, true, 'turbo');
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: license.reason === 'limit_reached_turbo' 
+        ? "Limite de Preenchimento Turbo (3 usos) atingido. Você ainda pode usar o Preenchimento Passo a Passo."
+        : `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }
 

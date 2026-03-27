@@ -5,7 +5,7 @@ import { LoginSection } from "./panels/LoginSection";
 import ReapAgroPanel from "./panels/ReapAgroPanel";
 import ReapMpaPanel from "./panels/ReapMpaPanel";
 import BatchLoginModal from "./ui/BatchLoginModal";
-import LicenseInfo from "./ui/LicenseInfo";
+import { LicenseInfo } from "./ui/LicenseInfo";
 import { Skeleton, SkeletonBadge, SkeletonCard } from "./ui/Skeleton";
 import { ToastProvider, useToast } from "./ui/Toast";
 import { ActivationScreen, getLicenseErrorMessage } from "./ui/ActivationScreen";

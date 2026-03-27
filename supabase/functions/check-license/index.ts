@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { key, fingerprint, action } = body;
+    const { key, fingerprint, action, usage_type } = body;
 
     if (!key || !fingerprint) {
       return new Response(JSON.stringify({ ok: false, reason: "missing_parameters" }), { 
@@ -38,12 +38,15 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const rpcName = action === "status" ? "get_license_status" : "check_and_use_license";
+    let rpcName = "get_license_status";
+    let rpcParams: any = { p_key: key, p_fingerprint: fingerprint };
 
-    const { data: result, error } = await supabaseClient.rpc(rpcName, {
-      p_key: key,
-      p_fingerprint: fingerprint
-    });
+    if (action === "check") {
+      rpcName = "check_and_use_license";
+      rpcParams.p_usage_type = usage_type || "manual";
+    }
+
+    const { data: result, error } = await supabaseClient.rpc(rpcName, rpcParams);
 
     if (error) {
       console.error("RPC Error:", error);
@@ -62,8 +65,8 @@ Deno.serve(async (req: Request) => {
       valid_until: validUntil
     };
 
-    // Generate HMAC signature
-    const msg = `${payload.ok}${payload.plan || ''}${payload.usage_count || ''}${payload.devices || ''}${payload.max_devices || ''}${validUntil}`;
+    // Update signature to include new counters if available (for backward compatibility, use coalesce)
+    const msg = `${payload.ok}${payload.plan || ''}${payload.status || ''}${payload.usage_manual ?? ''}${payload.usage_turbo ?? ''}${payload.usage_agro ?? ''}${payload.devices || ''}${payload.max_devices || ''}${validUntil}`;
     const keyData = new TextEncoder().encode(APP_SECRET);
     const msgData = new TextEncoder().encode(msg);
     

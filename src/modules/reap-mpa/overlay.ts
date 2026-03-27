@@ -260,10 +260,29 @@ const injectButton = async () => {
     const btn = document.createElement("button");
     btn.id = "sigess-reap-btn";
     btn.style.cssText = "padding: 8px; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
-    btn.onclick = (e) => {
+    btn.onclick = async (e) => {
       e.stopPropagation();
-      if (State.isRunning) WorkflowManager.pause();
-      else WorkflowManager.start();
+      if (State.isRunning) {
+        WorkflowManager.pause();
+        refreshUI();
+        return;
+      }
+      
+      // Validação de Licença Manual
+      btn.disabled = true;
+      btn.innerText = "Validando...";
+      const lic = await browser.runtime.sendMessage({ action: "consumeLicense", usageType: "manual" });
+      if (!lic.ok) {
+        alert(lic.reason === "limit_reached_manual" 
+          ? "Limite de 5 usos (Manual) atingido. Entre em contato para renovar." 
+          : `Erro de licença: ${lic.reason}`);
+        refreshUI();
+        btn.disabled = false;
+        return;
+      }
+      
+      State.turboMode = false;
+      WorkflowManager.start();
       refreshUI();
     };
     container.appendChild(btn);
@@ -279,12 +298,26 @@ const injectButton = async () => {
         btnTurbo.innerHTML = "Interrompendo...";
         return;
       }
+
+      // Validação de Licença Turbo
+      btnTurbo.disabled = true;
+      btnTurbo.innerText = "Validando...";
+      const lic = await browser.runtime.sendMessage({ action: "consumeLicense", usageType: "turbo" });
+      if (!lic.ok) {
+        alert(lic.reason === "limit_reached_turbo" 
+          ? "Limite de 3 usos (Turbo) atingido. Você ainda poderá usar o preenchimento manual passo a passo." 
+          : `Erro de licença: ${lic.reason}`);
+        refreshUI();
+        btnTurbo.disabled = false;
+        return;
+      }
       
       if (!State.daysMap || Object.keys(State.daysMap).length === 0) State.daysMap = DaysGenerator.generate(State.gender);
       if (!State.production || State.production.length === 0) State.production = ProductionGenerator.generate(State.daysMap, State.gender);
       
       State.turboMode = true;
       WorkflowManager.start();
+      refreshUI();
     };
     container.appendChild(btnTurbo);
 

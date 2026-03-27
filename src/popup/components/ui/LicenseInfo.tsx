@@ -1,220 +1,301 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  CheckCircle2,
+  Calendar,
+  Key,
+  ShieldCheck,
+  RefreshCw,
+  ExternalLink,
+  Zap,
+  MousePointer2,
+  Activity,
+  Monitor,
+  Plus,
+  CreditCard
+} from "lucide-react";
 import { LicenseService, LicenseResult } from "../../../shared/services/license";
 import { Skeleton } from "./Skeleton";
 
-// Ícones Premium (Inline SVG)
-const IconPlan = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-  </svg>
-);
+interface UsageBucketProps {
+  label: string;
+  icon: React.ReactNode;
+  current: number;
+  max: number;
+  color: string;
+  bgColor: string;
+}
 
-const IconCalendar = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-
-const IconDevice = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-    <line x1="8" y1="21" x2="16" y2="21" />
-    <line x1="12" y1="17" x2="12" y2="21" />
-  </svg>
-);
-
-const IconCheck = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-    <polyline points="22 4 12 14.01 9 11.01" />
-  </svg>
-);
-
-const IconZap = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-  </svg>
-);
-
-const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const [license, setLicense] = useState<LicenseResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-
-  useEffect(() => {
-    loadLicense();
-  }, []);
-
-  const loadLicense = async (forceLive = false) => {
-    setLoading(true);
-    const result = await LicenseService.checkLicense(forceLive, false);
-    setLicense(result);
-    setLastRefresh(new Date());
-    setLoading(false);
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadLicense(true);
-    setRefreshing(false);
-  };
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "N/A";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
-  };
-
-  const renderItem = (label: string, value: React.ReactNode, subValue: string, icon: React.ReactNode, color: string) => (
-    <div style={{ 
-        background: 'var(--color-surface)', 
-        border: '1px solid var(--color-border)', 
-        borderRadius: '12px', 
-        padding: '12px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
-        transition: 'all 0.2s ease',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-        <div style={{ color: color, display: 'flex' }}>{icon}</div>
-        <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-muted)' }}>{label}</span>
-      </div>
-      <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text)' }}>{value}</div>
-      <div style={{ fontSize: '9px', color: 'var(--color-muted)', fontWeight: '500' }}>{subValue}</div>
-    </div>
-  );
+const UsageBucket = ({ label, icon, current, max, color, bgColor }: UsageBucketProps) => {
+  const percentage = Math.min(100, (current / (max || 1)) * 100);
 
   return (
-    <div className="modal-overlay" style={{ backdropFilter: 'blur(8px)', background: 'rgba(15, 23, 42, 0.4)' }}>
-      <div className="section modal-card fade-in" style={{ 
-          width: '340px', 
-          padding: '0', 
-          overflow: 'hidden', 
-          border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-      }}>
-        {/* Header com Gradiente Premium */}
-        <header style={{ 
-            background: 'linear-gradient(135deg, #0f766e 0%, #134e4a 100%)', 
-            padding: '20px', 
-            color: 'white',
-            position: 'relative'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: 'rgba(255,255,255,0.2)', padding: '10px', borderRadius: '12px', backdropFilter: 'blur(4px)' }}>
-              <img src="../../icon.png" width="24" height="24" alt="SIGESS" />
-            </div>
-            <div>
-               <h3 style={{ fontSize: '16px', margin: '0', fontWeight: '800' }}>Assinatura SIGESS</h3>
-               <p style={{ fontSize: '11px', margin: '0', opacity: '0.8', fontWeight: '500' }}>Painel de Gestão de Licença</p>
-            </div>
-          </div>
-          <button 
-            onClick={onClose} 
-            className="btn-icon" 
-            style={{ position: 'absolute', top: '20px', right: '20px', color: 'white', opacity: '0.7', filter: 'invert(1)' }}
-          >
-             ✕
-          </button>
-        </header>
-
-        <div className="modal-body" style={{ padding: '20px', background: 'var(--color-surface-alt)' }}>
-          {loading ? (
-             <div className="stack" style={{ gap: '12px' }}>
-                <Skeleton height={60} width="100%" borderRadius="12px" />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <Skeleton height={80} width="100%" borderRadius="12px" />
-                    <Skeleton height={80} width="100%" borderRadius="12px" />
-                </div>
-             </div>
-          ) : !license ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--color-danger)' }}>Erro ao carregar dados</div>
-          ) : (
-             <div className="stack" style={{ gap: '16px' }}>
-                {/* Banner de Plano */}
-                <div style={{ 
-                    background: license.plan === 'trial' ? 'linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%)' : 'linear-gradient(90deg, #f0fdfa 0%, #ccfbf1 100%)',
-                    padding: '12px 16px',
-                    borderRadius: '14px',
-                    border: license.plan === 'trial' ? '1px solid #fde68a' : '1px solid #99f6e4',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                         <div style={{ color: license.plan === 'trial' ? '#d97706' : '#0f766e' }}><IconZap /></div>
-                         <span style={{ fontWeight: '800', color: license.plan === 'trial' ? '#92400e' : '#134e4a', fontSize: '13px' }}>
-                            Sua licença é {license.plan === 'trial' ? 'Grátis (Trial)' : 'Profissional (Pro)'}
-                         </span>
-                    </div>
-                </div>
-
-                {/* Grid de Informações */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                   {renderItem("Validade", formatDate(license.expires_at), "Vencimento da chave", <IconCalendar />, "#ef4444")}
-                   {renderItem("Multiuso", `${license.devices || 1}/${license.max_devices || 2}`, "Limite de aparelhos", <IconDevice />, "#3b82f6")}
-                   {renderItem("Status", license.ok ? "Ativo" : "Pendente", "Estado da ativação", <IconCheck />, "#22c55e")}
-                   {renderItem("Referência", license.plan === 'paid' ? "PRO-ACTIVE" : "TRIAL-MODE", "Tipo de registro", <IconPlan />, "#8b5cf6")}
-                </div>
-
-                {/* Trial Box */}
-                {license.plan === 'trial' && (
-                    <div style={{ padding: '14px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '11px', fontWeight: '700' }}>
-                            <span>PROGRESSO DE USO</span>
-                            <span style={{ color: 'var(--color-accent)' }}>{license.usage_count}/{license.max_usage}</span>
-                        </div>
-                        <div style={{ height: '6px', background: 'var(--color-surface-alt)', borderRadius: '10px', overflow: 'hidden' }}>
-                            <div style={{ 
-                                width: `${Math.min(((license.usage_count || 0) / (license.max_usage || 1)) * 100, 100)}%`, 
-                                height: '100%', 
-                                background: 'var(--color-accent)' 
-                            }} />
-                        </div>
-                    </div>
-                )}
-
-                {/* Erros */}
-                {license.reason && !license.ok && (
-                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '10px', borderRadius: '10px', color: '#b91c1c', fontSize: '11px', fontWeight: '600', textAlign: 'center' }}>
-                         {license.reason === 'wrong_device' ? 'Licença em outro PC. Entre em contato.' : `Atenção: ${license.reason}`}
-                    </div>
-                )}
-             </div>
-          )}
-        </div>
-
-        <footer style={{ 
-            padding: '16px 20px', 
-            background: 'var(--color-surface)', 
-            borderTop: '1px solid var(--color-border)',
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      padding: '12px',
+      background: 'var(--color-surface)',
+      borderRadius: '12px',
+      border: '1px solid var(--color-border)',
+      transition: 'all 0.2s ease'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            padding: '6px',
+            borderRadius: '8px',
+            background: bgColor,
+            color: color,
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-        }}>
-          <button
-            className={`btn btn-primary ${refreshing ? "loading" : ""}`}
-            onClick={handleRefresh}
-            disabled={loading || refreshing}
-            type="button"
-            style={{ borderRadius: '10px', padding: '8px 18px', fontWeight: '700', fontSize: '12px' }}
-          >
-            {refreshing ? "Atualizando..." : "Verificar Agora"}
-          </button>
-          <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--color-muted)' }}>VERSÃO {browser.runtime.getManifest().version}</div>
-              <div style={{ fontSize: '9px', color: 'var(--color-muted)' }}>Check: {lastRefresh?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            {React.cloneElement(icon as React.ReactElement, { size: 14 })}
           </div>
-        </footer>
+          <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--color-text)' }}>{label}</span>
+        </div>
+        <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--color-muted)', background: 'var(--color-surface-alt)', padding: '2px 8px', borderRadius: '10px' }}>
+          {current} / {max}
+        </div>
+      </div>
+
+      <div style={{ position: 'relative', height: '6px', width: '100%', background: 'var(--color-surface-alt)', borderRadius: '10px', overflow: 'hidden' }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            height: '100%',
+            background: color,
+            width: `${percentage}%`,
+            transition: 'all 0.7s ease-out',
+            borderRadius: '10px'
+          }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
+        {Array.from({ length: max }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              height: '3px',
+              flex: 1,
+              borderRadius: '4px',
+              background: i < current ? color : 'var(--color-border)',
+              opacity: i < current ? 1 : 0.3,
+              transition: 'all 0.3s ease'
+            }}
+          />
+        ))}
       </div>
     </div>
   );
 };
 
-export default LicenseInfo;
+export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const [license, setLicense] = useState<LicenseResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [inputKey, setInputKey] = useState("");
+  const [activating, setActivating] = useState(false);
+
+  const loadLicense = useCallback(async (forceLive = false) => {
+    setRefreshing(true);
+    try {
+      const result = await LicenseService.checkLicense(forceLive);
+      setLicense(result);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLicense();
+  }, [loadLicense]);
+
+  const handleActivate = async () => {
+    if (!inputKey.trim()) return;
+    setActivating(true);
+    try {
+      await LicenseService.saveKey(inputKey.trim());
+      await loadLicense(true);
+      setInputKey("");
+    } catch (e) {
+      alert("Falha ao ativar.");
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const renderItem = (label: string, value: string, sub: string, icon: React.ReactNode, color: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)', flex: '1' }}>
+      <div style={{ padding: '8px', background: `${color}15`, color: color, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {icon}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <span style={{ fontSize: '9px', color: 'var(--color-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+        <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text)' }}>{value}</span>
+        <span style={{ fontSize: '9px', color: 'var(--color-muted)' }}>{sub}</span>
+      </div>
+    </div>
+  );
+
+  if (loading) return (
+    <div style={{ padding: '24px' }}>
+      <Skeleton className="h-40 w-full mb-4" />
+      <Skeleton className="h-10 w-full mb-2" />
+      <Skeleton className="h-10 w-full" />
+    </div>
+  );
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
+      <div style={{
+        background: 'var(--color-page)',
+        width: '92%',
+        maxWidth: '330px',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        boxShadow: 'var(--shadow-soft)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0',
+        color: 'var(--color-text)',
+        fontFamily: 'Inter, sans-serif'
+      }}>
+
+        {/* Header Profissional Compacto */}
+        <div style={{ background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-strong) 100%)', padding: '12px 16px', borderRadius: '0 0 16px 16px', color: 'white', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1 }}>
+            <ShieldCheck size={100} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', letterSpacing: '-0.5px' }}>Painel do Usuário</h2>
+              <p style={{ margin: 0, fontSize: '11px', opacity: 0.8 }}>Gestão de Licenciamento SIGESS</p>
+            </div>
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '6px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Plus style={{ transform: 'rotate(45deg)' }} size={18} />
+            </button>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', padding: '8px 12px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={14} />
+            <span style={{ fontSize: '10px', fontWeight: '700' }}>DISPOSITIVO VINCULADO</span>
+          </div>
+        </div>
+
+        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '310px', overflowY: 'auto' }}>
+          {license && license.ok ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Status Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {renderItem("Expira em", license.expires_at ? new Date(license.expires_at).toLocaleDateString() : "Sem expiração", "Expiração da chave", <Calendar size={18} />, "#3b82f6")}
+                {renderItem("Máquinas", `${license.devices}/${license.max_devices}`, "Limite de acessos", <Monitor size={18} />, "#10b981")}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {renderItem("Status", "VERIFICADO", "Licença autêntica", <ShieldCheck size={18} />, "#f59e0b")}
+                {renderItem("Referência", license.plan === 'paid' ? "PRO-ACTIVE" : "TRIAL-MODE", "Tipo de registro", <CreditCard size={18} />, "#8b5cf6")}
+              </div>
+
+              {/* Segmented Usage Bars */}
+              <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <p style={{ margin: 0, fontSize: '10px', fontWeight: '800', color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Consumo de Automações</p>
+
+                <UsageBucket
+                  label="Início Manual (REAP)"
+                  icon={<MousePointer2 />}
+                  current={license.usage_manual ?? 0}
+                  max={license.max_manual ?? 5}
+                  color="#0f766e"
+                  bgColor="rgba(15, 118, 110, 0.1)"
+                />
+
+                <UsageBucket
+                  label="Preenchimento Turbo"
+                  icon={<Zap />}
+                  current={license.usage_turbo ?? 0}
+                  max={license.max_turbo ?? 3}
+                  color="#8b5cf6"
+                  bgColor="rgba(139, 92, 246, 0.1)"
+                />
+
+                <UsageBucket
+                  label="Agro / Simplificado"
+                  icon={<Activity />}
+                  current={license.usage_agro ?? 0}
+                  max={license.max_agro ?? 10}
+                  color="#f97316"
+                  bgColor="rgba(249, 115, 22, 0.1)"
+                />
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'var(--color-success-bg)', borderRadius: '12px', border: '1px solid #c6e7db' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle2 size={14} color="var(--color-success)" />
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--color-success-text)' }}>Consultas e eSocial</span>
+                  </div>
+                  <span style={{ padding: '2px 8px', background: 'var(--color-success)', color: 'white', fontSize: '9px', fontWeight: '800', borderRadius: '8px' }}>
+                    LIVRE
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => loadLicense(true)}
+                disabled={refreshing}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  padding: '12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                  borderRadius: '12px', cursor: refreshing ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', color: 'var(--color-text)',
+                  transition: 'all 0.2s', marginTop: '8px'
+                }}
+              >
+                <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                {refreshing ? "Atualizando..." : "Sincronizar Dados"}
+              </button>
+            </div>
+          ) : (
+            /* Formulário de Ativação */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ textAlign: 'center', color: 'var(--color-muted)', fontSize: '12px', lineHeight: '1.5' }}>
+                Insira sua chave de licença abaixo para ativar todos os recursos premium do SIGESS.
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
+                  value={inputKey}
+                  onChange={e => setInputKey(e.target.value)}
+                  style={{ width: '100%', padding: '14px 14px 14px 40px', borderRadius: '12px', border: '2px solid var(--color-border)', fontSize: '13px', background: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box', outline: 'none' }}
+                />
+                <Key size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-muted)' }} />
+              </div>
+              <button
+                onClick={handleActivate}
+                disabled={activating || !inputKey.trim()}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '14px' }}
+              >
+                {activating ? "Ativando..." : "Ativar Licença Agora"}
+              </button>
+              <a href="https://wa.me/5591993193461" target="_blank" rel="noreferrer" style={{ textAlign: 'center', fontSize: '11px', color: 'var(--color-accent)', fontWeight: '700', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                Adquirir chave de acesso <ExternalLink size={12} />
+              </a>
+            </div>
+          )}
+        </div>
+
+        <div style={{ textAlign: 'center', padding: '8px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-alt)' }}>
+          <p style={{ margin: 0, fontSize: '10px', color: 'var(--color-muted)', fontWeight: '600' }}>v{browser.runtime.getManifest().version}</p>
+        </div>
+      </div>
+      <style>{`
+        @keyframes spin { from {transform:rotate(0deg);} to {transform:rotate(360deg);} }
+      `}</style>
+    </div>
+  );
+};
