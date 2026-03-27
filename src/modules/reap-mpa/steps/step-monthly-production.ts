@@ -3,6 +3,7 @@ import { DaysGenerator } from '../generators/days-schedule';
 import { ProductionGenerator } from '../generators/fish-production';
 import { Utils } from '../utils/dom-utils';
 import { IWorkflowManager } from "../types";
+import { MUNICIPIOS_LIST } from '../../../shared/data/municipios';
 
 const MONTHS_MAP: Record<string, number> = {
   JANEIRO: 0, FEVEREIRO: 1, MARÇO: 2, MARCO: 2, ABRIL: 3, MAIO: 4, JUNHO: 5,
@@ -165,9 +166,13 @@ export const Page3 = {
     
     const munSelect = areaTable.querySelector("td:nth-child(3) .br-select") as HTMLElement;
     if (munSelect) {
+        const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+        const municipio = MUNICIPIOS_LIST.find(m => m.id === settings.mpaMunicipio);
+        const municipioName = municipio?.nome || "";
+
         let attempts = 0;
         while (attempts < 10 && !State.stopRequested) {
-            if (await Utils.fillAutocomplete(munSelect, "Oeiras do Pará")) break;
+            if (await Utils.fillAutocomplete(munSelect, municipioName)) break;
             await Utils.sleep(500);
             attempts++;
         }
@@ -181,7 +186,7 @@ export const Page3 = {
         .find(el => el.textContent?.includes("Resultado"))?.closest(".br-table") as HTMLElement;
     if (!prodTable) return;
 
-    const settings = (await browser.storage.local.get("settings")).settings || {};
+    const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
     const targetSpeciesLabel = settings.mpaEspecieLabel || "";
 
     for (let fishIdx = 0; fishIdx < State.production.length; fishIdx++) {

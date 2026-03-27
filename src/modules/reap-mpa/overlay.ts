@@ -162,13 +162,19 @@ const injectButton = async () => {
         const oBtn = document.getElementById("sigess-reap-turbo-btn");
         if (oBtn) { oBtn.innerHTML = "⏳ Aguarde..."; oBtn.style.background = "#5a32a3"; }
         
-        const settings = (await browser.storage.local.get("settings")).settings || {};
+        const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+        if (!settings.mpaMunicipio) {
+          alert("Por favor, selecione um MUNICÍPIO no painel de configurações do REAP MPA antes de usar o Turbo.");
+          if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+          return;
+        }
+
         const config: any = {
            startMonth: State.currentMonthIndex + 1,
            areaRealizacao: {
              localPesca: settings.mpaLocalPesca || 6,
              uf: settings.mpaUF || 5,
-             municipio: 4718, 
+             municipio: settings.mpaMunicipio, 
              petrechosPesca: [settings.mpaPetrecho || 4],
              ambientePesca: settings.mpaAmbiente || 1
             },
@@ -283,6 +289,13 @@ const injectButton = async () => {
         refreshUI();
         return;
       }
+
+      // Validação de Configurações
+      const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+      if (!settings.mpaMunicipio) {
+        alert("Por favor, selecione um MUNICÍPIO no painel de configurações do REAP MPA antes de iniciar.");
+        return;
+      }
       
       // Validação de Licença Manual
       btn.disabled = true;
@@ -318,6 +331,15 @@ const injectButton = async () => {
       // Validação de Licença Turbo (Apenas verifica, o background consome)
       btnTurbo.disabled = true;
       btnTurbo.innerHTML = "Validando...";
+
+      const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+      if (!settings.mpaMunicipio) {
+        alert("Por favor, selecione um MUNICÍPIO no painel de configurações do REAP MPA antes de usar o Turbo.");
+        refreshUI();
+        btnTurbo.disabled = false;
+        return;
+      }
+
       const lic = await browser.runtime.sendMessage({ action: "checkLicense" });
       if (!lic.ok) {
         alert(`Erro de licença: ${lic.reason}`);
