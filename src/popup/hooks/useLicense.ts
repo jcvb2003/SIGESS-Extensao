@@ -7,7 +7,7 @@ interface UseLicenseReturn {
   activating: boolean;
   refreshing: boolean;
   checkLicense: (forceLive?: boolean, forceConsume?: boolean) => Promise<LicenseResult>;
-  activate: (key: string) => Promise<LicenseResult>;
+  activate: (key: string, deviceName?: string) => Promise<LicenseResult>;
 }
 
 export const useLicense = (): UseLicenseReturn => {
@@ -31,11 +31,17 @@ export const useLicense = (): UseLicenseReturn => {
     }
   }, []);
 
-  const activate = useCallback(async (key: string): Promise<LicenseResult> => {
+  const activate = useCallback(async (key: string, deviceName?: string): Promise<LicenseResult> => {
     setActivating(true);
     try {
       await LicenseService.saveKey(key);
-      const result = await checkLicense(true, true);
+      if (deviceName?.trim()) {
+        await LicenseService.updateDeviceName(deviceName.trim());
+      }
+      // Na ativação, usamos forceConsume = false e o tipo especial 'activate'
+      // para autorizar o vínculo do fingerprint no banco de dados.
+      const result = await LicenseService.checkLicense(true, false, 'activate');
+      setLicense(result);
       return result;
     } finally {
       setActivating(false);

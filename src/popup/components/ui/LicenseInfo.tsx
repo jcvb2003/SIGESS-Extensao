@@ -26,8 +26,6 @@ interface UsageBucketProps {
 }
 
 const UsageBucket = ({ label, icon, current, max, color, bgColor }: UsageBucketProps) => {
-  const percentage = Math.min(100, (current / (max || 1)) * 100);
-
   return (
     <div style={{
       display: 'flex',
@@ -59,27 +57,12 @@ const UsageBucket = ({ label, icon, current, max, color, bgColor }: UsageBucketP
         </div>
       </div>
 
-      <div style={{ position: 'relative', height: '6px', width: '100%', background: 'var(--color-surface-alt)', borderRadius: '10px', overflow: 'hidden' }}>
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            height: '100%',
-            background: color,
-            width: `${percentage}%`,
-            transition: 'all 0.7s ease-out',
-            borderRadius: '10px'
-          }}
-        />
-      </div>
-
-      <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
+      <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
         {Array.from({ length: max }).map((_, i) => (
           <div
-            key={i}
+            key={`dot-${i}`}
             style={{
-              height: '3px',
+              height: '4px',
               flex: 1,
               borderRadius: '4px',
               background: i < current ? color : 'var(--color-border)',
@@ -130,8 +113,6 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     setIsSavingName(true);
     try {
       await LicenseService.updateDeviceName(newName.trim());
-      // Apenas atualiza o estado local para evitar re-render pesado se necessário, 
-      // mas o ideal é deixar o cache do service gerenciar
     } catch (e) {
       console.error("Erro ao salvar nome:", e);
     } finally {
@@ -213,35 +194,9 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '310px', overflowY: 'auto' }}>
           {license && license.ok ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {/* Nome do Dispositivo (Editável) */}
-              <div style={{ position: 'relative', marginBottom: '4px' }}>
-                <input
-                  type="text"
-                  placeholder="Nome deste computador (ex: Notebook José)"
-                  value={deviceName}
-                  onChange={e => setDeviceName(e.target.value)}
-                  onBlur={() => handleSaveName(deviceName)}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px 12px 10px 38px', 
-                    borderRadius: '12px', 
-                    border: '1px solid var(--color-border)', 
-                    fontSize: '12px', 
-                    fontWeight: '600',
-                    background: 'var(--color-surface)', 
-                    color: 'var(--color-text)', 
-                    boxSizing: 'border-box', 
-                    outline: 'none',
-                    transition: 'border-color 0.2s'
-                  }}
-                />
-                <Monitor size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-muted)' }} />
-                {isSavingName && <RefreshCw size={12} className="animate-spin" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-accent)', animation: 'spin 1s linear infinite' }} />}
-              </div>
-
               {/* Status Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                {renderItem("Expira em", license.expires_at ? new Date(license.expires_at).toLocaleDateString() : "Sem expiração", "Expiração da chave", <Calendar size={18} />, "#3b82f6")}
+                {renderItem("Expira em", (license.expires_at || license.valid_until) ? new Date(license.expires_at || license.valid_until || "").toLocaleDateString() : "Sem expiração", "Expiração da chave", <Calendar size={18} />, "#3b82f6")}
                 {renderItem("Máquinas", `${license.devices}/${license.max_devices}`, "Limite de acessos", <Monitor size={18} />, "#10b981")}
               </div>
 
@@ -255,7 +210,7 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 <p style={{ margin: 0, fontSize: '10px', fontWeight: '800', color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Consumo de Automações</p>
 
                 <UsageBucket
-                  label="Início Manual (REAP)"
+                  label="REAP 2025 (Manual)"
                   icon={<MousePointer2 />}
                   current={license.usage_manual ?? 0}
                   max={license.max_manual ?? 5}
@@ -264,7 +219,7 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 />
 
                 <UsageBucket
-                  label="Preenchimento Turbo"
+                  label="REAP 2025 (Turbo)"
                   icon={<Zap />}
                   current={license.usage_turbo ?? 0}
                   max={license.max_turbo ?? 3}
@@ -273,7 +228,7 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 />
 
                 <UsageBucket
-                  label="Agro / Simplificado"
+                  label="REAP Simplificado"
                   icon={<Activity />}
                   current={license.usage_agro ?? 0}
                   max={license.max_agro ?? 10}

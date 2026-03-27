@@ -174,7 +174,7 @@ export const AgroManager = {
     const btn = document.querySelector(
       'button[data-sigess-reap="iniciar"]',
     ) as HTMLButtonElement;
-    
+
     // Verificação de Licença (Consome uso se trial)
     const browserAPI = typeof browser !== "undefined" ? browser : (window as any).chrome;
     try {
@@ -182,7 +182,7 @@ export const AgroManager = {
         btn.disabled = true;
         btn.textContent = "Validando Licença...";
       }
-      
+
       const lic = await new Promise<any>((resolve) => {
         browserAPI.runtime.sendMessage({ action: "consumeLicense", usageType: "agro" }, (response: any) => {
           resolve(response);
@@ -191,7 +191,7 @@ export const AgroManager = {
 
       if (!lic?.ok) {
         const reasonMap: Record<string, string> = {
-          trial_expired: "Seu período de teste (Trial) expirou.",
+          trial_expired: "Seu período de teste acabou.",
           expired: "Sua licença expirou.",
           wrong_device: "Licença vinculada a outro dispositivo.",
           invalid_key: "Chave de licença inválida.",
@@ -277,11 +277,11 @@ export const AgroManager = {
           "input[type='radio'][name='houveComercializacao'][value='Sim']",
         ) as HTMLElement;
         if (radioSim && !(radioSim as any).checked) radioSim.click();
-      } catch (e) {}
+      } catch (e) { }
       await Utils.sleep(500);
       try {
         await this.clickLabelByText("Venda direta ao consumidor");
-      } catch (e) {}
+      } catch (e) { }
       const estadoComercInput = [...document.querySelectorAll("input")].find(
         (i) =>
           (i as HTMLElement).previousElementSibling?.textContent?.includes(
@@ -291,7 +291,7 @@ export const AgroManager = {
       if (estadoComercInput) {
         try {
           await this.selectBrSelect(estadoComercInput, "PA");
-        } catch (e) {}
+        } catch (e) { }
       }
       try {
         const peixeLabel = [...document.querySelectorAll("label")].find(
@@ -301,7 +301,7 @@ export const AgroManager = {
           const input = peixeLabel.querySelector("input");
           if (input && !input.checked) input.click();
         }
-      } catch (e) {}
+      } catch (e) { }
       const especies = ["Matrinxã", "Acará", "Aracu", "Traíra", "Mapará"];
       await Utils.waitFor(
         () =>

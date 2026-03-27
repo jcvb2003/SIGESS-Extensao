@@ -20,7 +20,7 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
     const current = settings.mpaSpecies || [];
     const next = [...current];
     for (let i = 0; i < 5; i++) {
-        if (!next[i]) next[i] = {};
+      if (!next[i]) next[i] = {};
     }
     next[index] = { ...next[index], ...data };
     onUpdate({ mpaSpecies: next });
@@ -45,7 +45,7 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
         onClick={onToggle}
       >
         <div className="section-header">
-          <h2 className="section-title">REAP MPA (Pesca)</h2>
+          <h2 className="section-title">REAP MPA</h2>
           <p className="section-description">
             Configurações e Parâmetros para Pesca
           </p>
@@ -56,12 +56,12 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
       <div className={`accordion-content ${isOpen ? "open" : "collapsed"}`}>
         <div className="section-content">
           <div className="stack" style={{ gap: '12px' }}>
-            
+
             {/* LOCALIZAÇÃO */}
             <div className="config-group" style={{ background: 'var(--color-surface-alt)', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
               <div className="form-item">
                 <label htmlFor="mpaMunicipioSelect" style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px', color: 'var(--color-accent)' }}>MUNICÍPIO:</label>
-                <select 
+                <select
                   id="mpaMunicipioSelect"
                   className="gps-input"
                   style={{ width: '100%', padding: '6px' }}
@@ -83,10 +83,10 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
                 return (
                   <div key={idx} style={{ background: 'white', padding: '8px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                        <label htmlFor={`specie-${idx}`} style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--color-accent)' }}>ESPÉCIE - {rarities[idx]}</label>
+                      <label htmlFor={`specie-${idx}`} style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--color-accent)' }}>ESPÉCIE - {rarities[idx]}</label>
                     </div>
-                    
-                    <select 
+
+                    <select
                       id={`specie-${idx}`}
                       className="gps-input"
                       style={{ width: '100%', fontSize: '11px', marginBottom: '8px' }}
@@ -95,8 +95,8 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
                     >
                       <option value="">-- Selecione a Espécie --</option>
                       {FULL_PORTAL_SPECIES.map(s => (
-                        <option 
-                          key={s.id} 
+                        <option
+                          key={s.id}
                           value={s.id}
                           disabled={selectedSpeciesIds.includes(s.id) && data.id !== s.id}
                         >
@@ -137,15 +137,15 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
                   <div>
                     <label htmlFor="mpaMascProdMin" style={{ fontSize: '9px', fontWeight: 'bold', display: 'block', marginBottom: '2px', color: '#666' }}>Produção (kg)</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                      <input id="mpaMascProdMin" type="number" className="gps-input" style={{fontSize: '11px'}} placeholder="Mín" value={settings.mpaMascProdMin || ""} onChange={(e) => onUpdate({ mpaMascProdMin: e.target.value })} />
-                      <input type="number" className="gps-input" style={{fontSize: '11px'}} aria-label="Produção Máxima Masculina" placeholder="Máx" value={settings.mpaMascProdMax || ""} onChange={(e) => onUpdate({ mpaMascProdMax: e.target.value })} />
+                      <input id="mpaMascProdMin" type="number" className="gps-input" style={{ fontSize: '11px' }} placeholder="Mín" value={settings.mpaMascProdMin || ""} onChange={(e) => onUpdate({ mpaMascProdMin: e.target.value })} />
+                      <input type="number" className="gps-input" style={{ fontSize: '11px' }} aria-label="Produção Máxima Masculina" placeholder="Máx" value={settings.mpaMascProdMax || ""} onChange={(e) => onUpdate({ mpaMascProdMax: e.target.value })} />
                     </div>
                   </div>
                   <div>
                     <label htmlFor="mpaMascDaysMin" style={{ fontSize: '9px', fontWeight: 'bold', display: 'block', marginBottom: '2px', color: '#666' }}>Dias Trab.</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                      <input id="mpaMascDaysMin" type="number" className="gps-input" style={{fontSize: '11px'}} placeholder="Mín" value={settings.mpaMascDaysMin || ""} onChange={(e) => onUpdate({ mpaMascDaysMin: e.target.value })} />
-                      <input type="number" className="gps-input" style={{fontSize: '11px'}} aria-label="Dias Trabalhados Máximos Masculinos" placeholder="Máx" value={settings.mpaMascDaysMax || ""} onChange={(e) => onUpdate({ mpaMascDaysMax: e.target.value })} />
+                      <input id="mpaMascDaysMin" type="number" className="gps-input" style={{ fontSize: '11px' }} placeholder="Mín" value={settings.mpaMascDaysMin || ""} onChange={(e) => onUpdate({ mpaMascDaysMin: e.target.value })} />
+                      <input type="number" className="gps-input" style={{ fontSize: '11px' }} aria-label="Dias Trabalhados Máximos Masculinos" placeholder="Máx" value={settings.mpaMascDaysMax || ""} onChange={(e) => onUpdate({ mpaMascDaysMax: e.target.value })} />
                     </div>
                   </div>
                 </div>
@@ -158,15 +158,15 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
                   <div>
                     <label htmlFor="mpaFemProdMin" style={{ fontSize: '9px', fontWeight: 'bold', display: 'block', marginBottom: '2px', color: '#666' }}>Produção (kg)</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                      <input id="mpaFemProdMin" type="number" className="gps-input" style={{fontSize: '11px'}} placeholder="Mín" value={settings.mpaFemProdMin || ""} onChange={(e) => onUpdate({ mpaFemProdMin: e.target.value })} />
-                      <input type="number" className="gps-input" style={{fontSize: '11px'}} aria-label="Produção Máxima Feminina" placeholder="Máx" value={settings.mpaFemProdMax || ""} onChange={(e) => onUpdate({ mpaFemProdMax: e.target.value })} />
+                      <input id="mpaFemProdMin" type="number" className="gps-input" style={{ fontSize: '11px' }} placeholder="Mín" value={settings.mpaFemProdMin || ""} onChange={(e) => onUpdate({ mpaFemProdMin: e.target.value })} />
+                      <input type="number" className="gps-input" style={{ fontSize: '11px' }} aria-label="Produção Máxima Feminina" placeholder="Máx" value={settings.mpaFemProdMax || ""} onChange={(e) => onUpdate({ mpaFemProdMax: e.target.value })} />
                     </div>
                   </div>
                   <div>
                     <label htmlFor="mpaFemDaysMin" style={{ fontSize: '9px', fontWeight: 'bold', display: 'block', marginBottom: '2px', color: '#666' }}>Dias Trab.</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                      <input id="mpaFemDaysMin" type="number" className="gps-input" style={{fontSize: '11px'}} placeholder="Mín" value={settings.mpaFemDaysMin || ""} onChange={(e) => onUpdate({ mpaFemDaysMin: e.target.value })} />
-                      <input type="number" className="gps-input" style={{fontSize: '11px'}} aria-label="Dias Trabalhados Máximos Femininos" placeholder="Máx" value={settings.mpaFemDaysMax || ""} onChange={(e) => onUpdate({ mpaFemDaysMax: e.target.value })} />
+                      <input id="mpaFemDaysMin" type="number" className="gps-input" style={{ fontSize: '11px' }} placeholder="Mín" value={settings.mpaFemDaysMin || ""} onChange={(e) => onUpdate({ mpaFemDaysMin: e.target.value })} />
+                      <input type="number" className="gps-input" style={{ fontSize: '11px' }} aria-label="Dias Trabalhados Máximos Femininos" placeholder="Máx" value={settings.mpaFemDaysMax || ""} onChange={(e) => onUpdate({ mpaFemDaysMax: e.target.value })} />
                     </div>
                   </div>
                 </div>

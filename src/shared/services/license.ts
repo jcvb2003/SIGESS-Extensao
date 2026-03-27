@@ -99,8 +99,9 @@ export class LicenseService {
   static async checkLicense(
     forceLive = false,
     forceConsume = false,
-    usageType: 'manual' | 'turbo' | 'agro' = 'manual'
+    usageType: 'manual' | 'turbo' | 'agro' | 'activate' = 'manual'
   ): Promise<LicenseResult> {
+    // Se não for para consumir e não houver obrigatoriedade de live check, tenta o cache
     if (!forceConsume && !forceLive) {
       const memory = this.getMemoryCache(forceLive);
       if (memory) return memory;
@@ -108,7 +109,11 @@ export class LicenseService {
       if (storage) return storage;
     }
     
-    return this.performLiveCheck(forceConsume ? "check" : "status", usageType);
+    // Na ativação (forceLive=true, forceConsume=false), usamos sempre "status"
+    // para apenas vincular o dispositivo e ler os dados atuais sem decrementar nada.
+    const action = forceConsume ? "check" : "status";
+    
+    return this.performLiveCheck(action, usageType);
   }
 
   private static getMemoryCache(forceLive: boolean): LicenseResult | null {
@@ -162,13 +167,14 @@ export class LicenseService {
            key, 
            fingerprint, 
            action, 
-           usage_type: usageType,
+           resource: usageType, // Alinhado com a Edge Function que espera 'resource'
            device_name: deviceName
         }),
       });
 
       const result = await response.json();
-      if (result.ok && result.sig) {
+      const sig = result.sig || result.signature;
+      if (result.ok && sig) {
         await browser.storage.local.set({ license_cache: result });
         this.memoryCache = result;
       }
