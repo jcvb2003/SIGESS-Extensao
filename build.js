@@ -92,8 +92,16 @@ try {
     throw new Error(`Manifest not found: ${manifestSource}`);
   }
 
-  fs.copyFileSync(manifestSource, manifestDest);
-  console.log(`Applied ${browserTarget} manifest to ${manifestDest}`);
+  // Get current version from package.json
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8"));
+  const version = pkg.version;
+
+  // Load manifest, update version, and save to dist
+  const manifest = JSON.parse(fs.readFileSync(manifestSource, "utf8"));
+  manifest.version = version;
+  
+  fs.writeFileSync(manifestDest, JSON.stringify(manifest, null, 2));
+  console.log(`Applied version ${version} to ${browserTarget} manifest at ${manifestDest}`);
 } catch (e) {
   console.error("Failed to apply manifest:", e);
   process.exit(1);
