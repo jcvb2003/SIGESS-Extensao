@@ -182,7 +182,6 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({ license, act
         fontWeight: '600',
         letterSpacing: 0.5
       }}>
-        SISTEMA DE GESTÃO E SEGURANÇA v3.0.2 • 2024
       </footer>
     </div>
   );
