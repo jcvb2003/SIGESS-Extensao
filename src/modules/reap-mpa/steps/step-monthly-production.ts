@@ -19,29 +19,29 @@ export const Page3 = {
     console.log("REAP: Executando Página 3 (Meses)...");
     State.currentPage = 3;
 
-    Page3.ensureInitialData();
+    await Page3.ensureInitialData();
     const months = document.querySelectorAll(".br-accordion");
     const startIndex = Page3.getStartIndex(months);
 
     console.log(`Continuando a partir do accordion index ${startIndex}`);
     for (let i = startIndex; i < months.length; i++) {
-        const monthAccordion = months[i] as HTMLElement;
-        const realMonthIndex = Page3.getRealMonthIndex(monthAccordion);
-        if (realMonthIndex === -1) continue;
+      const monthAccordion = months[i] as HTMLElement;
+      const realMonthIndex = Page3.getRealMonthIndex(monthAccordion);
+      if (realMonthIndex === -1) continue;
 
-        State.currentMonthIndex = realMonthIndex;
-        await Page3.refreshUI();
+      State.currentMonthIndex = realMonthIndex;
+      await Page3.refreshUI();
 
-        if (Page3.isMonthUnavailable(monthAccordion)) {
-            State.monthlyProgress[realMonthIndex || i] = "skipped";
-            continue;
-        }
+      if (Page3.isMonthUnavailable(monthAccordion)) {
+        State.monthlyProgress[realMonthIndex || i] = "skipped";
+        continue;
+      }
 
-        if (State.stopRequested) break;
+      if (State.stopRequested) break;
 
-        await Page3.processMonth(monthAccordion, realMonthIndex);
-        State.monthlyProgress[realMonthIndex] = "done";
-        await Page3.refreshUI();
+      await Page3.processMonth(monthAccordion, realMonthIndex);
+      State.monthlyProgress[realMonthIndex] = "done";
+      await Page3.refreshUI();
     }
 
     if (!State.stopRequested) {
@@ -52,18 +52,19 @@ export const Page3 = {
     }
   },
 
-  ensureInitialData: () => {
+  ensureInitialData: async () => {
     if (!State.daysMap || Object.keys(State.daysMap).length === 0) {
       State.daysMap = DaysGenerator.generate(State.gender);
     }
     if (!State.production || State.production.length === 0) {
-      State.production = ProductionGenerator.generate(State.daysMap, State.gender);
+      const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings.mpaSpecies);
     }
   },
 
   getStartIndex: (months: NodeListOf<Element>) => {
     if (State.currentMonthIndex === undefined || State.currentMonthIndex <= 0) return 0;
-    
+
     for (let idx = 0; idx < months.length; idx++) {
       const monthText = months[idx].querySelector("button.header")?.textContent?.trim().toUpperCase() || "";
       let accMonthIndex = idx;
@@ -92,8 +93,8 @@ export const Page3 = {
   isMonthUnavailable: (monthAccordion: HTMLElement) => {
     const monthText = monthAccordion.querySelector("button.header")?.textContent?.trim().toUpperCase() || "";
     if (monthText.includes("NÃO DISPONÍVEL")) {
-        console.log(`REAP: Pulando ${monthText} (Não disponível)`);
-        return true;
+      console.log(`REAP: Pulando ${monthText} (Não disponível)`);
+      return true;
     }
     return false;
   },
@@ -158,24 +159,24 @@ export const Page3 = {
 
   fillAreaTable: async (activeContent: HTMLElement) => {
     const areaTable = Array.from(activeContent.querySelectorAll(".table-title"))
-        .find(el => el.textContent?.includes("Área"))?.closest(".br-table") as HTMLElement;
+      .find(el => el.textContent?.includes("Área"))?.closest(".br-table") as HTMLElement;
     if (!areaTable) return;
 
     await Utils.selectOption(areaTable.querySelector("td:nth-child(1) .br-select") as HTMLElement, "Rio");
     await Utils.selectOption(areaTable.querySelector("td:nth-child(2) .br-select") as HTMLElement, "PARA");
-    
+
     const munSelect = areaTable.querySelector("td:nth-child(3) .br-select") as HTMLElement;
     if (munSelect) {
-        const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
-        const municipio = MUNICIPIOS_LIST.find(m => m.id === settings.mpaMunicipio);
-        const municipioName = municipio?.nome || "";
+      const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+      const municipio = MUNICIPIOS_LIST.find(m => m.id === settings.mpaMunicipio);
+      const municipioName = municipio?.nome || "";
 
-        let attempts = 0;
-        while (attempts < 10 && !State.stopRequested) {
-            if (await Utils.fillAutocomplete(munSelect, municipioName)) break;
-            await Utils.sleep(500);
-            attempts++;
-        }
+      let attempts = 0;
+      while (attempts < 10 && !State.stopRequested) {
+        if (await Utils.fillAutocomplete(munSelect, municipioName)) break;
+        await Utils.sleep(500);
+        attempts++;
+      }
     }
     await Utils.selectOption(areaTable.querySelector("td:nth-child(5) .br-select") as HTMLElement, "Emalhe");
     await Utils.selectOption(areaTable.querySelector("td:nth-child(6) .br-select") as HTMLElement, "Água Doce");
@@ -183,7 +184,7 @@ export const Page3 = {
 
   fillProductionTable: async (activeContent: HTMLElement, realMonthIndex: number) => {
     const prodTable = Array.from(activeContent.querySelectorAll(".table-title"))
-        .find(el => el.textContent?.includes("Resultado"))?.closest(".br-table") as HTMLElement;
+      .find(el => el.textContent?.includes("Resultado"))?.closest(".br-table") as HTMLElement;
     if (!prodTable) return;
 
     const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
@@ -217,10 +218,10 @@ export const Page3 = {
     const specSelect = row.querySelector("td:nth-child(1) .br-select") as HTMLElement;
     if (specSelect) await Utils.fillAutocomplete(specSelect, targetSpeciesLabel || fish.name);
     await Utils.selectOption(row.querySelector("td:nth-child(2) .br-select") as HTMLElement, "Quilo");
-    
+
     const qtdInput = row.querySelector("td:nth-child(3) input") as HTMLInputElement;
     if (qtdInput) Utils.setReactInput(qtdInput, String(monthlyKg));
-    
+
     const valInput = row.querySelector("td:nth-child(4) input") as HTMLInputElement;
     if (valInput) Utils.setReactInput(valInput, fish.price.toFixed(2).replace(".", ","));
     await Utils.sleep(300);

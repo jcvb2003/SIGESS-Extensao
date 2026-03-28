@@ -8,7 +8,7 @@ export interface FishData {
 }
 
 export const DEFAULT_SPECIES: FishData[] = [
-  { id: 15, name: "Matrinxã", kgMin: 45, kgMax: 50, priceMin: 13, priceMax: 16 },
+  { id: 15, name: "Matrinxã ou Jatuarana", kgMin: 45, kgMax: 50, priceMin: 13, priceMax: 16 },
   { id: 25, name: "Acará", kgMin: 55, kgMax: 60, priceMin: 10, priceMax: 13 },
   { id: 26, name: "Aracu", kgMin: 55, kgMax: 60, priceMin: 9, priceMax: 13 },
   { id: 21, name: "Traíra", kgMin: 55, kgMax: 60, priceMin: 8, priceMax: 12 },
@@ -31,6 +31,7 @@ export const FULL_PORTAL_SPECIES = [
   { "id": 12, "nome": "Mapará", "camposAdicionais": { "nomeCientifico": "(Hypophthalmus spp)" } },
   { "id": 13, "nome": "Sardinha", "camposAdicionais": { "nomeCientifico": "(Triportheus spp)" } },
   { "id": 14, "nome": "Pacu / Pacu ferro", "camposAdicionais": { "nomeCientifico": "(Myleus sp. e Mylossoma spp)" } },
+  { "id": 15, "nome": "Matrinxã ou Jatuarana", "camposAdicionais": { "nomeCientifico": "(Brycon spp.)" } },
   { "id": 16, "nome": "Pescada", "camposAdicionais": { "nomeCientifico": "(Plagioscion squamosissimus)" } },
   { "id": 18, "nome": "Piranha", "camposAdicionais": { "nomeCientifico": "(Pygocentrus nattereri)" } },
   { "id": 19, "nome": "Piau", "camposAdicionais": { "nomeCientifico": "(Leporinus spp)" } },

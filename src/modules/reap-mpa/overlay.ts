@@ -349,7 +349,9 @@ const injectButton = async () => {
       }
       
       if (!State.daysMap || Object.keys(State.daysMap).length === 0) State.daysMap = DaysGenerator.generate(State.gender);
-      if (!State.production || State.production.length === 0) State.production = ProductionGenerator.generate(State.daysMap, State.gender);
+      if (!State.production || State.production.length === 0) {
+        State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings.mpaSpecies);
+      }
       
       State.turboMode = true;
       WorkflowManager.start();
