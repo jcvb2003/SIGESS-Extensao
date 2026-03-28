@@ -32,7 +32,11 @@ Para enviar uma atualização para os usuários, siga estes passos:
    ```bash
    npm run package
    ```
-4. **Assine a extensão**: Use o `web-ext sign` (conforme descrito no [README.md](file:///d:/Projetos%20Dev/REPOSITORIOS/Exten%C3%A7%C3%A3o%20Firefox/README.md) / workflow `/package`) para obter o arquivo `.xpi` assinado pela Mozilla.
+4. **Assine a extensão**:
+   ```bash
+   npm run sign
+   ```
+   Isso gerará o arquivo `.xpi` assinado pela Mozilla na pasta `web-ext-artifacts/`.
 5. **Crie um Release no GitHub**:
    - Vá para o seu repositório: [SIGESS-Extensao](https://github.com/jcvb2003/SIGESS-Extensao)
    - Crie um novo Release com a tag correspondente (ex: `v2.5.1`).
@@ -71,5 +75,5 @@ npm run package
 
 ## Como Instalar Definitivamente
 Para instalar permanentemente, a extensão precisa ser assinada pela Mozilla (via AMO - Add-ons for Firefox).
-1. Execute `web-ext sign --api-key <sua-key> --api-secret <seu-secret>`.
+1. Configure as credenciais no arquivo `.env` e execute `npm run sign`.
 2. O arquivo `.xpi` assinado poderá ser arrastado para o Firefox para instalação permanente.

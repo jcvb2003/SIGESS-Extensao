@@ -1,9 +1,9 @@
 import { AppSettings, UserCredentials } from "../../shared/types";
 declare var chrome: any;
 function getBrowserStorage() {
-  if (typeof browser !== "undefined" && browser.storage)
+  if (globalThis.browser !== undefined && browser.storage)
     return browser.storage.local;
-  if (typeof chrome !== "undefined" && chrome.storage)
+  if (globalThis.chrome !== undefined && chrome.storage)
     return chrome.storage.local;
   return null;
 }

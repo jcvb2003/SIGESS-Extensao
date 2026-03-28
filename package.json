@@ -1,6 +1,6 @@
 {
     "name": "sigess-extension",
-    "version": "3.0.3",
+    "version": "3.1.0",
     "description": "Automatiza logins e preenchimento de formulários em sites governamentais",
     "scripts": {
         "dev": "vite",
@@ -10,6 +10,7 @@
         "build:chrome": "tsc && node build.js chrome",
         "package": "npm run build:firefox && web-ext build --source-dir dist/firefox --overwrite-dest",
         "update-manifest": "node -e \"const fs=require('fs'); const pkg=require('./package.json'); const upd=require('./updates.json'); const addonId='{e9df396f-bdd8-4e79-bc7c-92017a928891}'; if(!upd.addons[addonId].updates.find(u=>u.version===pkg.version)){upd.addons[addonId].updates.unshift({version:pkg.version, update_link:`https://github.com/jcvb2003/SIGESS-Extensao/releases/download/v${pkg.version}/sigess.xpi`}); fs.writeFileSync('./updates.json', JSON.stringify(upd, null, 2)); console.log('Updated updates.json to version ' + pkg.version)}else{console.log('Version already in updates.json')}\"",
+        "sign": "npm run build:firefox && web-ext sign --api-key $WEB_EXT_API_KEY --api-secret $WEB_EXT_API_SECRET --source-dir dist/firefox --channel unlisted",
         "preview": "vite preview",
         "test": "vitest",
         "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
