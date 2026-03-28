@@ -1,9 +1,9 @@
 import { MONTHS } from "../config";
 
 export const DaysGenerator: any = {
-  generate(gender: "MASCULINO" | "FEMININO") {
+  generate(gender: "MASCULINO" | "FEMININO", settings?: any) {
     const months = MONTHS;
-    const { min, max } = this.getTargetLimits(gender);
+    const { min, max } = this.getTargetLimits(gender, settings);
     
     let schedule = this.tryGenerateValidSchedule(months, min, max);
 
@@ -14,11 +14,17 @@ export const DaysGenerator: any = {
     return schedule;
   },
 
-  getTargetLimits(gender: "MASCULINO" | "FEMININO"): { min: number; max: number } {
-    return {
-      min: gender === "MASCULINO" ? 125 : 118,
-      max: gender === "MASCULINO" ? 135 : 124,
-    };
+  getTargetLimits(gender: "MASCULINO" | "FEMININO", settings?: any): { min: number; max: number } {
+    let min = gender === "MASCULINO" ? 125 : 118;
+    let max = gender === "MASCULINO" ? 135 : 124;
+
+    if (settings) {
+      const prefix = gender === "MASCULINO" ? "mpaMascDays" : "mpaFemDays";
+      if (settings[`${prefix}Min`]) min = Number(settings[`${prefix}Min`]);
+      if (settings[`${prefix}Max`]) max = Number(settings[`${prefix}Max`]);
+    }
+
+    return { min, max };
   },
 
   tryGenerateValidSchedule(months: number[], targetMin: number, targetMax: number): Record<number, number> | null {

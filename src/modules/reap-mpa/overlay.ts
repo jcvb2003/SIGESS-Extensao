@@ -109,6 +109,34 @@ const UIComponents = {
   }
 };
 
+function validateReapSettings(settings: any, gender: string): string | null {
+  if (!settings.mpaMunicipio) {
+    return "Por favor, selecione um MUNICÍPIO no painel de configurações do REAP MPA.";
+  }
+  
+  for (let i = 0; i < 5; i++) {
+    const s = settings.mpaSpecies?.[i];
+    if (!s?.id) {
+      return `Por favor, selecione a Espécie ${i + 1} no painel de configurações. O preenchimento das 5 espécies é obrigatório.`;
+    }
+    if (!s.kgMin || !s.kgMax || !s.priceMin || !s.priceMax) {
+      return `Por favor, preencha todos os campos numéricos (KG e VAL Mín/Máx) para a Espécie ${i + 1} no painel.`;
+    }
+  }
+
+  const daysPrefix = gender === "MASCULINO" ? "mpaMascDays" : "mpaFemDays";
+  if (!settings[`${daysPrefix}Min`] || !settings[`${daysPrefix}Max`]) {
+    return `Por favor, preencha os limites (Mín/Máx) de "Dias Trab." para o gênero ${gender} no painel de configurações.`;
+  }
+  
+  const prodPrefix = gender === "MASCULINO" ? "mpaMascProd" : "mpaFemProd";
+  if (!settings[`${prodPrefix}Min`] || !settings[`${prodPrefix}Max`]) {
+    return `Por favor, preencha as metas (Mín/Máx) de "Produção (R$)" para o gênero ${gender} no painel de configurações.`;
+  }
+  
+  return null;
+}
+
 async function executeTurboApi() {
   try {
     const oBtn = document.getElementById("sigess-reap-turbo-btn");
@@ -116,8 +144,10 @@ async function executeTurboApi() {
     
     const settingsResult = await browser.storage.local.get("sigessSettings");
     const settings = settingsResult.sigessSettings || {};
-    if (!settings.mpaMunicipio) {
-      alert("Por favor, selecione um MUNICÍPIO no painel de configurações do REAP MPA antes de usar o Turbo.");
+    
+    const errorMsg = validateReapSettings(settings, State.gender);
+    if (errorMsg) {
+      alert(errorMsg);
       if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
       return;
     }
@@ -312,8 +342,10 @@ const injectButton = async () => {
 
     const settingsResult = await browser.storage.local.get("sigessSettings");
     const settings = settingsResult.sigessSettings || {};
-    if (!settings.mpaMunicipio) {
-      alert("Por favor, selecione um MUNICÍPIO no painel de configurações do REAP MPA antes de iniciar.");
+    
+    const errorMsg = validateReapSettings(settings, State.gender);
+    if (errorMsg) {
+      alert(errorMsg);
       return;
     }
     
@@ -352,8 +384,10 @@ const injectButton = async () => {
 
     const settingsResult = await browser.storage.local.get("sigessSettings");
     const settings = settingsResult.sigessSettings || {};
-    if (!settings.mpaMunicipio) {
-      alert("Por favor, selecione um MUNICÍPIO no painel de configurações do REAP MPA antes de usar o Turbo.");
+    
+    const errorMsg = validateReapSettings(settings, State.gender);
+    if (errorMsg) {
+      alert(errorMsg);
       refreshUI();
       btnTurbo.disabled = false;
       return;
@@ -368,10 +402,10 @@ const injectButton = async () => {
     }
     
     if (!State.daysMap || Object.keys(State.daysMap).length === 0) {
-        State.daysMap = DaysGenerator.generate(State.gender);
+        State.daysMap = DaysGenerator.generate(State.gender, settings);
     }
     if (!State.production || State.production.length === 0) {
-      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings.mpaSpecies);
+      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
     }
     
     State.turboMode = true;

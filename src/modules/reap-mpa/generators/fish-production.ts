@@ -6,10 +6,10 @@ export const ProductionGenerator: any = {
   generate(
     daysMap: Record<number, number>,
     gender: "MASCULINO" | "FEMININO",
-    settingsSpecies?: any[]
+    settings?: any
   ): FishProduction[] {
-    const currentFishTable = this.mapSpeciesFromSettings(settingsSpecies);
-    const { targetMin, targetMax } = this.getTargetRange(gender);
+    const currentFishTable = this.mapSpeciesFromSettings(settings?.mpaSpecies);
+    const { targetMin, targetMax } = this.getTargetRange(gender, settings);
     const totalDays = MONTHS.reduce((s, m) => s + (daysMap[m] || 16), 0);
 
     let bestResult = this.tryGenerateIdeal(currentFishTable, daysMap, totalDays, targetMin, targetMax);
@@ -42,11 +42,17 @@ export const ProductionGenerator: any = {
     return mapped.length > 0 ? mapped : FISH_TABLE;
   },
 
-  getTargetRange(gender: string) {
-    return {
-      targetMin: gender === "MASCULINO" ? 2850 : 2550,
-      targetMax: gender === "MASCULINO" ? 3075 : 2850,
-    };
+  getTargetRange(gender: string, settings?: any) {
+    let targetMin = gender === "MASCULINO" ? 2850 : 2550;
+    let targetMax = gender === "MASCULINO" ? 3075 : 2850;
+
+    if (!settings) return { targetMin, targetMax };
+
+    const prefix = gender === "MASCULINO" ? "mpaMascProd" : "mpaFemProd";
+    if (settings[`${prefix}Min`]) targetMin = Number(settings[`${prefix}Min`]);
+    if (settings[`${prefix}Max`]) targetMax = Number(settings[`${prefix}Max`]);
+
+    return { targetMin, targetMax };
   },
 
   tryGenerateIdeal(table: FishData[], daysMap: Record<number, number>, totalDays: number, min: number, max: number) {

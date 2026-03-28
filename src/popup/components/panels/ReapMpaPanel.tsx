@@ -135,10 +135,10 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
                 <h3 style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--color-text)', textAlign: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '4px' }}>MASCULINO</h3>
                 <div className="stack" style={{ gap: '8px' }}>
                   <div>
-                    <label htmlFor="mpaMascProdMin" style={{ fontSize: '9px', fontWeight: 'bold', display: 'block', marginBottom: '2px', color: '#666' }}>Produção (kg)</label>
+                    <label htmlFor="mpaMascProdMin" style={{ fontSize: '9px', fontWeight: 'bold', display: 'block', marginBottom: '2px', color: '#666' }}>Produção (R$)</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                      <input id="mpaMascProdMin" type="number" className="gps-input" style={{ fontSize: '11px' }} placeholder="Mín" value={settings.mpaMascProdMin || ""} onChange={(e) => onUpdate({ mpaMascProdMin: e.target.value })} />
-                      <input type="number" className="gps-input" style={{ fontSize: '11px' }} aria-label="Produção Máxima Masculina" placeholder="Máx" value={settings.mpaMascProdMax || ""} onChange={(e) => onUpdate({ mpaMascProdMax: e.target.value })} />
+                      <input id="mpaMascProdMin" type="number" className="gps-input" style={{ fontSize: '11px' }} placeholder="Mín R$" value={settings.mpaMascProdMin || ""} onChange={(e) => onUpdate({ mpaMascProdMin: e.target.value })} />
+                      <input type="number" className="gps-input" style={{ fontSize: '11px' }} aria-label="Produção Máxima Masculina" placeholder="Máx R$" value={settings.mpaMascProdMax || ""} onChange={(e) => onUpdate({ mpaMascProdMax: e.target.value })} />
                     </div>
                   </div>
                   <div>
@@ -156,10 +156,10 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
                 <h3 style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--color-text)', textAlign: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '4px' }}>FEMININO</h3>
                 <div className="stack" style={{ gap: '8px' }}>
                   <div>
-                    <label htmlFor="mpaFemProdMin" style={{ fontSize: '9px', fontWeight: 'bold', display: 'block', marginBottom: '2px', color: '#666' }}>Produção (kg)</label>
+                    <label htmlFor="mpaFemProdMin" style={{ fontSize: '9px', fontWeight: 'bold', display: 'block', marginBottom: '2px', color: '#666' }}>Produção (R$)</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                      <input id="mpaFemProdMin" type="number" className="gps-input" style={{ fontSize: '11px' }} placeholder="Mín" value={settings.mpaFemProdMin || ""} onChange={(e) => onUpdate({ mpaFemProdMin: e.target.value })} />
-                      <input type="number" className="gps-input" style={{ fontSize: '11px' }} aria-label="Produção Máxima Feminina" placeholder="Máx" value={settings.mpaFemProdMax || ""} onChange={(e) => onUpdate({ mpaFemProdMax: e.target.value })} />
+                      <input id="mpaFemProdMin" type="number" className="gps-input" style={{ fontSize: '11px' }} placeholder="Mín R$" value={settings.mpaFemProdMin || ""} onChange={(e) => onUpdate({ mpaFemProdMin: e.target.value })} />
+                      <input type="number" className="gps-input" style={{ fontSize: '11px' }} aria-label="Produção Máxima Feminina" placeholder="Máx R$" value={settings.mpaFemProdMax || ""} onChange={(e) => onUpdate({ mpaFemProdMax: e.target.value })} />
                     </div>
                   </div>
                   <div>

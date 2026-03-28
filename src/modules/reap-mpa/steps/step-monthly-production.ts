@@ -53,12 +53,13 @@ export const Page3 = {
   },
 
   ensureInitialData: async () => {
+    const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+
     if (!State.daysMap || Object.keys(State.daysMap).length === 0) {
-      State.daysMap = DaysGenerator.generate(State.gender);
+      State.daysMap = DaysGenerator.generate(State.gender, settings);
     }
     if (!State.production || State.production.length === 0) {
-      const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
-      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings.mpaSpecies);
+      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
     }
   },
 
