@@ -4,6 +4,7 @@ import { StorageService } from "./services/storage";
 import { MessageRequest, MessageResponse } from "../shared/types";
 import { routeMessage } from "./message-router";
 import { BadgeService } from "./services/badge-service";
+import { VersionChecker } from "./services/version-checker";
 
 let tabManager: TabManager | null = null;
 
@@ -69,3 +70,6 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 StorageService.getSettings().then(settings => {
   BadgeService.updateQueueBadge(settings.multiLoginQueue?.length || 0);
 });
+
+// Inicializa o alerta de atualização usando a API do GitHub
+VersionChecker.start();
