@@ -1,4 +1,4 @@
-import { AppSettings, UserCredentials } from "../../shared/types";
+import { AppSettings, UserCredentials, PessoaData } from "../../shared/types";
 declare var chrome: any;
 function getBrowserStorage() {
   if (globalThis.browser !== undefined && browser.storage)
@@ -61,6 +61,26 @@ export class StorageService {
   }
   static async saveSettings(settings: AppSettings): Promise<void> {
     await this.set({ sigessSettings: settings });
+  }
+  static async mergePessoaData(data: Partial<PessoaData>, fonte: string): Promise<AppSettings> {
+    const settings = await this.getSettings();
+    const currentPessoa = settings.pessoaData || { fontes: {} };
+    
+    const mergedPessoa: PessoaData = {
+      ...currentPessoa,
+      ...data,
+      fontes: {
+        ...(currentPessoa.fontes || {}),
+        [fonte]: {
+          capturado: true,
+          timestamp: Date.now()
+        }
+      }
+    };
+
+    const newSettings = { ...settings, pessoaData: mergedPessoa };
+    await this.saveSettings(newSettings);
+    return newSettings;
   }
   static async getCredentials(tabId: number): Promise<UserCredentials | null> {
     const key = `credenciais_${tabId}`;

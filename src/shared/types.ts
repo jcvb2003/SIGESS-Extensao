@@ -49,6 +49,70 @@ export interface AppSettings {
   mpaFemProdMax?: string;
   mpaFemDaysMin?: string;
   mpaFemDaysMax?: string;
+
+  // Novo campo para Cadastro Automático
+  pessoaData?: PessoaData;
+}
+
+export interface PessoaData {
+  // Registro
+  codigoDoSocio?: string;
+  dataDeAdmissao?: string;
+  situacao?: "ATIVO" | "APOSENTADO" | "FALECIDO" | "TRANSFERIDO" | "CANCELADO" | "SUSPENSO";
+  observacoes?: string;
+
+  // Dados Pessoais
+  cpf?: string;
+  nome?: string;
+  apelido?: string;
+  dataDeNascimento?: string;
+  sexo?: "MASCULINO" | "FEMININO";
+  estadoCivil?: string;
+  pai?: string;
+  mae?: string;
+  nacionalidade?: string;
+  naturalidade?: string;
+  ufNaturalidade?: string;
+  alfabetizado?: "SIM" | "NÃO";
+  escolaridade?: string;
+
+  // Endereço e Contato
+  endereco?: string;
+  numero?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
+  cep?: string;
+  telefone?: string;
+  email?: string;
+  codigoLocalidade?: string;
+
+  // Documentos
+  rg?: string;
+  dataExpedicaoRg?: string;
+  ufRg?: string;
+  tituloEleitor?: string;
+  zonaEleitoral?: string;
+  secaoEleitoral?: string;
+  nit?: string;
+  cei?: string;
+  caepf?: string;
+  cnae?: string;
+  atividadeEconomica?: string;
+  situacaoCaepf?: string;
+  rgp?: string;
+  tipoRgp?: "INICIAL" | "PROTOCOLO" | "RECADASTRAMENTO";
+  emissaoRgp?: string;
+  ufRgp?: string;
+  senhaGovInss?: string;
+
+  // Metadados das fontes
+  fontes?: {
+    [key: string]: {
+      capturado: boolean;
+      timestamp: number;
+    };
+  };
 }
 export interface MessageRequest {
   action: string;

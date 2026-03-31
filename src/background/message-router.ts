@@ -27,6 +27,8 @@ export async function routeMessage(
         return await handleAbrirAbaContainer(message, getTabManager);
       case "turboFillReap":
         return await handleTurboFillReap(message);
+      case "SAVE_PESSOA_DATA":
+        return await handleSavePessoaData(message);
       default:
         return {
           success: false,
@@ -164,5 +166,19 @@ async function handleTurboFillReap(message: MessageRequest) {
     return response || { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "A aba atual do REAP não pôde receber a ação de Turbo. Certifique-se de estar na página correta do formulário e recarregue-a." };
+  }
+}
+
+async function handleSavePessoaData(message: MessageRequest) {
+  const { data, fonte } = message;
+  if (!data || !fonte) {
+    return { success: false, error: "Dados ou fonte não fornecidos" };
+  }
+
+  try {
+    const newSettings = await StorageService.mergePessoaData(data, fonte);
+    return { success: true, settings: newSettings };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 }

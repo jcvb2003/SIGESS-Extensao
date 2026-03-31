@@ -23,6 +23,12 @@ const targets = [
   "content_reap",
   "content_reap_turbo",
   "content_script",
+  "content_auto_registration",
+  "pesqbrasil_bridge",
+  "caepf_bridge",
+  "cadunico_bridge",
+  "tse_bridge",
+  "auto_reg_turbo",
 ];
 
 console.log(`Building extension for ${browserTarget}...`);

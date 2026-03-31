@@ -28,7 +28,11 @@
         "assets/content_script.js",
         "assets/content_reap.js",
         "assets/content_reap_turbo.js",
-        "assets/content_esocial.js"
+        "assets/content_esocial.js",
+        "assets/pesqbrasil_bridge.js",
+        "assets/caepf_bridge.js",
+        "assets/cadunico_bridge.js",
+        "assets/tse_bridge.js"
       ],
       "matches": [
         "<all_urls>"
@@ -71,6 +75,34 @@
       ],
       "js": [
         "assets/content_esocial.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+        "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*",
+        "*://*.esocial.gov.br/*",
+        "*://*.gov.br/*"
+      ],
+      "js": [
+        "assets/content_auto_registration.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+        "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*",
+        "*://*.esocial.gov.br/*",
+        "*://*.gov.br/*",
+        "*://*.receita.fazenda.gov.br/*",
+        "*://*.tse.jus.br/*",
+        "*://*.sigess.com.br/*",
+        "*://sigess-extensao.vercel.app/*"
+      ],
+      "js": [
+        "assets/auto_reg_turbo.js"
       ],
       "run_at": "document_start"
     }

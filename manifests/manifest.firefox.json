@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "SIGESS",
-  "version": "3.0.2",
-  "description": "Automatiza logins e preenchimento de formulÃ¡rios em sites governamentais",
+  "version": "3.1.1",
+  "description": "Automatiza logins e preenchimento de formulários em sites governamentais",
   "permissions": [
     "contextualIdentities",
     "cookies",
@@ -16,6 +16,9 @@
     "https://sso.acesso.gov.br/*",
     "https://login.esocial.gov.br/*",
     "https://www.esocial.gov.br/*",
+    "https://*.cadunico.dataprev.gov.br/*",
+    "https://*.tse.jus.br/*",
+    "https://*.receita.fazenda.gov.br/*",
     "<all_urls>"
   ],
   "background": {
@@ -27,7 +30,11 @@
     "assets/content_script.js",
     "assets/content_reap.js",
     "assets/content_reap_turbo.js",
-    "assets/content_esocial.js"
+    "assets/content_esocial.js",
+    "assets/pesqbrasil_bridge.js",
+    "assets/caepf_bridge.js",
+    "assets/cadunico_bridge.js",
+    "assets/tse_bridge.js"
   ],
   "icons": {
     "128": "icon.png"
@@ -67,6 +74,36 @@
         "assets/content_esocial.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+        "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*",
+        "*://*.esocial.gov.br/*",
+        "*://*.gov.br/*",
+        "*://*.receita.fazenda.gov.br/*",
+        "*://*.tse.jus.br/*"
+      ],
+      "js": [
+        "assets/content_auto_registration.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
+        "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*",
+        "*://*.esocial.gov.br/*",
+        "*://*.gov.br/*",
+        "*://*.receita.fazenda.gov.br/*",
+        "*://*.tse.jus.br/*",
+        "*://*.sigess.com.br/*",
+        "*://sigess-extensao.vercel.app/*"
+      ],
+      "js": [
+        "assets/auto_reg_turbo.js"
+      ],
+      "run_at": "document_start"
     }
   ],
   "browser_specific_settings": {
@@ -76,4 +113,3 @@
     }
   }
 }
-

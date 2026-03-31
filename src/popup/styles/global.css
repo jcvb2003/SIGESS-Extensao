@@ -1060,3 +1060,139 @@ dialog.license-modal {
 .btn-whatsapp-small:hover {
     background: #128c7e;
 }
+
+/* Auto Registration Panel */
+.sources-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.source-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.source-item.active {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+    box-shadow: 0 4px 12px var(--color-accent-soft);
+}
+
+.source-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-text);
+    letter-spacing: 0.3px;
+}
+
+.status-icon.success {
+    color: var(--color-accent);
+}
+
+.status-icon.pending {
+    color: var(--color-muted);
+    opacity: 0.4;
+}
+
+.info-card {
+    background: var(--color-surface-alt);
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+}
+
+.info-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.info-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--color-text);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.data-preview {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--shadow-subtle);
+}
+
+.preview-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.preview-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.preview-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--color-border);
+}
+
+.preview-row:last-of-type {
+    border-bottom: none;
+}
+
+.preview-label {
+    color: var(--color-muted);
+    font-weight: 500;
+}
+
+.preview-value {
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.btn-full {
+    width: 100%;
+}
+
+.btn-danger {
+    color: #dc2626 !important;
+    border-color: #fecaca !important;
+}
+
+.btn-danger:hover {
+    background: #fef2f2 !important;
+    border-color: #f87171 !important;
+}
+
+.empty-state {
+    font-size: 12px;
+    color: var(--color-muted);
+    text-align: center;
+    font-style: italic;
+    padding: 20px;
+    background: var(--color-surface-alt);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--color-border);
+    line-height: 1.6;
+}

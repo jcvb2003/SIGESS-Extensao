@@ -14,7 +14,13 @@ const entries = {
     content_esocial: resolve(__dirname, 'src/modules/esocial/form-automation.ts'),
     content_reap: resolve(__dirname, 'src/entries/reap.ts'),
     content_reap_turbo: resolve(__dirname, 'src/modules/reap-mpa/turbo-filler.ts'),
-    content_script: resolve(__dirname, 'src/entries/content-script.ts')
+    content_script: resolve(__dirname, 'src/entries/content-script.ts'),
+    content_auto_registration: resolve(__dirname, 'src/entries/auto-registration.ts'),
+    pesqbrasil_bridge: resolve(__dirname, 'src/modules/automation/pesqbrasil/bridge.ts'),
+    caepf_bridge: resolve(__dirname, 'src/modules/automation/caepf/bridge.ts'),
+    cadunico_bridge: resolve(__dirname, 'src/modules/automation/cadunico/bridge.ts'),
+    tse_bridge: resolve(__dirname, 'src/modules/automation/tse/bridge.ts'),
+    auto_reg_turbo: resolve(__dirname, 'src/modules/automation/debug/AutoRegTurbo.ts')
 };
 
 const entryFile = entries[target as keyof typeof entries];

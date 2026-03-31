@@ -4,6 +4,7 @@ import ESocialPanel from "./panels/ESocialPanel";
 import { LoginSection } from "./panels/LoginSection";
 import ReapAgroPanel from "./panels/ReapAgroPanel";
 import ReapMpaPanel from "./panels/ReapMpaPanel";
+import AutoRegistrationPanel from "./panels/AutoRegistrationPanel";
 import BatchLoginModal from "./ui/BatchLoginModal";
 import { LicenseInfo } from "./ui/LicenseInfo";
 import { Skeleton, SkeletonBadge, SkeletonCard } from "./ui/Skeleton";
@@ -12,7 +13,7 @@ import { ActivationScreen, getLicenseErrorMessage } from "./ui/ActivationScreen"
 import { ChevronIcon } from "./ui/icons";
 import { useLicense } from "../hooks/useLicense";
 import { useSettings } from "../hooks/useSettings";
-import { ShieldCheck, Info } from "lucide-react";
+import { ShieldCheck, Info, UserPlus } from "lucide-react";
 
 const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -22,6 +23,7 @@ const AppContent: React.FC = () => {
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   const [openSections, setOpenSections] = useState({
     login: false,
+    autoRegistration: false,
     esocial: false,
     reapAgro: false,
     reapMpa: false,
@@ -98,6 +100,7 @@ const AppContent: React.FC = () => {
       const nextOpen = !prev[key];
       const newState = {
         login: false,
+        autoRegistration: false,
         esocial: false,
         reapAgro: false,
         reapMpa: false,
@@ -140,6 +143,31 @@ const AppContent: React.FC = () => {
           onShowModal={(type) => setShowBatchModal(type)}
           onOpenBatch={handleMultiLoginBatch}
         />
+
+        <section className="section accordion">
+          <button
+            type="button"
+            className="accordion-header"
+            aria-expanded={openSections.autoRegistration}
+            onClick={() => toggleSection("autoRegistration")}
+          >
+            <div className="section-header">
+              <h2 className="section-title">Cadastro Automático</h2>
+              <p className="section-description">
+                Coleta de dados de sites governamentais
+              </p>
+            </div>
+            <UserPlus size={18} className={`accordion-icon ${openSections.autoRegistration ? "open" : ""}`} />
+          </button>
+          <div
+            className={`accordion-content ${openSections.autoRegistration ? "open" : "collapsed"
+              }`}
+          >
+            <div className="section-content">
+              <AutoRegistrationPanel settings={settings} onUpdate={updateSettings} />
+            </div>
+          </div>
+        </section>
 
         <section className="section accordion">
           <button
