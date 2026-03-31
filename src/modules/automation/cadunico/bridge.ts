@@ -4,21 +4,39 @@
   let capturedCnas = '';
   let capturedCpf = '';
 
-  const CPF_REGEX = /\/pessoa\/(\d{11})\/tipos-perfil/;
+  const CPF_REGEX = /\/(?:pessoa|situacao-familia)\/(\d{11})/;
+
+  let lastSentHash = '';
+  let lastSentTime = 0;
 
   function checkAndSendTokens() {
     if (capturedBearer && capturedXSRF && capturedCpf) {
-      console.log("SIGESS: Todos os tokens do CadÚnico capturados! Enviando para extensão...");
-      globalThis.postMessage({
-        type: 'SIGESS_CADUNICO_ADV_TOKENS',
-        payload: {
-          bearer: capturedBearer,
-          xsrf: capturedXSRF,
-          cnas: capturedCnas || '1.35.00',
-          cpf: capturedCpf
-        }
-      }, '*');
+      const currentHash = `${capturedCpf}:${capturedBearer.slice(-10)}:${capturedXSRF.slice(-10)}`;
+      const now = Date.now();
+
+      // Só envia se os tokens mudaram ou se passou mais de 60 segundos
+      if (currentHash !== lastSentHash || (now - lastSentTime > 60000)) {
+        console.log("SIGESS: Enviando tokens do CadÚnico para a extensão...");
+        lastSentHash = currentHash;
+        lastSentTime = now;
+
+        globalThis.postMessage({
+          type: 'SIGESS_CADUNICO_ADV_TOKENS',
+          payload: {
+            bearer: capturedBearer,
+            xsrf: capturedXSRF,
+            cnas: capturedCnas || '1.36.02', // Versão padrão do Cnas
+            cpf: capturedCpf
+          }
+        }, '*');
+      }
     }
+  }
+
+  function getHeader(headers: any, name: string): string | null {
+    if (!headers) return null;
+    if (typeof headers.get === 'function') return headers.get(name);
+    return headers[name] || headers[name.toLowerCase()] || null;
   }
 
   // Interceptação de Headers em Fetch
@@ -35,11 +53,15 @@
     }
 
     if (init?.headers) {
-      const headers = init.headers as any;
-      if (headers['Authorization']) capturedBearer = headers['Authorization'];
-      if (headers['X-XSRF-TOKEN']) capturedXSRF = headers['X-XSRF-TOKEN'];
-      if (headers['CnasVersao']) capturedCnas = headers['CnasVersao'];
-      checkAndSendTokens();
+      const h_auth = getHeader(init.headers, 'Authorization');
+      const h_xsrf = getHeader(init.headers, 'X-XSRF-TOKEN');
+      const h_cnas = getHeader(init.headers, 'CnasVersao');
+      
+      if (h_auth) capturedBearer = h_auth;
+      if (h_xsrf) capturedXSRF = h_xsrf;
+      if (h_cnas) capturedCnas = h_cnas;
+
+      if (capturedBearer && capturedXSRF) checkAndSendTokens();
     }
 
     return originalFetch.call(this, resource, init);

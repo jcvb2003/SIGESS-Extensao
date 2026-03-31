@@ -1,94 +1,113 @@
 import { PessoaData } from "../../../shared/types";
 
-export function parsePesqBrasilRSC(text: string): Partial<PessoaData> | null {
+/**
+ * Extrai dados do PesqBrasil a partir de um payload RSC (React Server Components).
+ * O formato RSC não é JSON válido, consistindo em linhas numeradas como "0:[...]", "1:[...]".
+ */
+export function parsePesqBrasilRSC(rscText: string): Partial<PessoaData> | null {
   try {
-    // Procura o início do objeto JSON que contém os dados (no formato Next.js RSC)
-    // Geralmente começa com um ID e um objeto logo após
-    const startIdx = text.indexOf('{"configuracoes"');
-    if (startIdx === -1) {
-      // Tenta outra variação de payload
-      const altStart = text.indexOf('{"id":');
-      if (altStart === -1) return null;
-      
-      // Se encontrou dados soltos, tenta parsear
-      const parts = text.substring(altStart).split('\n');
-      for (const part of parts) {
-        if (part.includes('defaultValues') || part.includes('dadosPessoais')) {
+    let rawData: any = null;
+
+    // Tenta encontrar o objeto de "dadosPessoais" ou payload de Dashboard dentro do RSC
+    const lines = rscText.split('\n');
+    
+    for (const line of lines) {
+      // Padrão 1: Detalhes completos (dadosPessoais/defaultValues)
+      if (line.includes('"defaultValues"') || line.includes('"dadosPessoais"')) {
+        const jsonStr = extractJsonObject(line);
+        if (jsonStr) {
           try {
-            const cleanPart = part.replace(/^[0-9]+:/, ''); // Remove prefixo de RSC tipo "1:"
-            const json = JSON.parse(cleanPart);
-            return mapToPessoaData(json.defaultValues || json);
-          } catch(e) {}
+            const parsed = JSON.parse(jsonStr);
+            // Pode estar aninhado em defaultValues ou ser o objeto direto
+            rawData = parsed.defaultValues || parsed.dadosPessoais || parsed;
+            if (rawData.dadosPessoais) rawData = rawData.dadosPessoais;
+            if (rawData) break;
+          } catch (e) {
+            console.warn("SIGESS: Falha ao parsear objeto JSON extraído do RSC", e);
+          }
         }
       }
+      
+      // Padrão 2: Dashboard/Lista (id, nome, cpf, status)
+      // Usamos uma verificação combinada para garantir que é a linha correta
+      if (line.includes('"cpf"') && line.includes('"nome"') && (line.includes('"status"') || line.includes('"sobrenome"'))) {
+        const jsonStr = extractJsonObject(line);
+        if (jsonStr) {
+          try {
+            const parsed = JSON.parse(jsonStr);
+            // No dashboard, os campos costumam estar na raiz do objeto da linha ou no segundo elemento do array RSC
+            if (parsed.cpf && parsed.nome) {
+              rawData = parsed;
+              console.log("SIGESS: Dados parciais detectados via Dashboard RSC");
+              break;
+            }
+          } catch (e) {
+            // Silencioso para não poluir logs se fallhar em linhas irrelevantes
+          }
+        }
+      }
+    }
+
+    if (!rawData) {
+      console.warn("SIGESS: Nenhum objeto de dados reconhecido no RSC");
       return null;
     }
-    
-    // Pega a linha que contém o JSON
-    const bodyStr = text.substring(startIdx);
-    const firstLine = bodyStr.split('\n')[0];
-    
-    const data = JSON.parse(firstLine);
-    const dv = data.defaultValues || data;
-    
-    return mapToPessoaData(dv);
-  } catch (e) {
-    console.error("SIGESS: Erro ao parsear RSC do PesqBrasil", e);
+
+    // Mapeamento PesqBrasil -> PessoaData
+    // Importante: 1 = Masculino, 2 = Feminino no PesqBrasil (Confirmado)
+    const data: Partial<PessoaData> = {
+      nome: rawData.nome ? `${rawData.nome} ${rawData.sobrenome || ''}`.trim() : undefined,
+      cpf: rawData.cpf || undefined,
+      dataDeNascimento: rawData.dataNascimento || rawData.data_nascimento || undefined,
+      sexo: rawData.sexo === 1 ? 'MASCULINO' : (rawData.sexo === 2 ? 'FEMININO' : undefined),
+      mae: rawData.nomeMae || rawData.mae || undefined,
+      pai: rawData.nomePai || rawData.pai || undefined,
+      naturalidade: rawData.naturalidade || undefined,
+      estadoCivil: rawData.estadoCivil?.descricao || rawData.estadoCivil?.nome || rawData.estadoCivil || undefined,
+      escolaridade: rawData.escolaridade?.descricao || rawData.escolaridade?.nome || rawData.escolaridade || undefined,
+      email: rawData.email || undefined,
+      telefone: rawData.celular || rawData.telefone || undefined,
+    };
+
+    // Endereço (se disponível) - PessoaData.endereco é string
+    if (rawData.endereco) {
+        const e = rawData.endereco;
+        const municipio = e.municipio?.nome || e.cidade || '';
+        const uf = e.municipio?.uf?.sigla || e.uf || '';
+        
+        data.endereco = `${e.logradouro || ''}, ${e.numero || 'S/N'}${e.complemento ? ' - ' + e.complemento : ''}, ${e.bairro || ''}`.trim();
+        data.cidade = municipio;
+        data.uf = uf;
+        data.cep = e.cep || '';
+    }
+
+    console.log("SIGESS: Dados extraídos do PesqBrasil:", data.nome);
+    return data;
+
+  } catch (error) {
+    console.error("SIGESS: Erro crítico ao extrair RSC do PesqBrasil", error);
     return null;
   }
 }
 
-function mapToPessoaData(dv: any): Partial<PessoaData> | null {
-  if (!dv.dadosPessoais) return null;
+/**
+ * Extrai o primeiro objeto JSON completo de uma string, 
+ * lidando com o formato RSC do Next.js e caracteres de escape.
+ */
+function extractJsonObject(str: string): string | null {
+  // Se a string contiver JSON escapado (ex: {\"key\":\"val\"}), normaliza os escapes
+  const cleanStr = str.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
   
-  const dp = dv.dadosPessoais;
-  const pesq = dv.pescador || {};
+  let firstBrace = cleanStr.indexOf('{');
+  if (firstBrace === -1) return null;
 
-  return {
-    nome: dp.nomeCompleto || pesq.nome,
-    cpf: dp.cpf || pesq.cpf,
-    dataDeNascimento: dp.dataNascimento ? dp.dataNascimento.split('T')[0] : undefined,
-    sexo: dp.sexo === 2 ? "MASCULINO" : (dp.sexo === 1 ? "FEMININO" : undefined),
-    mae: dp.nomeMae,
-    pai: dp.nomePai,
-    escolaridade: mapEscolaridade(dp.escolaridade),
-    cep: dp.cep,
-    endereco: dp.endereco,
-    numero: dp.numero,
-    bairro: dp.bairro,
-    uf: mapUF(dp.uf),
-    telefone: dp.telefone,
-    email: dp.email,
-    rg: dp.numeroDocumento,
-    dataExpedicaoRg: dp.dataEmissao ? dp.dataEmissao.split('T')[0] : undefined,
-    ufRg: mapUF(dp.ufEmissao),
-    nit: dp.numeroCtps || dp.numeroPisPasepNis,
-    rgp: pesq.registro?.codigoRGP,
-    tipoRgp: pesq.registro?.tipoSolicitacaoId === 2 ? "RECADASTRAMENTO" : "INICIAL",
-    emissaoRgp: pesq.registro?.dataEmissao ? pesq.registro.dataEmissao.split('T')[0] : undefined,
-  };
-}
-
-function mapEscolaridade(id: number): string {
-  const map: Record<number, string> = {
-    1: "ANALFABETO",
-    2: "LÊ E ESCREVE",
-    3: "ENSINO FUNDAMENTAL INCOMPLETO",
-    4: "ENSINO FUNDAMENTAL COMPLETO",
-    5: "ENSINO MÉDIO INCOMPLETO",
-    6: "ENSINO MÉDIO COMPLETO",
-    7: "ENSINO SUPERIOR INCOMPLETO",
-    8: "ENSINO SUPERIOR COMPLETO",
-  };
-  return map[id] || "NÃO INFORMADO";
-}
-
-function mapUF(id: number): string {
-  const map: Record<number, string> = {
-    1: "RO", 2: "AC", 3: "AM", 4: "RR", 5: "PA", 6: "AP", 7: "TO",
-    8: "MA", 9: "PI", 10: "CE", 11: "RN", 12: "PB", 13: "PE", 14: "AL", 15: "SE", 16: "BA",
-    17: "MG", 18: "ES", 19: "RJ", 20: "SP", 21: "PR", 22: "SC", 23: "RS",
-    24: "MS", 25: "MT", 26: "GO", 27: "DF"
-  };
-  return map[id] || "";
+  let stack = 0;
+  for (let i = firstBrace; i < cleanStr.length; i++) {
+    if (cleanStr[i] === '{') stack++;
+    if (cleanStr[i] === '}') stack--;
+    if (stack === 0) {
+      return cleanStr.substring(firstBrace, i + 1);
+    }
+  }
+  return null;
 }

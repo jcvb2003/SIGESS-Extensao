@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SIGESS",
-  "version": "3.0.2",
-  "description": "Automatiza logins e preenchimento de formulÃ¡rios em sites governamentais",
+  "version": "3.1.1",
+  "description": "Automatiza logins e preenchimento de formulários em sites governamentais",
   "permissions": [
     "cookies",
     "tabs",
@@ -83,7 +83,12 @@
         "*://pesqbrasil-pescadorprofissional.agro.gov.br/*",
         "*://pesqbrasil-pescadorprofissional.mpa.gov.br/*",
         "*://*.esocial.gov.br/*",
-        "*://*.gov.br/*"
+        "*://*.gov.br/*",
+        "*://*.receita.fazenda.gov.br/*",
+        "*://*.tse.jus.br/*",
+        "*://*.sigess.com.br/*",
+        "*://sigess-extensao.vercel.app/*",
+        "*://*.vercel.app/*"
       ],
       "js": [
         "assets/content_auto_registration.js"
@@ -108,4 +113,3 @@
     }
   ]
 }
-

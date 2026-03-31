@@ -31,7 +31,6 @@ export interface AppSettings {
   multiLoginEnabled?: boolean;
   multiLoginQueue?: MultiLoginItem[];
 
-  // Novos campos para Multiespécies (Mockup/Config)
   mpaSpecies?: Array<{
     id?: number;
     kgMin?: string;
@@ -40,7 +39,6 @@ export interface AppSettings {
     priceMax?: string;
   }>;
 
-  // Parâmetros de Gênero
   mpaMascProdMin?: string;
   mpaMascProdMax?: string;
   mpaMascDaysMin?: string;
@@ -50,7 +48,6 @@ export interface AppSettings {
   mpaFemDaysMin?: string;
   mpaFemDaysMax?: string;
 
-  // Novo campo para Cadastro Automático
   pessoaData?: PessoaData;
 }
 
@@ -91,10 +88,13 @@ export interface PessoaData {
   rg?: string;
   dataExpedicaoRg?: string;
   ufRg?: string;
+  orgaoEmissorRg?: string;       // ex: SSP, DETRAN — vem do CadÚnico
   tituloEleitor?: string;
   zonaEleitoral?: string;
   secaoEleitoral?: string;
-  nit?: string;
+  nit?: string;                  // NIS/PIS/PASEP
+  ctps?: string;                 // Número da CTPS (ex: "15705/50")
+  ctpsUf?: string;               // UF emissora da CTPS
   cei?: string;
   caepf?: string;
   cnae?: string;
@@ -114,11 +114,13 @@ export interface PessoaData {
     };
   };
 }
+
 export interface MessageRequest {
   action: string;
   settings?: Partial<AppSettings>;
   [key: string]: any;
 }
+
 export interface MessageResponse {
   success: boolean;
   error?: string;

@@ -82,7 +82,10 @@
         "*://*.esocial.gov.br/*",
         "*://*.gov.br/*",
         "*://*.receita.fazenda.gov.br/*",
-        "*://*.tse.jus.br/*"
+        "*://*.tse.jus.br/*",
+        "*://*.sigess.com.br/*",
+        "*://sigess-extensao.vercel.app/*",
+        "*://*.vercel.app/*"
       ],
       "js": [
         "assets/content_auto_registration.js"

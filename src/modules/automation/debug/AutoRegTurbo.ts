@@ -167,20 +167,21 @@ import { PessoaData } from "../../../shared/types";
   }
 
   async function updateFromStorage() {
-    const result = await chrome.storage.local.get("pessoaData");
-    const data = result.pessoaData as PessoaData;
+    const result = await chrome.storage.local.get("sigessSettings");
+    const settings = result.sigessSettings || {};
+    const data = settings.pessoaData as PessoaData;
     if (!data) return;
 
     updateUIWithData(data);
   }
 
   function updateUIWithData(data: PessoaData) {
-    // Update Status Indicators
+    const fontes = data.fontes || {};
     const sources = {
-      mpa: !!data.rgp,
-      esocial: !!data.caepf,
-      cadunico: !!data.email || !!data.telefone,
-      tse: !!data.tituloEleitor
+      mpa: !!fontes.pesqbrasil?.capturado,
+      esocial: !!fontes.caepf?.capturado,
+      cadunico: !!fontes.cadunico_adv?.capturado || !!fontes.cadunico?.capturado,
+      tse: !!fontes.tse?.capturado
     };
 
     Object.entries(sources).forEach(([src, active]) => {
@@ -212,8 +213,7 @@ import { PessoaData } from "../../../shared/types";
   globalThis.addEventListener("message", (event) => {
     const { type } = (event?.data || {}) as { type?: string };
     if (type?.startsWith("SIGESS_")) {
-        const source = type.split('_')[1];
-        addLog(`Sinal interceptado: ${source}`, "success");
+        // Encontra o nome da fonte apenas para debug interno se necessário
     }
   });
 
@@ -225,9 +225,12 @@ import { PessoaData } from "../../../shared/types";
 
   // Escuta mudanças no storage em tempo real
   chrome.storage.onChanged.addListener((changes) => {
-    if (changes.pessoaData) {
-      updateUIWithData(changes.pessoaData.newValue as PessoaData);
-      addLog("Banco de dados local atualizado.", "success");
+    if (changes.sigessSettings) {
+      const settings = changes.sigessSettings.newValue || {};
+      if (settings.pessoaData) {
+        updateUIWithData(settings.pessoaData as PessoaData);
+        addLog("Banco de dados local atualizado.", "success");
+      }
     }
   });
 
