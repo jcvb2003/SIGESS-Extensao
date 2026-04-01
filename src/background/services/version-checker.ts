@@ -59,14 +59,16 @@ export class VersionChecker {
     this.checkVersion();
 
     // Cria um alarme para checar a cada 4 horas
-    browser.alarms.create("checkUpdateAlarm", {
-      periodInMinutes: 240,
-    });
+    if (typeof browser !== 'undefined' && browser.alarms) {
+      browser.alarms.create("checkUpdateAlarm", {
+        periodInMinutes: 240,
+      });
 
-    browser.alarms.onAlarm.addListener((alarm) => {
-      if (alarm.name === "checkUpdateAlarm") {
-        this.checkVersion();
-      }
-    });
+      browser.alarms.onAlarm.addListener((alarm) => {
+        if (alarm.name === "checkUpdateAlarm") {
+          this.checkVersion();
+        }
+      });
+    }
   }
 }

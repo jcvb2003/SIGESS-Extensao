@@ -10,49 +10,36 @@
 
   XHR.send = function (this: XMLHttpRequest) {
     this.addEventListener('load', function () {
-      const url = String((this as any)._url).toLowerCase();
-      
-      // Log para debug de rede (visível no console do navegador)
-      if (url.includes('pesqbrasil') || url.includes('dados-pessoais')) {
-         console.log("[SIGESS Bridge] Verificando XHR:", url);
-      }
-
-      // Intercepta se a URL parecer relevante para dados
-      if (url.includes('/registro/') || url.includes('/dados-pessoais') || url === '/' || url.endsWith('.mpa.gov.br/')) {
-        handlePayload(this.responseText, "XHR");
+      const url = String((this as any)._url);
+      if (url.includes('/registro/') && (url.includes('/dados-pessoais') || url.includes('visualizar'))) {
+        handlePayload(this.responseText, url, "XHR");
       }
     });
     return send.apply(this, arguments as any);
   };
 
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (...args) => {
+  globalThis.fetch = async (...args: any[]) => {
     const response = await originalFetch(...(args as [RequestInfo | URL, RequestInit | undefined]));
-    const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
-    const urlStr = String(url).toLowerCase();
+    const url = typeof args[0] === 'string' ? args[0] : (args[0] as any).url || String(args[0]);
+    const urlStr = String(url);
 
-    if (urlStr.includes('pesqbrasil') || urlStr.includes('dados-pessoais')) {
-        console.log("[SIGESS Bridge] Verificando Fetch:", urlStr);
-    }
-
-    if (urlStr.includes('/registro/') || urlStr.includes('/dados-pessoais') || urlStr === '/' || urlStr.endsWith('.mpa.gov.br/')) {
-      const clone = response.clone();
-      clone.text().then(text => {
-        handlePayload(text, "Fetch");
-      }).catch(e => console.error("SIGESS: Erro ao ler fetch PesqBrasil", e));
+    if (urlStr.includes('/registro/') && (urlStr.includes('/dados-pessoais') || urlStr.includes('visualizar'))) {
+       const clone = response.clone();
+       clone.text().then((text: string) => {
+         handlePayload(text, urlStr, "Fetch");
+       }).catch((_e: any) => {});
     }
     return response;
   };
 
-  function handlePayload(text: string, source: string) {
+  function handlePayload(text: string, url: string, source: string) {
     if (!text) return;
 
-    // Verificação rápida de conteúdo para evitar processar tudo
-    const isRSC = text.includes('0:[') || text.includes('1:[');
-    const hasData = text.includes('"defaultValues"') || text.includes('"dadosPessoais"') || text.includes('"cpf"');
+    const hasData = text.includes('"defaultValues"') || text.includes('"dadosPessoais"') || text.includes('"codigoRGP"');
 
-    if (isRSC && hasData) {
-      console.log(`SIGESS: Payload RSC (${source}) do PesqBrasil detectado, enviando...`);
+    if (hasData) {
+      console.log(`SIGESS: Dados detectados em ${url} (${source}). Enviando...`);
       globalThis.postMessage({
         type: 'SIGESS_PESQBRASIL_RAW_DATA',
         payload: text
@@ -60,5 +47,5 @@
     }
   }
 
-  console.log("SIGESS: PesqBrasil Bridge Injected (v2.8)");
+  console.log("SIGESS: PesqBrasil Bridge Active (v3.2)");
 })();

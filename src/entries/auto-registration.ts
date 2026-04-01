@@ -17,18 +17,18 @@ console.log("SIGESS: Auto Registration Content Script loaded");
 async function startAutomation() {
   const result = await chrome.storage.local.get("sigessSettings");
   const settings = result.sigessSettings || {};
-  
+
   if (settings.autoRegistrationEnabled === false) {
     console.log("SIGESS: Captura Automática DESATIVADA nas configurações.");
     return;
   }
 
   dispatchDebugLog("Script de automação carregado.");
-  
+
   // Registrar listeners de mensagens e injetar bridges
   globalThis.addEventListener("message", handleBridgeMessages);
   injectBridges();
-  
+
   // Iniciar monitoramento de navegação SPA para o Assistente
   setupSPANavigationObserver();
 }
@@ -37,7 +37,7 @@ function handleBridgeMessages(event: MessageEvent) {
   // Segurança: verifica se a mensagem vem do mesmo origin (bridge script)
   // No Firefox/Content Scripts, o check de event.source !== window pode falhar entre mundos
   if (event.origin !== globalThis.location.origin) return;
-  
+
   const { type, payload } = event.data || {};
   if (type?.startsWith("SIGESS_")) {
     processIncomingData(type, payload);
@@ -117,7 +117,7 @@ async function fetchCadUnicoAdvanced(payload: { cpf: string, bearer: string, xsr
       return;
     }
     console.log("SIGESS: Perfil Bruto", perfil);
-    
+
     const [details, family, address] = await Promise.all([
       fetchCadUnicoDetails(perfil.identificador, cpf, headers),
       fetchCadUnicoFamily(perfil.numeroFamiliar, headers),
@@ -144,10 +144,10 @@ async function fetchCadUnicoPerfil(cpf: string, headers: any) {
     { headers }
   );
   if (!res.ok) throw new Error(`Erro Perfil (HTTP ${res.status}): ${res.url}`);
-  
+
   const text = await res.text();
   if (!text) return null;
-  
+
   try {
     const data = JSON.parse(text);
     return Array.isArray(data) && data.length > 0 ? data[0] : null;
@@ -254,7 +254,7 @@ async function fetchCadUnicoFamily(familiaId: number, headers: any): Promise<Par
   }
   const municipio = membros?.familiaCadastroDTO?.municipioCadastro;
   const uf = membros?.familiaCadastroDTO?.ufCadastro;
-  
+
   if (municipio && uf) {
     return { cidade: municipio, uf: uf };
   }
@@ -280,7 +280,7 @@ async function fetchCadUnicoAddress(familiaId: number, headers: any): Promise<Pa
     console.error("SIGESS: Erro ao parsear Endereço", err);
     return {};
   }
-  
+
   return {
     endereco: `${e.nomeTipologradouro || e.tipoLogradouro || ''} ${e.nomeLogradouro || e.logradouro || ''}`.trim(),
     numero: e.complementoNumero || e.numero || 'SN',
@@ -447,7 +447,8 @@ async function getCollectedData(): Promise<PessoaData | null> {
   const result = await chrome.storage.local.get("sigessSettings");
   const settings = result.sigessSettings || {};
   const data = settings.pessoaData as PessoaData;
-  return (data && Object.keys(data).length > 1) ? data : null;
+  // Agora basta ter nome e CPF de qualquer fonte
+  return (data && data.nome && data.cpf) ? data : null;
 }
 
 function fillStandardInputs(data: PessoaData): number {
@@ -457,7 +458,7 @@ function fillStandardInputs(data: PessoaData): number {
       const input = document.querySelector(
         `input[name="${key}"], textarea[name="${key}"], input[id="${key}"], textarea[id="${key}"]`
       ) as HTMLInputElement | null;
-      
+
       if (input) {
         setReactInput(input, String(val));
         count++;
@@ -479,15 +480,15 @@ function fillStandardRadios(data: PessoaData): number {
       // Tenta seletor de input padrão OU seletor de botão Shadcn/Radix
       const selector = `input[name="${r.name}"][value="${r.value}"], button[role="radio"][value="${r.value}"]`;
       const el = document.querySelector(selector) as HTMLElement | null;
-      
+
       if (el) {
         el.focus();
         el.click();
-        
+
         // Dispara eventos para o React perceber a mudança
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
-        
+
         count++;
       }
     }
@@ -503,6 +504,7 @@ async function fillCustomSelects(data: PessoaData): Promise<number> {
     ['UF Naturalidade', data.ufNaturalidade],
     ['UF do RG', data.ufRg],
     ['UF do RGP', data.ufRgp],
+    ['Data do RGP', data.dataPrimeiroRegistro],
     ['Tipo', data.tipoRgp],
   ];
 
@@ -556,7 +558,7 @@ function injectAssistantUI() {
 
   const body = document.createElement('div');
   body.style.padding = '12px';
-  
+
   const statusLine = document.createElement('div');
   statusLine.id = 'sigess-assistant-status';
   statusLine.style.cssText = `font-size: 10px; color: #94a3b8; margin-bottom: 10px;`;
@@ -580,11 +582,11 @@ function injectAssistantUI() {
     transition: opacity 0.2s, transform 0.1s;
     opacity: 0.5;
   `;
-  
+
   button.onmousedown = () => button.style.transform = 'scale(0.98)';
   button.onmouseup = () => button.style.transform = 'scale(1)';
   button.onclick = fillSIGESSForm;
-  
+
   body.appendChild(button);
   root.appendChild(body);
   document.body.appendChild(root);
@@ -596,7 +598,7 @@ async function updateAssistantStatus() {
   const result = await chrome.storage.local.get("sigessSettings");
   const settings = result.sigessSettings || {};
   const data = settings.pessoaData as PessoaData;
-  
+
   const root = document.getElementById('sigess-assistant-root');
   const btn = document.getElementById('sigess-assistant-btn') as HTMLButtonElement;
   const status = document.getElementById('sigess-assistant-status');
@@ -606,11 +608,11 @@ async function updateAssistantStatus() {
     if (root) root.style.display = 'none';
     return;
   }
-  
+
   if (root) root.style.display = 'flex';
 
   if (btn && status) {
-    if (data?.nome) {
+    if (data?.nome && data?.cpf) {
       status.innerText = `Pronto: ${data.nome.split(' ')[0]}`;
       status.style.color = '#10b981';
       btn.disabled = false;
@@ -638,9 +640,7 @@ function isSIGESSFormPage(): boolean {
   const path = globalThis.location.pathname;
 
   const isSigessDomain = host.includes("sigess") || host.includes("vercel.app");
-  const isFormRoute = path.includes("/registration") || 
-                     path.includes("/socios") || 
-                     path.includes("/members");
+  const isFormRoute = path.includes("/registration");
 
   return isSigessDomain && isFormRoute;
 }
@@ -663,17 +663,17 @@ function handleSPANavigation() {
 function setupSPANavigationObserver() {
   // Monitora mudanças na URL via eventos de navegação
   globalThis.addEventListener('popstate', handleSPANavigation);
-  
+
   // Monitora mudanças no DOM que podem indicar navegação interna (Next.js)
   const observer = new MutationObserver(() => {
     handleSPANavigation();
   });
-  
-  observer.observe(document.documentElement, { 
-    childList: true, 
-    subtree: true 
+
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true
   });
-  
+
   // Executa verificação inicial
   handleSPANavigation();
 }

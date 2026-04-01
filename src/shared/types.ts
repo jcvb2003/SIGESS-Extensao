@@ -106,6 +106,7 @@ export interface PessoaData {
   tipoRgp?: "INICIAL" | "PROTOCOLO" | "RECADASTRAMENTO";
   emissaoRgp?: string;
   ufRgp?: string;
+  dataPrimeiroRegistro?: string;
   senhaGovInss?: string;
 
   // Metadados das fontes
