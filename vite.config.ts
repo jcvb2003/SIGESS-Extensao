@@ -7,6 +7,7 @@ const outputDir = process.env.BUILD_OUTPUT_DIR || 'dist';
 
 // Build apenas do Popup (React/Module)
 export default defineConfig({
+    base: './',
     plugins: [
         react(),
         obfuscator({

@@ -40,12 +40,32 @@ execSync("vite build", {
 });
 
 try {
-  const source = path.join(outputDir, "src/popup/index.html");
-  const dest = path.join(outputDir, "popup.html");
+  const popupSource = path.join(outputDir, "src/popup/index.html");
+  const popupDest = path.join(outputDir, "popup.html");
+  const inspectorSource = path.join(outputDir, "src/popup/data_inspector.html");
+  const inspectorDest = path.join(outputDir, "data_inspector.html");
 
-  if (fs.existsSync(source)) {
-    fs.copyFileSync(source, dest);
+  const fixHtmlPaths = (filePath) => {
+    if (!fs.existsSync(filePath)) return;
+    let content = fs.readFileSync(filePath, "utf8");
+    // Remove as referências ao diretório original para que fiquem relativas à raiz
+    content = content.replace(/\.\.\/\.\.\/assets\//g, "assets/");
+    content = content.replace(/\.\/assets\//g, "assets/");
+    content = content.replace(/src\/popup\//g, "");
+    fs.writeFileSync(filePath, content);
+    console.log(`Fixed paths in ${path.basename(filePath)}`);
+  };
+
+  if (fs.existsSync(popupSource)) {
+    fs.copyFileSync(popupSource, popupDest);
+    fixHtmlPaths(popupDest);
     console.log("Moved popup.html to root");
+  }
+
+  if (fs.existsSync(inspectorSource)) {
+    fs.copyFileSync(inspectorSource, inspectorDest);
+    fixHtmlPaths(inspectorDest);
+    console.log("Moved data_inspector.html to root");
   }
 
   const possibleIconSources = [
