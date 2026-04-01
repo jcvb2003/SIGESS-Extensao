@@ -5,89 +5,91 @@ import { PessoaData } from "../../../shared/types";
  * O formato RSC não é JSON válido, consistindo em linhas numeradas como "0:[...]", "1:[...]".
  */
 export function parsePesqBrasilRSC(rscText: string): Partial<PessoaData> | null {
-  try {
-    let rawData: any = null;
-
-    // Tenta encontrar o objeto de "dadosPessoais" ou payload de Dashboard dentro do RSC
-    const lines = rscText.split('\n');
-    
-    for (const line of lines) {
-      // Padrão 1: Detalhes completos (dadosPessoais/defaultValues)
-      if (line.includes('"defaultValues"') || line.includes('"dadosPessoais"')) {
-        const jsonStr = extractJsonObject(line);
-        if (jsonStr) {
-          try {
-            const parsed = JSON.parse(jsonStr);
-            // Pode estar aninhado em defaultValues ou ser o objeto direto
-            rawData = parsed.defaultValues || parsed.dadosPessoais || parsed;
-            if (rawData.dadosPessoais) rawData = rawData.dadosPessoais;
-            if (rawData) break;
-          } catch (e) {
-            console.warn("SIGESS: Falha ao parsear objeto JSON extraído do RSC", e);
-          }
-        }
-      }
-      
-      // Padrão 2: Dashboard/Lista (id, nome, cpf, status)
-      // Usamos uma verificação combinada para garantir que é a linha correta
-      if (line.includes('"cpf"') && line.includes('"nome"') && (line.includes('"status"') || line.includes('"sobrenome"'))) {
-        const jsonStr = extractJsonObject(line);
-        if (jsonStr) {
-          try {
-            const parsed = JSON.parse(jsonStr);
-            // No dashboard, os campos costumam estar na raiz do objeto da linha ou no segundo elemento do array RSC
-            if (parsed.cpf && parsed.nome) {
-              rawData = parsed;
-              console.log("SIGESS: Dados parciais detectados via Dashboard RSC");
-              break;
-            }
-          } catch (e) {
-            // Silencioso para não poluir logs se fallhar em linhas irrelevantes
-          }
-        }
-      }
-    }
-
-    if (!rawData) {
-      console.warn("SIGESS: Nenhum objeto de dados reconhecido no RSC");
-      return null;
-    }
-
-    // Mapeamento PesqBrasil -> PessoaData
-    // Importante: 1 = Masculino, 2 = Feminino no PesqBrasil (Confirmado)
-    const data: Partial<PessoaData> = {
-      nome: rawData.nome ? `${rawData.nome} ${rawData.sobrenome || ''}`.trim() : undefined,
-      cpf: rawData.cpf || undefined,
-      dataDeNascimento: rawData.dataNascimento || rawData.data_nascimento || undefined,
-      sexo: rawData.sexo === 1 ? 'MASCULINO' : (rawData.sexo === 2 ? 'FEMININO' : undefined),
-      mae: rawData.nomeMae || rawData.mae || undefined,
-      pai: rawData.nomePai || rawData.pai || undefined,
-      naturalidade: rawData.naturalidade || undefined,
-      estadoCivil: rawData.estadoCivil?.descricao || rawData.estadoCivil?.nome || rawData.estadoCivil || undefined,
-      escolaridade: rawData.escolaridade?.descricao || rawData.escolaridade?.nome || rawData.escolaridade || undefined,
-      email: rawData.email || undefined,
-      telefone: rawData.celular || rawData.telefone || undefined,
-    };
-
-    // Endereço (se disponível) - PessoaData.endereco é string
-    if (rawData.endereco) {
-        const e = rawData.endereco;
-        const municipio = e.municipio?.nome || e.cidade || '';
-        const uf = e.municipio?.uf?.sigla || e.uf || '';
-        
-        data.endereco = `${e.logradouro || ''}, ${e.numero || 'S/N'}${e.complemento ? ' - ' + e.complemento : ''}, ${e.bairro || ''}`.trim();
-        data.cidade = municipio;
-        data.uf = uf;
-        data.cep = e.cep || '';
-    }
-
-    console.log("SIGESS: Dados extraídos do PesqBrasil:", data.nome);
-    return data;
-
-  } catch (error) {
-    console.error("SIGESS: Erro crítico ao extrair RSC do PesqBrasil", error);
+  const rawData = findRawDataInRSC(rscText);
+  if (!rawData) {
+    console.warn("SIGESS: Nenhum objeto de dados reconhecido no RSC");
     return null;
   }
+
+  return mapPesqBrasilToPessoaData(rawData);
+}
+
+function findRawDataInRSC(rscText: string): any {
+  const lines = rscText.split('\n');
+  
+  for (const line of lines) {
+    // Padrão 1: Detalhes completos
+    if (line.includes('"defaultValues"') || line.includes('"dadosPessoais"')) {
+      const data = parseLineObject(line);
+      if (data) {
+        const found = data.defaultValues || data.dadosPessoais || data;
+        return found.dadosPessoais || found;
+      }
+    }
+    
+    // Padrão 2: Dashboard/Lista
+    if (line.includes('"cpf"') && line.includes('"nome"') && (line.includes('"status"') || line.includes('"sobrenome"'))) {
+      const data = parseLineObject(line);
+      if (data?.cpf && data.nome) {
+        console.log("SIGESS: Dados parciais detectados via Dashboard RSC");
+        return data;
+      }
+    }
+  }
+  return null;
+}
+
+function parseLineObject(line: string): any {
+  const jsonStr = extractJsonObject(line);
+  if (!jsonStr) return null;
+  
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    console.warn("SIGESS: Falha ao parsear objeto JSON extraído do RSC", e);
+    return null;
+  }
+}
+
+function mapPesqBrasilToPessoaData(rawData: any): Partial<PessoaData> {
+  const data: Partial<PessoaData> = {
+    nome: rawData.nome ? `${rawData.nome} ${rawData.sobrenome || ''}`.trim() : undefined,
+    cpf: rawData.cpf || undefined,
+    dataDeNascimento: rawData.dataNascimento || rawData.data_nascimento || undefined,
+    sexo: mapGender(rawData.sexo),
+    mae: rawData.nomeMae || rawData.mae || undefined,
+    pai: rawData.nomePai || rawData.pai || undefined,
+    naturalidade: rawData.naturalidade || undefined,
+    estadoCivil: rawData.estadoCivil?.descricao || rawData.estadoCivil?.nome || rawData.estadoCivil || undefined,
+    escolaridade: rawData.escolaridade?.descricao || rawData.escolaridade?.nome || rawData.escolaridade || undefined,
+    email: rawData.email || undefined,
+    telefone: rawData.celular || rawData.telefone || undefined,
+  };
+
+  if (rawData.endereco) {
+    Object.assign(data, mapAddress(rawData.endereco));
+  }
+
+  console.log("SIGESS: Dados extraídos do PesqBrasil:", data.nome);
+  return data;
+}
+
+function mapGender(sexo: number): "MASCULINO" | "FEMININO" | undefined {
+  if (sexo === 1) return 'MASCULINO';
+  if (sexo === 2) return 'FEMININO';
+  return undefined;
+}
+
+function mapAddress(e: any): Partial<PessoaData> {
+  const municipio = e.municipio?.nome || e.cidade || '';
+  const uf = e.municipio?.uf?.sigla || e.uf || '';
+  
+  return {
+    endereco: `${e.logradouro || ''}, ${e.numero || 'S/N'}${e.complemento ? ' - ' + e.complemento : ''}, ${e.bairro || ''}`.trim(),
+    cidade: municipio,
+    uf: uf,
+    cep: e.cep || ''
+  };
 }
 
 /**

@@ -77,9 +77,21 @@ const DataInspector: React.FC = () => {
                 { key: "cep", label: "CEP" },
                 { key: "telefone", label: "Telefone" }
             ]
+        },
+        {
+            title: "Educação e Outros",
+            fields: [
+                { key: "escolaridade", label: "Escolaridade" },
+                { key: "alfabetizado", label: "Alfabetizado" },
+                { key: "estadoCivil", label: "Estado Civil" },
+                { key: "nacionalidade", label: "Nacionalidade" },
+                { key: "naturalidade", label: "Naturalidade" }
+            ]
         }
     ];
 
+    // Filtra chaves que já estão nos grupos principais para não repetir desnecessariamente
+    
     const hasDivergence = (fieldKey: string) => {
         const values = sources
             .map(s => {
@@ -124,59 +136,85 @@ const DataInspector: React.FC = () => {
                     </p>
                 </div>
             ) : (
-                <div className="comparison-table-wrapper" style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.01)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                        <thead>
-                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <th style={{ textAlign: 'left', padding: '16px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', width: '200px' }}>Campo</th>
-                                {sources.map(s => (
-                                    <th key={s} style={{ textAlign: 'left', padding: '16px', color: '#10b981', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        {formatSourceName(s)}
-                                    </th>
-                                ))}
-                                <th style={{ textAlign: 'left', padding: '16px', color: '#38bdf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Consolidado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {fieldGroups.map(group => (
-                                <React.Fragment key={group.title}>
-                                    <tr style={{ background: 'rgba(56, 189, 248, 0.03)' }}>
-                                        <td colSpan={sources.length + 2} style={{ padding: '12px 16px', color: '#38bdf8', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                                            {group.title}
-                                        </td>
-                                    </tr>
-                                    {group.fields.map(field => {
-                                        const divergent = hasDivergence(field.key);
-                                        const finalValue = mainData[field.key as keyof PessoaData];
-                                        return (
-                                            <tr key={field.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: divergent ? 'rgba(245, 158, 11, 0.03)' : 'transparent' }}>
-                                                <td style={{ padding: '12px 16px', color: '#94a3b8', fontWeight: 500 }}>
-                                                    {field.label}
-                                                </td>
-                                                {sources.map(s => (
-                                                    <td key={s} style={{ padding: '12px 16px', color: rawData[s][field.key as keyof PessoaData] ? '#f1f5f9' : '#334155' }}>
-                                                        {renderValue(rawData[s][field.key as keyof PessoaData])}
+                <>
+                    <div className="comparison-table-wrapper" style={{ overflowX: 'auto', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.01)', marginBottom: '48px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            <thead>
+                                <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <th style={{ textAlign: 'left', padding: '16px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', width: '200px' }}>Campo</th>
+                                    {sources.map(s => (
+                                        <th key={s} style={{ textAlign: 'left', padding: '16px', color: '#10b981', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            {formatSourceName(s)}
+                                        </th>
+                                    ))}
+                                    <th style={{ textAlign: 'left', padding: '16px', color: '#38bdf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Consolidado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {fieldGroups.map(group => (
+                                    <React.Fragment key={group.title}>
+                                        <tr style={{ background: 'rgba(56, 189, 248, 0.03)' }}>
+                                            <td colSpan={sources.length + 2} style={{ padding: '12px 16px', color: '#38bdf8', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                                {group.title}
+                                            </td>
+                                        </tr>
+                                        {group.fields.map(field => {
+                                            const divergent = hasDivergence(field.key);
+                                            const finalValue = mainData[field.key as keyof PessoaData];
+                                            return (
+                                                <tr key={field.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: divergent ? 'rgba(245, 158, 11, 0.03)' : 'transparent' }}>
+                                                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontWeight: 500 }}>
+                                                        {field.label}
                                                     </td>
-                                                ))}
-                                                <td style={{ padding: '12px 16px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ color: divergent ? '#f59e0b' : '#10b981', fontWeight: 600 }}>
-                                                            {renderValue(finalValue)}
-                                                        </span>
-                                                        {divergent && <span title="Divergência detectada entre as fontes"><AlertTriangle size={14} color="#f59e0b" /></span>}
-                                                        {!divergent && finalValue && sources.length > 1 && (
-                                                            <span title="Consenso entre fontes"><CheckCircle2 size={14} color="#10b981" /></span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </React.Fragment>
+                                                    {sources.map(s => (
+                                                        <td key={s} style={{ padding: '12px 16px', color: rawData[s][field.key as keyof PessoaData] ? '#f1f5f9' : '#334155' }}>
+                                                            {renderValue(rawData[s][field.key as keyof PessoaData])}
+                                                        </td>
+                                                    ))}
+                                                    <td style={{ padding: '12px 16px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span style={{ color: divergent ? '#f59e0b' : '#10b981', fontWeight: 600 }}>
+                                                                {renderValue(finalValue)}
+                                                            </span>
+                                                            {divergent && <span title="Divergência detectada entre as fontes"><AlertTriangle size={14} color="#f59e0b" /></span>}
+                                                            {!divergent && finalValue && sources.length > 1 && (
+                                                                <span title="Consenso entre fontes"><CheckCircle2 size={14} color="#10b981" /></span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </React.Fragment>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="raw-data-section">
+                        <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#f8fafc', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ width: '8px', height: '18px', background: '#38bdf8', borderRadius: '4px' }}></div>
+                            Dados Brutos Coletados (Todos os Campos)
+                        </h2>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                            {sources.map(source => (
+                                <div key={source} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
+                                    <h4 style={{ margin: '0 0 16px', color: '#10b981', fontSize: '14px', textTransform: 'uppercase' }}>{formatSourceName(source)}</h4>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {Object.entries(rawData[source])
+                                          .filter(([_, v]) => v !== undefined && v !== null && v !== "")
+                                          .map(([key, value]) => (
+                                            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '4px' }}>
+                                                <span style={{ color: '#64748b' }}>{key}</span>
+                                                <span style={{ color: '#cbd5e1', fontWeight: 500, textAlign: 'right' }}>{renderValue(value)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
+                        </div>
+                    </div>
+                </>
             )}
 
             <footer style={{ marginTop: '48px', padding: '24px 0', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

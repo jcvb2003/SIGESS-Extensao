@@ -14,7 +14,7 @@ function dispatchDebugLog(msg: string, type: "info" | "success" | "warn" | "erro
 console.log("SIGESS: Auto Registration Content Script loaded");
 
 // O carregamento é assíncrono para verificar se a função está ativa
-async function initAutoRegistration() {
+async function startAutomation() {
   const result = await chrome.storage.local.get("sigessSettings");
   const settings = result.sigessSettings || {};
   
@@ -25,19 +25,21 @@ async function initAutoRegistration() {
 
   dispatchDebugLog("Script de automação carregado.");
   
-  // Registrar listeners de mensagens apenas se estiver ativo
+  // Registrar listeners de mensagens e injetar bridges
   globalThis.addEventListener("message", handleBridgeMessages);
-  
-  // Injetar bridges
   injectBridges();
   
-  // Iniciar assistente de preenchimento se necessário
-  initAssistantIfNeeded();
+  // Iniciar monitoramento de navegação SPA para o Assistente
+  setupSPANavigationObserver();
 }
 
 function handleBridgeMessages(event: MessageEvent) {
+  // Segurança: verifica se a mensagem vem do mesmo origin (bridge script)
+  // No Firefox/Content Scripts, o check de event.source !== window pode falhar entre mundos
+  if (event.origin !== globalThis.location.origin) return;
+  
   const { type, payload } = event.data || {};
-  if (type && type.startsWith("SIGESS_")) {
+  if (type?.startsWith("SIGESS_")) {
     processIncomingData(type, payload);
   }
 }
@@ -109,120 +111,186 @@ async function fetchCadUnicoAdvanced(payload: { cpf: string, bearer: string, xsr
   };
 
   try {
-    // PASSO 1: Obter pessoaId e familiaId a partir do CPF
-    const perfilRes = await fetch(
-      `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/pessoa/${cpf}/tipos-perfil`,
-      { headers }
-    );
-    if (!perfilRes.ok) throw new Error(`Erro Perfil: ${perfilRes.status}`);
-    const perfilData = await perfilRes.json();
-
-    console.log("SIGESS: CADUNICO RAW STUDY (Perfil)", perfilData);
-
-    if (!Array.isArray(perfilData) || perfilData.length === 0) {
-      console.warn("SIGESS: Perfil não encontrado");
+    const perfil = await fetchCadUnicoPerfil(cpf, headers);
+    if (!perfil) {
+      console.warn("SIGESS: Perfil não encontrado para CPF " + cpf);
       return;
     }
+    console.log("SIGESS: Perfil Bruto", perfil);
+    
+    const [details, family, address] = await Promise.all([
+      fetchCadUnicoDetails(perfil.identificador, cpf, headers),
+      fetchCadUnicoFamily(perfil.numeroFamiliar, headers),
+      fetchCadUnicoAddress(perfil.numeroFamiliar, headers)
+    ]);
 
-    const perfil = perfilData[0];
-    const pessoaId: number = perfil.identificador;
-    const familiaId: number = perfil.numeroFamiliar;
+    const fullData: Partial<PessoaData> = {
+      ...details,
+      ...family,
+      ...address
+    };
 
-    // PASSO 2: Informações Detalhadas da pessoa
-    // Endpoint confirmado pelo HAR: /v1/pessoa/{pessoaId}/informacoes-detalhadas
-    const detalhesRes = await fetch(
-      `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/pessoa/${pessoaId}/informacoes-detalhadas`,
-      { headers }
-    );
-
-    if (detalhesRes.ok) {
-      const detalhes = await detalhesRes.json();
-      console.log("SIGESS: CADUNICO RAW STUDY (Detalhes)", detalhes);
-
-      const c = detalhes.pessoaDadosCadastroDTO || {};
-      const esc = detalhes.pessoaEscolaridadeDTO || {};
-
-      // RG: o CadÚnico retorna com zeros à esquerda (ex: "00000000000004520021")
-      const rgRaw: string = String(c.numeroIdentidade || '');
-      const rgClean = rgRaw.replace(/^0+/, '') || undefined;
-
-      const advancedData: Partial<PessoaData> = {
-        // Identificação
-        nome: c.nomePessoa,
-        cpf: c.numeroCpfPessoa ? String(c.numeroCpfPessoa) : cpf,
-        nit: c.numeroNisPisPasepPessoa ? String(c.numeroNisPisPasepPessoa) : undefined,
-
-        // Dados Pessoais
-        dataDeNascimento: c.dataNascimentoPessoa ? c.dataNascimentoPessoa.split('T')[0] : undefined,
-        sexo: c.tipoSexoPessoa?.codigo === 1 ? 'MASCULINO' : (c.tipoSexoPessoa?.codigo === 2 ? 'FEMININO' : undefined),
-        mae: c.filiacao1,   // filiacao1 = mãe no CadÚnico
-        pai: c.filiacao2,   // filiacao2 = pai
-
-        // Naturalidade e Nacionalidade
-        naturalidade: c.nomeIbgeMunicipioNascimento,
-        ufNaturalidade: c.siglaUFNascimento,
-        nacionalidade: c.nomePaisOrigem === 'BRASIL' ? 'BRASILEIRO(A)' : c.nomePaisOrigem,
-
-        // RG — sem zeros à esquerda
-        rg: rgClean,
-        dataExpedicaoRg: c.dataEmissaoIdentidade ? c.dataEmissaoIdentidade.split('T')[0] : undefined,
-        ufRg: c.siglaUfIdentidade,
-        orgaoEmissorRg: c.siglaOrgaoEmissor,   // ex: "SSP"
-
-        // Título Eleitoral — CadÚnico JÁ TEM esses dados!
-        // Confirmado pelo HAR: não precisa ir ao TSE se capturar do CadÚnico
-        tituloEleitor: c.numeroTituloEleitorPessoa ? String(c.numeroTituloEleitorPessoa) : undefined,
-        zonaEleitoral: c.numeroZonaTituloEleitorPessoa != null ? String(c.numeroZonaTituloEleitorPessoa) : undefined,
-        secaoEleitoral: c.numeroSecaoTituloEleitorPessoa != null ? String(c.numeroSecaoTituloEleitorPessoa) : undefined,
-
-        // CTPS (Carteira de Trabalho)
-        ctps: c.numeroCtps ? `${c.numeroCtps}/${c.numeroSerieCtps || ''}`.replace(/\/$/, '') : undefined,
-        ctpsUf: c.ufEmissoraCtps,
-
-        // Escolaridade — combina código do curso + se concluiu
-        alfabetizado: esc.sabeLerEEscrever?.codigo === 1 ? 'SIM' : (esc.sabeLerEEscrever?.codigo === 2 ? 'NÃO' : undefined),
-        escolaridade: mapCadUnicoEscolaridade(
-          esc.cursoMaisElevadoQueFrequentou?.codigo,
-          esc.concluiuOCursoQueFrequentou?.codigo,
-          esc.sabeLerEEscrever?.codigo
-        ),
-      };
-
-      saveData(advancedData, "cadunico_adv");
-      dispatchDebugLog(`CadÚnico: ${Object.keys(advancedData).filter(k => (advancedData as any)[k]).length} campos capturados!`, "success");
-    }
-
-    // PASSO 3: Membros da Família (para log de estudo — dados de endereço e família)
-    if (familiaId) {
-      const membrosRes = await fetch(
-        `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/familia/${familiaId}/membros`,
-        { headers }
-      );
-      if (membrosRes.ok) {
-        const membros = await membrosRes.json();
-        console.log("SIGESS: CADUNICO RAW STUDY (Membros da família)", membros);
-
-        // A data de cadastro da família está aqui
-        const dataCadastro = membros?.familiaCadastroDTO?.dataCadastro;
-        if (dataCadastro) {
-          console.log("SIGESS: Data de cadastro da família:", dataCadastro);
-        }
-
-        // O município/UF de cadastro (endereço aproximado)
-        const municipio = membros?.familiaCadastroDTO?.municipioCadastro;
-        const uf = membros?.familiaCadastroDTO?.ufCadastro;
-        if (municipio && uf) {
-          // Salvamos como dado de endereço apenas se ainda não temos
-          saveData({ cidade: municipio, uf: uf }, "cadunico_familia");
-        }
-      }
-    }
-
+    saveData(fullData, "cadunico_adv");
+    dispatchDebugLog(`CadÚnico: ${Object.keys(fullData).filter(k => (fullData as any)[k]).length} campos capturados no total!`, "success");
   } catch (e) {
     console.error("SIGESS: Falha na extração avançada CadÚnico", e);
     dispatchDebugLog("Erro na extração avançada. Verifique o console.", "error");
   }
 }
+
+async function fetchCadUnicoPerfil(cpf: string, headers: any) {
+  const res = await fetch(
+    `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/pessoa/${cpf}/tipos-perfil`,
+    { headers }
+  );
+  if (!res.ok) throw new Error(`Erro Perfil (HTTP ${res.status}): ${res.url}`);
+  
+  const text = await res.text();
+  if (!text) return null;
+  
+  try {
+    const data = JSON.parse(text);
+    return Array.isArray(data) && data.length > 0 ? data[0] : null;
+  } catch (e) {
+    console.error("SIGESS: Erro ao parsear Perfil", e);
+    return null;
+  }
+}
+
+async function fetchCadUnicoDetails(pessoaId: number, cpf: string, headers: any): Promise<Partial<PessoaData>> {
+  const res = await fetch(
+    `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/pessoa/${pessoaId}/informacoes-detalhadas`,
+    { headers }
+  );
+  if (!res.ok) return {};
+
+  const text = await res.text();
+  if (!text) return {};
+
+  let detalhes;
+  try {
+    detalhes = JSON.parse(text);
+  } catch (e) {
+    console.error("SIGESS: Erro ao parsear Detalhes Detalhados", e);
+    return {};
+  }
+
+  const c = detalhes.pessoaDadosCadastroDTO || {};
+  const esc = detalhes.pessoaEscolaridadeDTO || {};
+
+  const rgRaw = String(c.numeroIdentidade || '');
+  const rgClean = rgRaw.replace(/^0+/, '') || undefined;
+
+  let sexo: "MASCULINO" | "FEMININO" | undefined;
+  if (c.tipoSexoPessoa?.codigo === 1) sexo = 'MASCULINO';
+  else if (c.tipoSexoPessoa?.codigo === 2) sexo = 'FEMININO';
+
+  const detailsData: Partial<PessoaData> = {
+    nome: c.nomePessoa,
+    cpf: c.numeroCpfPessoa ? String(c.numeroCpfPessoa) : cpf,
+    nit: c.numeroNisPisPasepPessoa ? String(c.numeroNisPisPasepPessoa) : undefined,
+    dataDeNascimento: c.dataNascimentoPessoa?.split('T')[0],
+    sexo,
+    mae: c.filiacao1 || c.nomeMaePessoa,
+    pai: c.filiacao2 || c.nomePaiPessoa,
+    naturalidade: c.nomeIbgeMunicipioNascimento || c.nomeMunicipioNascimentoPessoa,
+    ufNaturalidade: c.siglaUFNascimento || c.siglaUfNascimentoPessoa,
+    nacionalidade: c.nomePaisOrigem === 'BRASIL' ? 'BRASILEIRO(A)' : (c.nomePaisOrigem || c.tipoNacionalidadePessoa?.descricao),
+    estadoCivil: mapCadUnicoEstadoCivil(c.tipoEstadoCivil?.codigo || c.tipoEstadoCivilPessoa?.codigo),
+    rg: rgClean,
+    dataExpedicaoRg: c.dataEmissaoIdentidade?.split('T')[0],
+    ufRg: c.siglaUfIdentidade,
+    orgaoEmissorRg: c.siglaOrgaoEmissor,
+    tituloEleitor: c.numeroTituloEleitorPessoa ? String(c.numeroTituloEleitorPessoa) : undefined,
+    zonaEleitoral: c.numeroZonaTituloEleitorPessoa?.toString().padStart(3, '0'),
+    secaoEleitoral: c.numeroSecaoTituloEleitorPessoa?.toString().padStart(4, '0'),
+    ctps: c.numeroCtps ? `${c.numeroCtps}/${c.numeroSerieCtps || ''}`.replace(/\/$/, '') : undefined,
+    ctpsUf: c.ufEmissoraCtps,
+    alfabetizado: mapAlfabetizado(esc.sabeLerEEscrever?.codigo),
+    escolaridade: mapCadUnicoEscolaridade(
+      esc.cursoMaisElevadoQueFrequentou?.codigo,
+      esc.concluiuOCursoQueFrequentou?.codigo,
+      esc.sabeLerEEscrever?.codigo
+    ),
+  };
+
+  return detailsData;
+}
+
+function mapAlfabetizado(codigo: number | undefined): "SIM" | "NÃO" | undefined {
+  if (codigo === 1) return "SIM";
+  if (codigo === 2) return "NÃO";
+  return undefined;
+}
+
+function mapCadUnicoEstadoCivil(codigo: number | undefined): string | undefined {
+  const map: Record<number, string> = {
+    1: "SOLTEIRO(A)",
+    2: "CASADO(A)",
+    3: "DIVORCIADO(A)",
+    4: "VIÚVO(A)",
+    5: "UNIÃO ESTÁVEL"
+  };
+  return (codigo && map[codigo]) ? map[codigo] : undefined;
+}
+
+async function fetchCadUnicoFamily(familiaId: number, headers: any): Promise<Partial<PessoaData>> {
+  if (!familiaId) return {};
+  const res = await fetch(
+    `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/familia/${familiaId}/membros`,
+    { headers }
+  );
+  if (!res.ok) return {};
+
+  const text = await res.text();
+  if (!text) return {};
+
+  let membros;
+  try {
+    membros = JSON.parse(text);
+  } catch (e) {
+    console.error("SIGESS: Erro ao parsear Membros", e);
+    return {};
+  }
+  const municipio = membros?.familiaCadastroDTO?.municipioCadastro;
+  const uf = membros?.familiaCadastroDTO?.ufCadastro;
+  
+  if (municipio && uf) {
+    return { cidade: municipio, uf: uf };
+  }
+  return {};
+}
+
+async function fetchCadUnicoAddress(familiaId: number, headers: any): Promise<Partial<PessoaData>> {
+  if (!familiaId) return {};
+  const res = await fetch(
+    `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/familia/${familiaId}/endereco`,
+    { headers }
+  );
+  if (!res.ok) return {};
+
+  const text = await res.text();
+  if (!text) return {};
+
+  let e;
+  try {
+    e = JSON.parse(text);
+    console.log("SIGESS: Endereço Bruto", e);
+  } catch (err) {
+    console.error("SIGESS: Erro ao parsear Endereço", err);
+    return {};
+  }
+  
+  return {
+    endereco: `${e.nomeTipologradouro || e.tipoLogradouro || ''} ${e.nomeLogradouro || e.logradouro || ''}`.trim(),
+    numero: e.complementoNumero || e.numero || 'SN',
+    cep: e.cepLogradouro || e.cep || undefined,
+    cidade: e.municipio || e.nomeMunicipio,
+    uf: e.uf || e.siglaUf,
+    bairro: e.localidade || e.nomeBairro
+  };
+}
+
 
 /**
  * Mapeamento de escolaridade do CadÚnico → valores do SIGESS.
@@ -329,9 +397,7 @@ async function fillRadixSelect(labelText: string, value: string): Promise<boolea
     }
   }
 
-  if (!trigger) {
-    trigger = document.querySelector(`[role="combobox"][aria-label*="${labelText}"]`);
-  }
+  trigger ??= document.querySelector(`[role="combobox"][aria-label*="${labelText}"]`);
 
   if (!trigger) {
     console.warn(`SIGESS: Trigger Radix não encontrado para label "${labelText}"`);
@@ -342,11 +408,11 @@ async function fillRadixSelect(labelText: string, value: string): Promise<boolea
   await sleep(150);
 
   const options = Array.from(document.querySelectorAll('[role="option"]'));
-  const valueNorm = value.trim().toLowerCase();
+  const valueNorm = value.trim().toUpperCase();
 
-  const match = options.find(o => o.textContent?.trim().toLowerCase() === valueNorm)
-    || options.find(o => o.textContent?.trim().toLowerCase().includes(valueNorm))
-    || options.find(o => valueNorm.includes(o.textContent?.trim().toLowerCase() || '___'));
+  const match = options.find(o => o.textContent?.trim().toUpperCase() === valueNorm)
+    || options.find(o => o.textContent?.trim().toUpperCase().includes(valueNorm))
+    || options.find(o => valueNorm.includes(o.textContent?.trim().toUpperCase() || '___'));
 
   if (match) {
     (match as HTMLElement).click();
@@ -366,81 +432,77 @@ function sleep(ms: number): Promise<void> {
 async function fillSIGESSForm() {
   console.log("SIGESS: Iniciando preenchimento automático...");
 
+  const data = await getCollectedData();
+  if (!data) return;
+
+  let count = 0;
+  count += fillStandardInputs(data);
+  count += fillStandardRadios(data);
+  count += await fillCustomSelects(data);
+
+  dispatchDebugLog(`Formulário Assistido: ${count} campos preenchidos.`, "success");
+}
+
+async function getCollectedData(): Promise<PessoaData | null> {
   const result = await chrome.storage.local.get("sigessSettings");
   const settings = result.sigessSettings || {};
   const data = settings.pessoaData as PessoaData;
+  return (data && Object.keys(data).length > 1) ? data : null;
+}
 
-  if (!data || Object.keys(data).length <= 1) {
-    alert("Nenhum dado capturado ainda. Visite os portais governamentais primeiro.");
-    return;
-  }
-
-  // --- Campos de input/textarea ---
-  const mappings: Record<string, keyof PessoaData> = {
-    'nome': 'nome',
-    'cpf': 'cpf',
-    'apelido': 'apelido',
-    'pai': 'pai',
-    'mae': 'mae',
-    'dataDeNascimento': 'dataDeNascimento',
-    'nacionalidade': 'nacionalidade',
-    'naturalidade': 'naturalidade',
-    'ufNaturalidade': 'ufNaturalidade',
-    'cep': 'cep',
-    'endereco': 'endereco',
-    'numero': 'numero',
-    'bairro': 'bairro',
-    'cidade': 'cidade',
-    'uf': 'uf',
-    'telefone': 'telefone',
-    'email': 'email',
-    'rg': 'rg',
-    'dataExpedicaoRg': 'dataExpedicaoRg',
-    'ufRg': 'ufRg',
-    'tituloEleitor': 'tituloEleitor',
-    'zonaEleitoral': 'zonaEleitoral',
-    'secaoEleitoral': 'secaoEleitoral',
-    'nit': 'nit',
-    'caepf': 'caepf',
-    'rgp': 'rgp',
-    'emissaoRgp': 'emissaoRgp',
-    'ufRgp': 'ufRgp',
-    'senhaGovInss': 'senhaGovInss'
-  };
-
+function fillStandardInputs(data: PessoaData): number {
   let count = 0;
-  for (const [inputName, dataKey] of Object.entries(mappings)) {
-    const val = data[dataKey];
-    if (val) {
+  for (const [key, val] of Object.entries(data)) {
+    if (val && typeof val !== 'object') {
       const input = document.querySelector(
-        `input[name="${inputName}"], textarea[name="${inputName}"]`
+        `input[name="${key}"], textarea[name="${key}"], input[id="${key}"], textarea[id="${key}"]`
       ) as HTMLInputElement | null;
+      
       if (input) {
         setReactInput(input, String(val));
         count++;
       }
     }
   }
+  return count;
+}
 
-  // --- Radio buttons ---
-  if (data.sexo) {
-    const radio = document.querySelector(
-      `input[name="sexo"][value="${data.sexo}"]`
-    ) as HTMLInputElement | null;
-    if (radio) { radio.click(); count++; }
+function fillStandardRadios(data: PessoaData): number {
+  let count = 0;
+  const radios = [
+    { name: 'sexo', value: data.sexo },
+    { name: 'alfabetizado', value: data.alfabetizado }
+  ];
+
+  for (const r of radios) {
+    if (r.value) {
+      // Tenta seletor de input padrão OU seletor de botão Shadcn/Radix
+      const selector = `input[name="${r.name}"][value="${r.value}"], button[role="radio"][value="${r.value}"]`;
+      const el = document.querySelector(selector) as HTMLElement | null;
+      
+      if (el) {
+        el.focus();
+        el.click();
+        
+        // Dispara eventos para o React perceber a mudança
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        count++;
+      }
+    }
   }
+  return count;
+}
 
-  if (data.alfabetizado) {
-    const radio = document.querySelector(
-      `input[name="alfabetizado"][value="${data.alfabetizado}"]`
-    ) as HTMLInputElement | null;
-    if (radio) { radio.click(); count++; }
-  }
-
-  // --- Radix UI Selects ---
+async function fillCustomSelects(data: PessoaData): Promise<number> {
+  let count = 0;
   const selectFields: Array<[string, string | undefined]> = [
     ['Escolaridade', data.escolaridade],
     ['Estado Civil', data.estadoCivil],
+    ['UF Naturalidade', data.ufNaturalidade],
+    ['UF do RG', data.ufRg],
+    ['UF do RGP', data.ufRgp],
     ['Tipo', data.tipoRgp],
   ];
 
@@ -450,62 +512,81 @@ async function fillSIGESSForm() {
       if (ok) count++;
     }
   }
-
-  console.log(`SIGESS: ${count} campos preenchidos.`);
-  alert(`✅ SIGESS: ${count} campo(s) preenchido(s) com sucesso!`);
+  return count;
 }
 
 function injectAssistantUI() {
-  if (document.getElementById('sigess-assistant-root')) return;
+  const ID_ASSISTANT = 'sigess-assistant-root';
+  if (document.getElementById(ID_ASSISTANT)) return;
 
   const root = document.createElement('div');
-  root.id = 'sigess-assistant-root';
+  root.id = ID_ASSISTANT;
   root.style.cssText = `
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 9999;
-    font-family: 'Inter', sans-serif;
-  `;
-
-  const container = document.createElement('div');
-  container.style.cssText = `
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 16px;
-    padding: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    bottom: 15px;
+    right: 15px;
+    z-index: 2147483647;
+    padding: 2px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    min-width: 280px;
+    min-width: 220px;
+    transition: all 0.3s ease;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
   `;
 
   const header = document.createElement('div');
-  header.innerHTML = `
-    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-      <div style="width: 10px; height: 10px; background: #2563eb; border-radius: 50%; box-shadow: 0 0 6px #2563eb;"></div>
-      <strong style="font-size: 14px; color: #1e293b;">SIGESS Assistant</strong>
-    </div>
-    <p id="sigess-status-text" style="font-size: 12px; color: #64748b; margin: 0;">Aguardando dados...</p>
+  header.style.cssText = `
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 8px;
   `;
-  container.appendChild(header);
+  header.innerHTML = `
+    <div style="width: 8px; height: 8px; background: #38bdf8; border-radius: 50%; box-shadow: 0 0 6px #38bdf8;"></div>
+    <span style="font-size: 11px; font-weight: 700; color: #f8fafc; letter-spacing: 0.5px;">ASSISTENTE SIGESS</span>
+  `;
+  root.appendChild(header);
+
+  const body = document.createElement('div');
+  body.style.padding = '12px';
+  
+  const statusLine = document.createElement('div');
+  statusLine.id = 'sigess-assistant-status';
+  statusLine.style.cssText = `font-size: 10px; color: #94a3b8; margin-bottom: 10px;`;
+  statusLine.innerText = 'Aguardando dados...';
+  body.appendChild(statusLine);
 
   const button = document.createElement('button');
+  button.id = 'sigess-assistant-btn';
   button.innerText = 'Preencher Formulário';
+  button.disabled = true;
   button.style.cssText = `
-    background: #2563eb; color: white; border: none; border-radius: 8px;
-    padding: 10px; font-weight: 600; font-size: 13px; cursor: pointer;
-    transition: background 0.2s; width: 100%;
+    width: 100%;
+    padding: 8px;
+    background: #38bdf8;
+    color: #0f172a;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    opacity: 0.5;
   `;
-  button.onmouseover = () => button.style.background = '#1d4ed8';
-  button.onmouseout = () => button.style.background = '#2563eb';
+  
+  button.onmousedown = () => button.style.transform = 'scale(0.98)';
+  button.onmouseup = () => button.style.transform = 'scale(1)';
   button.onclick = fillSIGESSForm;
-  container.appendChild(button);
-
-  root.appendChild(container);
+  
+  body.appendChild(button);
+  root.appendChild(body);
   document.body.appendChild(root);
 
   updateAssistantStatus();
@@ -515,66 +596,86 @@ async function updateAssistantStatus() {
   const result = await chrome.storage.local.get("sigessSettings");
   const settings = result.sigessSettings || {};
   const data = settings.pessoaData as PessoaData;
-  const statusText = document.getElementById('sigess-status-text');
+  
+  const root = document.getElementById('sigess-assistant-root');
+  const btn = document.getElementById('sigess-assistant-btn') as HTMLButtonElement;
+  const status = document.getElementById('sigess-assistant-status');
 
-  if (statusText) {
-    if (data && data.nome) {
-      const fontes = Object.keys(data.fontes || {}).length;
-      statusText.innerText = `✅ ${data.nome.split(' ')[0]} — ${fontes} fonte(s)`;
-      statusText.style.color = '#16a34a';
+  // Visibilidade controlada pela funcionalidade estar ativa
+  if (settings.autoRegistrationEnabled === false) {
+    if (root) root.style.display = 'none';
+    return;
+  }
+  
+  if (root) root.style.display = 'flex';
+
+  if (btn && status) {
+    if (data?.nome) {
+      status.innerText = `Pronto: ${data.nome.split(' ')[0]}`;
+      status.style.color = '#10b981';
+      btn.disabled = false;
+      btn.style.opacity = '1';
     } else {
-      statusText.innerText = 'Aguardando dados... Visite os portais gov.';
-      statusText.style.color = '#64748b';
+      status.innerText = 'Aguardando dados...';
+      status.style.color = '#94a3b8';
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
     }
   }
 }
 
+// Escuta mudanças nas configurações ou nos dados
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.sigessSettings) {
+    updateAssistantStatus();
+  }
+});
+
 globalThis.addEventListener('SIGESS_DATA_UPDATED', updateAssistantStatus);
 
-// ==========================================
-// Detecção de página do SIGESS
-// ==========================================
-
 function isSIGESSFormPage(): boolean {
-  const href = globalThis.location.href;
   const host = globalThis.location.hostname;
+  const path = globalThis.location.pathname;
 
   const isSigessDomain = host.includes("sigess") || host.includes("vercel.app");
-  const isFormRoute = href.includes("/socios/novo") ||
-    href.includes("/socios/editar") ||
-    href.includes("/members/new") ||
-    href.includes("/members/edit") ||
-    href.includes("/registration");
+  const isFormRoute = path.includes("/registration") || 
+                     path.includes("/socios") || 
+                     path.includes("/members");
 
   return isSigessDomain && isFormRoute;
 }
 
-function initAssistantIfNeeded() {
+function removeAssistantUI() {
+  const existing = document.getElementById('sigess-assistant-root');
+  if (existing) {
+    existing.remove();
+  }
+}
+
+function handleSPANavigation() {
   if (isSIGESSFormPage()) {
-    if (document.readyState === 'complete') {
-      injectAssistantUI();
-    } else {
-      globalThis.addEventListener('load', injectAssistantUI);
-    }
+    if (document.body) injectAssistantUI();
+  } else {
+    removeAssistantUI();
   }
 }
 
-// Monitora navegação SPA
-let lastHref = globalThis.location.href;
-const spaObserver = new MutationObserver(() => {
-  if (globalThis.location.href !== lastHref) {
-    lastHref = globalThis.location.href;
-    setTimeout(initAssistantIfNeeded, 500);
-  }
-});
-
-if (document.body) {
-  spaObserver.observe(document.body, { childList: true, subtree: true });
-} else {
-  globalThis.addEventListener('DOMContentLoaded', () => {
-    spaObserver.observe(document.body, { childList: true, subtree: true });
+function setupSPANavigationObserver() {
+  // Monitora mudanças na URL via eventos de navegação
+  globalThis.addEventListener('popstate', handleSPANavigation);
+  
+  // Monitora mudanças no DOM que podem indicar navegação interna (Next.js)
+  const observer = new MutationObserver(() => {
+    handleSPANavigation();
   });
+  
+  observer.observe(document.documentElement, { 
+    childList: true, 
+    subtree: true 
+  });
+  
+  // Executa verificação inicial
+  handleSPANavigation();
 }
 
-// Execução da inicialização controlada
-initAutoRegistration();
+startAutomation();

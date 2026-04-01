@@ -4,7 +4,7 @@
   let capturedCnas = '';
   let capturedCpf = '';
 
-  const CPF_REGEX = /\/(?:pessoa|situacao-familia)\/(\d{11})/;
+  const CPF_REGEX = /\/(?:pessoa|situacao-familia|membros|endereco)\/(\d{11}|\d{10})/;
 
   let lastSentHash = '';
   let lastSentTime = 0;
@@ -95,5 +95,5 @@
     return (setRequestHeader as any).apply(this, arguments);
   };
 
-  console.log("SIGESS: CadÚnico Advanced Bridge Injected");
+  console.log("SIGESS: CadÚnico Advanced Bridge Injected on " + globalThis.location.href);
 })();
