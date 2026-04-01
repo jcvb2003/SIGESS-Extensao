@@ -49,6 +49,8 @@ export interface AppSettings {
   mpaFemDaysMax?: string;
 
   pessoaData?: PessoaData;
+  pessoaData_raw?: Record<string, Partial<PessoaData>>;
+  autoRegistrationEnabled?: boolean;
 }
 
 export interface PessoaData {

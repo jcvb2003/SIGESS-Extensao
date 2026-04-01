@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   mpaFemProdMax: "2850",
   mpaFemDaysMin: "118",
   mpaFemDaysMax: "124",
+  autoRegistrationEnabled: false,
 };
 
 interface UseSettingsReturn {

@@ -32,7 +32,9 @@
         "assets/pesqbrasil_bridge.js",
         "assets/caepf_bridge.js",
         "assets/cadunico_bridge.js",
-        "assets/tse_bridge.js"
+        "assets/tse_bridge.js",
+        "data_inspector.html",
+        "assets/data_inspector.js"
       ],
       "matches": [
         "<all_urls>"
@@ -107,7 +109,7 @@
         "*://sigess-extensao.vercel.app/*"
       ],
       "js": [
-        "assets/auto_reg_turbo.js"
+        "assets/capture_indicator.js"
       ],
       "run_at": "document_start"
     }

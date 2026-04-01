@@ -1,6 +1,6 @@
 import { TurboReapConfig } from '../../shared/types';
 import { State } from './session-state';
-import { TurboLogger } from './turbo-logger';
+import { DebugLogger } from '../debug/DebugLogger';
 
 if (!(globalThis as any).__sigessTurboLogSilenced) {
     (globalThis as any).__sigessTurboLogSilenced = true;
@@ -8,11 +8,11 @@ if (!(globalThis as any).__sigessTurboLogSilenced) {
 }
 
 class ReapTurbo {
-    private readonly turboLogger: TurboLogger;
+    private readonly debugLogger: DebugLogger;
     private lastActionHash: string = "0e19fa9cd1721c7395e62a3a725505d58b5b5630";
 
     constructor() { 
-        this.turboLogger = new TurboLogger(); 
+        this.debugLogger = new DebugLogger("REAP-TURBO"); 
     }
 
     private extractActionHashCandidates(html: string): string[] {
@@ -167,7 +167,7 @@ class ReapTurbo {
     }
 
     private async submitMonth(monthNum: number, payload: any): Promise<boolean> {
-        this.turboLogger.log(`Enviando Mês ${monthNum}...`);
+        this.debugLogger.log(`Enviando Mês ${monthNum}...`);
 
         try {
             const resp = await fetch(globalThis.location.href, {
@@ -186,10 +186,10 @@ class ReapTurbo {
                 throw new Error(`HTTP ${resp.status}. Body: ${errorBody}`);
             }
             
-            this.turboLogger.log(`Mês ${monthNum} enviado com sucesso.`, 'success');
+            this.debugLogger.log(`Mês ${monthNum} enviado com sucesso.`, 'success');
             return true;
         } catch (e: any) {
-            this.turboLogger.log(`Erro Mês ${monthNum}: ${e.message}`, 'error');
+            this.debugLogger.log(`Erro Mês ${monthNum}: ${e.message}`, 'error');
             return false;
         }
     }
@@ -199,11 +199,11 @@ class ReapTurbo {
         
         for (let m = startMonth; m <= 12; m++) {
             if (State.stopRequested) {
-                this.turboLogger.log("Interrupção solicitada pelo usuário.", "warn");
+                this.debugLogger.log("Interrupção solicitada pelo usuário.", "warn");
                 break;
             }
 
-            this.turboLogger.log(`--- MÊS ${m} ---`, 'success');
+            this.debugLogger.log(`--- MÊS ${m} ---`, 'success');
             
             // 1. Atualizar o estado CUMULATIVO local
             currentState = this.updateStateWithMonth(currentState, m - 1, config);
@@ -229,10 +229,10 @@ class ReapTurbo {
         if ((globalThis as any).showTurboOverlay) (globalThis as any).showTurboOverlay();
         
         const startMonth = config.startMonth || 1;
-        this.turboLogger.log(`REAP TURBO ULTRA-FAST (Início: Mês ${startMonth})`);
+        this.debugLogger.log(`REAP TURBO ULTRA-FAST (Início: Mês ${startMonth})`);
 
         try {
-            this.turboLogger.log("Obtendo estado inicial...");
+            this.debugLogger.log("Obtendo estado inicial...");
             const initialState = await this.getReapState();
             if (!initialState) throw new Error("Não foi possível carregar o estado atual do SIGESS.");
 

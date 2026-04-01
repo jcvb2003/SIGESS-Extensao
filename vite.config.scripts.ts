@@ -20,7 +20,7 @@ const entries = {
     caepf_bridge: resolve(__dirname, 'src/modules/automation/caepf/bridge.ts'),
     cadunico_bridge: resolve(__dirname, 'src/modules/automation/cadunico/bridge.ts'),
     tse_bridge: resolve(__dirname, 'src/modules/automation/tse/bridge.ts'),
-    auto_reg_turbo: resolve(__dirname, 'src/modules/automation/debug/AutoRegTurbo.ts')
+    capture_indicator: resolve(__dirname, 'src/modules/debug/CaptureIndicator.ts')
 };
 
 const entryFile = entries[target as keyof typeof entries];

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { StorageService } from '../../src/background/utils/storage';
+import { StorageService } from '../../src/background/services/storage';
 
 globalThis.browser = {
     storage: {

@@ -28,7 +28,7 @@ const targets = [
   "caepf_bridge",
   "cadunico_bridge",
   "tse_bridge",
-  "auto_reg_turbo",
+  "capture_indicator",
 ];
 
 console.log(`Building extension for ${browserTarget}...`);

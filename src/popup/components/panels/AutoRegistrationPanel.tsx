@@ -12,16 +12,31 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
   const fontes = data.fontes || {};
 
   const sources = [
-    { id: "pesqbrasil", label: "PesqBrasil" },
-    { id: "esocial", label: "eSocial" },
     { id: "cadunico", label: "CadÚnico" },
-    { id: "ecac", label: "e-CAC" },
-    { id: "tse", label: "Título" },
+    { id: "tse", label: "TSE" },
+    { id: "pesqbrasil", label: "PesqBrasil" },
+    { id: "caepf", label: "eSocial/CAEPF" },
   ];
 
   const handleClear = () => {
     if (confirm("Deseja realmente limpar todos os dados capturados?")) {
-      onUpdate({ pessoaData: undefined });
+      onUpdate({ 
+        pessoaData: undefined,
+        pessoaData_raw: undefined 
+      });
+    }
+  };
+
+  const handleToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onUpdate({ autoRegistrationEnabled: e.target.checked });
+  };
+
+  const openInspector = () => {
+    const url = chrome.runtime.getURL('data_inspector.html');
+    if (globalThis.browser) {
+      browser.tabs.create({ url });
+    } else {
+      chrome.tabs.create({ url });
     }
   };
 
@@ -29,6 +44,46 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
 
   return (
     <div className="stack">
+      {/* Toggle de Ativação Global */}
+      <div className="info-card" style={{ marginBottom: '12px', padding: '12px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ 
+              width: '32px', height: '32px', borderRadius: '8px', 
+              background: settings.autoRegistrationEnabled ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Database size={18} color={settings.autoRegistrationEnabled ? '#10b981' : '#64748b'} />
+            </div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>Captura Automática</div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {settings.autoRegistrationEnabled ? 'Ativada para sites GOV' : 'Desativada no momento'}
+              </div>
+            </div>
+          </div>
+          <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '36px', height: '20px' }}>
+            <input 
+              type="checkbox" 
+              checked={!!settings.autoRegistrationEnabled} 
+              onChange={handleToggle}
+              style={{ opacity: 0, width: 0, height: 0 }}
+            />
+            <span className="slider round" style={{
+              position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: settings.autoRegistrationEnabled ? '#10b981' : '#334155',
+              transition: '.4s', borderRadius: '34px'
+            }}>
+              <span style={{
+                position: 'absolute', height: '14px', width: '14px', left: '3px', bottom: '3px',
+                backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
+                transform: settings.autoRegistrationEnabled ? 'translateX(16px)' : 'translateX(0)'
+              }}></span>
+            </span>
+          </label>
+        </div>
+      </div>
+
       <div className="info-card">
         <div className="info-header">
           <Database size={16} className="info-icon" />
@@ -36,8 +91,17 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
         </div>
         <div className="sources-grid">
           {sources.map((source) => {
-            const info = fontes[source.id];
-            const isCaptured = info?.capturado;
+            let isCaptured = !!fontes[source.id]?.capturado;
+            
+            // Tratamento de sinônimos/fontes compostas
+            if (source.id === "cadunico") {
+              isCaptured = isCaptured || !!fontes.cadunico_adv?.capturado || !!fontes.cadunico_familia?.capturado;
+            } else if (source.id === "caepf") {
+              isCaptured = isCaptured || !!fontes.esocial?.capturado;
+            } else if (source.id === "pesqbrasil") {
+              isCaptured = isCaptured || !!fontes.pesq_brasil?.capturado;
+            }
+
             return (
               <div key={source.id} className={`source-item ${isCaptured ? "active" : ""}`}>
                 {isCaptured ? (
@@ -74,16 +138,33 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
               </div>
             )}
           </div>
-          <button className="btn btn-secondary btn-full btn-danger mt-2" onClick={handleClear} style={{ marginTop: '12px' }}>
-            <Trash2 size={14} />
-            Limpar Dados
-          </button>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+            <button 
+              className="btn btn-secondary" 
+              onClick={openInspector}
+              style={{ padding: '8px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              <Database size={14} />
+              Comparativo
+            </button>
+            <button 
+              className="btn btn-secondary btn-danger" 
+              onClick={handleClear}
+              style={{ padding: '8px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              <Trash2 size={14} />
+              Limpar
+            </button>
+          </div>
         </div>
       )}
 
       {!hasAnyData && (
         <p className="empty-state">
-          Nenhum dado capturado ainda. Navegue pelos sites governamentais para iniciar a coleta automática.
+          {settings.autoRegistrationEnabled 
+            ? "Nenhum dado capturado ainda. Navegue pelos sites governamentais para iniciar a coleta automática."
+            : "A coleta automática está desativada. Ative-a acima para capturar dados dos portais governamentais."}
         </p>
       )}
     </div>

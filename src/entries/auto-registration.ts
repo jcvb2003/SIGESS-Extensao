@@ -12,7 +12,54 @@ function dispatchDebugLog(msg: string, type: "info" | "success" | "warn" | "erro
 }
 
 console.log("SIGESS: Auto Registration Content Script loaded");
-dispatchDebugLog("Script de automação carregado.");
+
+// O carregamento é assíncrono para verificar se a função está ativa
+async function initAutoRegistration() {
+  const result = await chrome.storage.local.get("sigessSettings");
+  const settings = result.sigessSettings || {};
+  
+  if (settings.autoRegistrationEnabled === false) {
+    console.log("SIGESS: Captura Automática DESATIVADA nas configurações.");
+    return;
+  }
+
+  dispatchDebugLog("Script de automação carregado.");
+  
+  // Registrar listeners de mensagens apenas se estiver ativo
+  globalThis.addEventListener("message", handleBridgeMessages);
+  
+  // Injetar bridges
+  injectBridges();
+  
+  // Iniciar assistente de preenchimento se necessário
+  initAssistantIfNeeded();
+}
+
+function handleBridgeMessages(event: MessageEvent) {
+  const { type, payload } = event.data || {};
+  if (type && type.startsWith("SIGESS_")) {
+    processIncomingData(type, payload);
+  }
+}
+
+function processIncomingData(type: string, payload: any) {
+  console.log(`SIGESS: Mensagem recebida da página -> ${type}`);
+  if (type === "SIGESS_PESQBRASIL_RAW_DATA") {
+    const extractedData = parsePesqBrasilRSC(payload);
+    if (extractedData) saveData(extractedData, "pesqbrasil");
+  } else if (type === "SIGESS_CAEPF_RAW_DATA") {
+    const extractedData = parseCaepfData(payload);
+    if (extractedData) saveData(extractedData, "caepf");
+  } else if (type === "SIGESS_CADUNICO_RAW_TOKEN") {
+    const extractedData = parseCadUnicoToken(payload);
+    if (extractedData) saveData(extractedData, "cadunico");
+  } else if (type === "SIGESS_CADUNICO_ADV_TOKENS") {
+    fetchCadUnicoAdvanced(payload);
+  } else if (type === "SIGESS_TSE_RAW_DATA") {
+    const extractedData = parseTseData(payload);
+    if (extractedData) saveData(extractedData, "tse");
+  }
+}
 
 function injectScript(assetPath: string) {
   try {
@@ -39,32 +86,7 @@ function injectBridges() {
 }
 
 // Escuta mensagens do Bridge (que roda no mundo MAIN)
-globalThis.addEventListener("message", (event) => {
-  const { type, payload } = event.data || {};
-
-  if (type && type.startsWith("SIGESS_")) {
-    console.log(`SIGESS: Mensagem recebida da página -> ${type}`);
-
-    if (type === "SIGESS_PESQBRASIL_RAW_DATA") {
-      // payload é o texto RSC bruto — parsePesqBrasilRSC espera string
-      const extractedData = parsePesqBrasilRSC(payload);
-      if (extractedData) saveData(extractedData, "pesqbrasil");
-    } else if (type === "SIGESS_CAEPF_RAW_DATA") {
-      const extractedData = parseCaepfData(payload);
-      if (extractedData) saveData(extractedData, "caepf");
-    } else if (type === "SIGESS_CADUNICO_RAW_TOKEN") {
-      const extractedData = parseCadUnicoToken(payload);
-      if (extractedData) saveData(extractedData, "cadunico");
-    } else if (type === "SIGESS_CADUNICO_ADV_TOKENS") {
-      fetchCadUnicoAdvanced(payload);
-    } else if (type === "SIGESS_TSE_RAW_DATA") {
-      const extractedData = parseTseData(payload);
-      if (extractedData) saveData(extractedData, "tse");
-    } else {
-      console.warn(`SIGESS: Mensagem com prefixo SIGESS_ não processada: ${type}`);
-    }
-  }
-});
+// Listener movido para handleBridgeMessages controlado pelo init
 
 // ==========================================
 // CadÚnico — Extração Avançada via API
@@ -554,5 +576,5 @@ if (document.body) {
   });
 }
 
-initAssistantIfNeeded();
-injectBridges();
+// Execução da inicialização controlada
+initAutoRegistration();

@@ -1,5 +1,8 @@
 import { AppSettings, UserCredentials, PessoaData } from "../../shared/types";
+
 declare var chrome: any;
+declare var browser: any;
+
 function getBrowserStorage() {
   if (globalThis.browser !== undefined && browser.storage)
     return browser.storage.local;
@@ -7,23 +10,27 @@ function getBrowserStorage() {
     return chrome.storage.local;
   return null;
 }
+
 export class StorageService {
   static async get<T>(keys: string | string[]): Promise<Record<string, T>> {
     const storage = getBrowserStorage();
     if (!storage) return {} as Record<string, T>;
     return storage.get(keys) as Promise<Record<string, T>>;
   }
+
   static async set(data: Record<string, any>): Promise<void> {
     const storage = getBrowserStorage();
     if (storage) return storage.set(data);
   }
+
   static async remove(keys: string | string[]): Promise<void> {
     const storage = getBrowserStorage();
     if (storage) return storage.remove(keys);
   }
+
   static async getSettings(): Promise<AppSettings> {
     const result = await this.get<AppSettings>("sigessSettings");
-    const current = result.sigessSettings || {};
+    const current = result.sigessSettings || ({} as AppSettings);
 
     const defaults: AppSettings = {
       consultarGuias: false,
@@ -49,23 +56,26 @@ export class StorageService {
       mpaFemProdMax: "2850",
       mpaFemDaysMin: "118",
       mpaFemDaysMax: "124",
+      autoRegistrationEnabled: false,
     };
 
-    // Deep merge simples (apenas 1 nível para objetos básicos, mpaSpecies é tratado à parte se necessário)
     return {
       ...defaults,
       ...current,
-      // Se mpaSpecies vier vazio ou incompleto do storage, forçamos o padrão se as configurações MPA forem novas
       mpaSpecies: current.mpaSpecies && current.mpaSpecies.length > 0 ? current.mpaSpecies : defaults.mpaSpecies,
     };
   }
+
   static async saveSettings(settings: AppSettings): Promise<void> {
     await this.set({ sigessSettings: settings });
   }
+
   static async mergePessoaData(data: Partial<PessoaData>, fonte: string): Promise<AppSettings> {
     const settings = await this.getSettings();
-    const currentPessoa = settings.pessoaData || { fontes: {} };
+    const currentPessoa: PessoaData = settings.pessoaData ?? { nome: "", cpf: "", fontes: {} };
+    const currentRaw: Record<string, Partial<PessoaData>> = settings.pessoaData_raw ?? { "_init": {} };
     
+    // Atualiza dados consolidados
     const mergedPessoa: PessoaData = {
       ...currentPessoa,
       ...data,
@@ -78,22 +88,45 @@ export class StorageService {
       }
     };
 
-    const newSettings = { ...settings, pessoaData: mergedPessoa };
+    // Lógica inteligente: se CadÚnico capturou dados eleitorais, marcar TSE como capturado também
+    if (fonte.startsWith('cadunico') && data.tituloEleitor && data.zonaEleitoral && data.secaoEleitoral) {
+      mergedPessoa.fontes ??= {};
+      mergedPessoa.fontes['tse'] = { 
+        capturado: true, 
+        timestamp: Date.now() 
+      };
+    }
+
+    // Salva o "snapshot" bruto da fonte atual (sem misturar)
+    const newRaw = {
+      ...currentRaw,
+      [fonte]: {
+        ...(currentRaw[fonte] || {}),
+        ...data
+      }
+    };
+
+    const newSettings: AppSettings = { 
+      ...settings, 
+      pessoaData: mergedPessoa,
+      pessoaData_raw: newRaw 
+    };
+    
     await this.saveSettings(newSettings);
     return newSettings;
   }
+
   static async getCredentials(tabId: number): Promise<UserCredentials | null> {
     const key = `credenciais_${tabId}`;
     const result = await this.get<UserCredentials>(key);
     return result[key] || null;
   }
-  static async saveCredentials(
-    tabId: number,
-    creds: UserCredentials,
-  ): Promise<void> {
+
+  static async saveCredentials(tabId: number, creds: UserCredentials): Promise<void> {
     const key = `credenciais_${tabId}`;
     await this.set({ [key]: creds });
   }
+
   static async clearCredentials(tabId: number): Promise<void> {
     const key = `credenciais_${tabId}`;
     await this.remove(key);

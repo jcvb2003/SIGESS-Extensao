@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { resolve } from 'path';
+import { resolve } from 'node:path';
 import obfuscator from 'vite-plugin-javascript-obfuscator';
 
 const outputDir = process.env.BUILD_OUTPUT_DIR || 'dist';
@@ -10,6 +10,7 @@ export default defineConfig({
     plugins: [
         react(),
         obfuscator({
+            // @ts-ignore
             compact: true,
             controlFlowFlattening: true,
             controlFlowFlatteningThreshold: 0.75,
@@ -29,7 +30,8 @@ export default defineConfig({
         emptyOutDir: true, // Limpa na primeira passada
         rollupOptions: {
             input: {
-                popup: resolve(__dirname, 'src/popup/index.html')
+                popup: resolve(__dirname, 'src/popup/index.html'),
+                data_inspector: resolve(__dirname, 'src/popup/data_inspector.html')
             },
             output: {
                 entryFileNames: 'assets/[name].js',
