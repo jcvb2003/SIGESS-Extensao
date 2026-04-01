@@ -53,7 +53,7 @@ import { PessoaData } from "../../shared/types";
       { id: "cadunico", label: "CadÚnico" },
       { id: "tse", label: "TSE" },
       { id: "pesqbrasil", label: "PesqBrasil" },
-      { id: "esocial", label: "eSocial/CAEPF" }
+      { id: "esocial", label: "CEI/CAEPF" }
     ];
 
     sources.forEach(src => {
@@ -87,7 +87,7 @@ import { PessoaData } from "../../shared/types";
 
   function updateDots(data: PessoaData) {
     const f = data.fontes || {};
-    
+
     const mapping = {
       cadunico: !!(f.cadunico?.capturado || f.cadunico_adv?.capturado),
       tse: !!f.tse?.capturado,
@@ -111,7 +111,7 @@ import { PessoaData } from "../../shared/types";
     // Se tiver nome capturado, mostra um feedback visual no root
     const root = document.getElementById(ID_ROOT);
     if (root && data.nome) {
-        root.title = `Capturado: ${data.nome}`;
+      root.title = `Capturado: ${data.nome}`;
     }
   }
 
@@ -129,7 +129,7 @@ import { PessoaData } from "../../shared/types";
   const init = async () => {
     const result = await chrome.storage.local.get("sigessSettings");
     const settings = result.sigessSettings || {};
-    
+
     // Se a captura estiver desativada, não inicia o monitor
     if (settings.autoRegistrationEnabled === false) {
       console.log("SIGESS: Monitor de coleta desativado via configurações.");
@@ -138,10 +138,10 @@ import { PessoaData } from "../../shared/types";
 
     const host = globalThis.location.hostname;
     const isTarget = host.includes(".gov.br") || host.includes("mpa.gov.br") || host.includes("sigess");
-    
+
     if (isTarget && document.body) {
       createUI();
-      
+
       // Observer para garantir que o componente permaneça no DOM (Next.js/SPAs)
       new MutationObserver(() => {
         if (!document.getElementById(ID_ROOT)) createUI();

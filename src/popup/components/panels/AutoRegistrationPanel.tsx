@@ -15,14 +15,14 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
     { id: "cadunico", label: "CadÚnico" },
     { id: "tse", label: "TSE" },
     { id: "pesqbrasil", label: "PesqBrasil" },
-    { id: "caepf", label: "eSocial/CAEPF" },
+    { id: "caepf", label: "CEI/CAEPF" },
   ];
 
   const handleClear = () => {
     if (confirm("Deseja realmente limpar todos os dados capturados?")) {
-      onUpdate({ 
+      onUpdate({
         pessoaData: undefined,
-        pessoaData_raw: undefined 
+        pessoaData_raw: undefined
       });
     }
   };
@@ -48,8 +48,8 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
       <div className="info-card" style={{ marginBottom: '12px', padding: '12px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ 
-              width: '32px', height: '32px', borderRadius: '8px', 
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '8px',
               background: settings.autoRegistrationEnabled ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
@@ -63,9 +63,9 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
             </div>
           </div>
           <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '36px', height: '20px' }}>
-            <input 
-              type="checkbox" 
-              checked={!!settings.autoRegistrationEnabled} 
+            <input
+              type="checkbox"
+              checked={!!settings.autoRegistrationEnabled}
               onChange={handleToggle}
               style={{ opacity: 0, width: 0, height: 0 }}
             />
@@ -92,7 +92,7 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
         <div className="sources-grid">
           {sources.map((source) => {
             let isCaptured = !!fontes[source.id]?.capturado;
-            
+
             // Tratamento de sinônimos/fontes compostas
             if (source.id === "cadunico") {
               isCaptured = isCaptured || !!fontes.cadunico_adv?.capturado || !!fontes.cadunico_familia?.capturado;
@@ -138,18 +138,18 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
               </div>
             )}
           </div>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
-            <button 
-              className="btn btn-secondary" 
+            <button
+              className="btn btn-secondary"
               onClick={openInspector}
               style={{ padding: '8px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
             >
               <Database size={14} />
               Comparativo
             </button>
-            <button 
-              className="btn btn-secondary btn-danger" 
+            <button
+              className="btn btn-secondary btn-danger"
               onClick={handleClear}
               style={{ padding: '8px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
             >
@@ -162,7 +162,7 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
 
       {!hasAnyData && (
         <p className="empty-state">
-          {settings.autoRegistrationEnabled 
+          {settings.autoRegistrationEnabled
             ? "Nenhum dado capturado ainda. Navegue pelos sites governamentais para iniciar a coleta automática."
             : "A coleta automática está desativada. Ative-a acima para capturar dados dos portais governamentais."}
         </p>

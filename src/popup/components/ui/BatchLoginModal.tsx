@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { UserCredentials } from "../../../shared/types";
 interface BatchLoginModalProps {
   type: "pesqbrasil" | "esocial";
