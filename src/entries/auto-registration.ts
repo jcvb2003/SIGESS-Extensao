@@ -1,5 +1,6 @@
 import { parsePesqBrasilRSC } from "../modules/automation/pesqbrasil/extractor";
 import { parseCaepfData } from "../modules/automation/caepf/extractor";
+import { scrapeEcacCpfData, scrapeEcacCaepfTable } from "../modules/automation/ecac/extractor";
 import { parseCadUnicoToken } from "../modules/automation/cadunico/extractor";
 import { parseTseData } from "../modules/automation/tse/extractor";
 import { PessoaData } from "../shared/types";
@@ -28,6 +29,16 @@ async function startAutomation() {
   // Registrar listeners de mensagens e injetar bridges
   globalThis.addEventListener("message", handleBridgeMessages);
   injectBridges();
+
+  // Scrapers de DOM para e-CAC (id=15 e id=89)
+  const url = globalThis.location.href;
+  if (url.includes('id=15') || url.includes('ConsultarCPF')) {
+    const data = scrapeEcacCpfData();
+    if (data) saveData(data, "ecac_cpf");
+  } else if (url.includes('id=89')) {
+    const data = scrapeEcacCaepfTable();
+    if (data) saveData(data, "ecac_caepf");
+  }
 
   // Iniciar monitoramento de navegação SPA para o Assistente
   setupSPANavigationObserver();
@@ -78,7 +89,10 @@ function injectBridges() {
   const host = globalThis.location.hostname;
   if (host.includes("pesqbrasil-pescadorprofissional")) {
     injectScript("assets/pesqbrasil_bridge.js");
-  } else if (host.includes("caepf.receita.fazenda.gov.br")) {
+  } else if (
+    host.includes("caepf.receita.fazenda.gov.br") ||
+    host.includes("cav.receita.fazenda.gov.br")
+  ) {
     injectScript("assets/caepf_bridge.js");
   } else if (host.includes("cadunico.dataprev.gov.br")) {
     injectScript("assets/cadunico_bridge.js");
@@ -448,7 +462,7 @@ async function getCollectedData(): Promise<PessoaData | null> {
   const settings = result.sigessSettings || {};
   const data = settings.pessoaData as PessoaData;
   // Agora basta ter nome e CPF de qualquer fonte
-  return (data && data.nome && data.cpf) ? data : null;
+  return (data?.nome && data?.cpf) ? data : null;
 }
 
 function fillStandardInputs(data: PessoaData): number {

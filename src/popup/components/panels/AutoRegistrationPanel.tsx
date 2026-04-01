@@ -62,8 +62,20 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
               </div>
             </div>
           </div>
-          <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '36px', height: '20px' }}>
+          <label className="switch" htmlFor="auto-capture-toggle" style={{ position: 'relative', display: 'inline-block', width: '36px', height: '20px' }}>
+            <span style={{
+              position: 'absolute',
+              width: '1px',
+              height: '1px',
+              padding: 0,
+              margin: '-1px',
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              borderWidth: 0
+            }}>Ativar Captura Automática</span>
             <input
+              id="auto-capture-toggle"
               type="checkbox"
               checked={!!settings.autoRegistrationEnabled}
               onChange={handleToggle}
@@ -95,9 +107,9 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
 
             // Tratamento de sinônimos/fontes compostas
             if (source.id === "cadunico") {
-              isCaptured = isCaptured || !!fontes.cadunico_adv?.capturado || !!fontes.cadunico_familia?.capturado;
+              isCaptured = isCaptured || !!fontes.cadunico_adv?.capturado || !!fontes.cadunico_familia?.capturado || !!fontes.ecac_cpf?.capturado;
             } else if (source.id === "caepf") {
-              isCaptured = isCaptured || !!fontes.esocial?.capturado;
+              isCaptured = isCaptured || !!fontes.esocial?.capturado || !!fontes.ecac_caepf?.capturado;
             } else if (source.id === "pesqbrasil") {
               isCaptured = isCaptured || !!fontes.pesq_brasil?.capturado;
             }

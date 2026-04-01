@@ -110,6 +110,18 @@
         "assets/capture_indicator.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://www3.cav.receita.fazenda.gov.br/*",
+        "*://cav.receita.fazenda.gov.br/*"
+      ],
+      "js": [
+        "assets/content_auto_registration.js",
+        "assets/capture_indicator.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
     }
   ],
   "browser_specific_settings": {

@@ -89,10 +89,10 @@ import { PessoaData } from "../../shared/types";
     const f = data.fontes || {};
 
     const mapping = {
-      cadunico: !!(f.cadunico?.capturado || f.cadunico_adv?.capturado),
+      cadunico: !!(f.cadunico?.capturado || f.cadunico_adv?.capturado || f.ecac_cpf?.capturado),
       tse: !!f.tse?.capturado,
       pesqbrasil: !!f.pesq_brasil?.capturado || !!f.pesqbrasil?.capturado, // suporte a ambas nomenclaturas por enquanto
-      esocial: !!(f.caepf?.capturado || f.esocial?.capturado)
+      esocial: !!(f.caepf?.capturado || f.esocial?.capturado || f.ecac_caepf?.capturado)
     };
 
     Object.entries(mapping).forEach(([id, active]) => {

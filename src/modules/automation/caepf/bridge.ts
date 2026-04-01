@@ -1,4 +1,8 @@
 (function () {
+  // Prevent multiple injections in the same frame
+  if ((globalThis as any).__sigessCaepfBridgeLoaded) return;
+  (globalThis as any).__sigessCaepfBridgeLoaded = true;
+
   const XHR = XMLHttpRequest.prototype;
   const send = XHR.send;
   const open = XHR.open;
@@ -9,19 +13,49 @@
   };
 
   XHR.send = function () {
-    this.addEventListener('load', function () {
-      const url = (this as any)._url;
-      if (url && String(url).includes('/caepf-main/api/v1/aepfs/pesquisa')) {
-        console.log("SIGESS: Detectada requisição de dados em " + url);
+    // Usamos readystatechange para garantir que capturamos quando DONE e STATUS 200
+    this.addEventListener('readystatechange', function () {
+      if (this.readyState !== 4) return;
+      
+      const url = String((this as any)._url).toLowerCase();
+      if (url.includes('/caepf-main/api/v1/aepfs/pesquisa')) {
+        console.log(`SIGESS: Requisição XHR concluída em ${url} (status: ${this.status}, type: ${this.responseType})`);
+        
+        if (this.status !== 200) {
+          console.warn(`SIGESS: Ignorando XHR com status ${this.status} para ${url}`);
+          return;
+        }
+
         try {
-          const response = JSON.parse(this.responseText);
-          console.log("SIGESS: Enviando payload SIGESS_CAEPF_RAW_DATA para extensão...");
-          globalThis.postMessage({
-            type: 'SIGESS_CAEPF_RAW_DATA',
-            payload: response
-          }, '*');
+          let data = null;
+          
+          // Se o Angular define responseType:'json', this.responseText fica inacessível
+          if (this.responseType === 'json') {
+            data = this.response;
+          } else {
+            const text = this.responseText;
+            if (text) {
+              try {
+                data = JSON.parse(text);
+              } catch (e) {
+                data = this.response; // Fallback para o objeto bruto se falhar o parse
+              }
+            } else {
+              data = this.response;
+            }
+          }
+
+          if (data) {
+            console.log("SIGESS: Enviando payload SIGESS_CAEPF_RAW_DATA para extensão...");
+            globalThis.postMessage({
+              type: 'SIGESS_CAEPF_RAW_DATA',
+              payload: data
+            }, globalThis.location.origin);
+          } else {
+            console.warn("SIGESS: Resposta XHR vazia ou inválida para " + url);
+          }
         } catch (e) {
-          console.error("SIGESS: Erro ao capturar XHR CAEPF", e);
+          console.error("SIGESS: Erro crítico ao ler resposta XHR CAEPF", e);
         }
       }
     });
@@ -34,14 +68,16 @@
     const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
 
     if (String(url).includes('/caepf-main/api/v1/aepfs/pesquisa')) {
-      const clone = response.clone();
-      clone.json().then(data => {
-        console.log("SIGESS: Enviando payload SIGESS_CAEPF_RAW_DATA para extensão (Fetch)...");
-        globalThis.postMessage({
-          type: 'SIGESS_CAEPF_RAW_DATA',
-          payload: data
-        }, '*');
-      }).catch(e => console.error("SIGESS: Erro ao capturar Fetch CAEPF", e));
+      if (response.status === 200) {
+        const clone = response.clone();
+        clone.json().then(data => {
+          console.log("SIGESS: Enviando payload SIGESS_CAEPF_RAW_DATA para extensão (Fetch)...");
+          globalThis.postMessage({
+            type: 'SIGESS_CAEPF_RAW_DATA',
+            payload: data
+          }, globalThis.location.origin);
+        }).catch(e => console.error("SIGESS: Erro ao capturar Fetch CAEPF", e));
+      }
     }
     return response;
   };
