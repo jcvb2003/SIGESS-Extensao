@@ -1,25 +1,47 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppSettings, PessoaData } from '../shared/types';
+import { StorageService } from '../background/services/storage';
 import { Shield, AlertTriangle, CheckCircle2, Info, ArrowLeft } from 'lucide-react';
 import './styles/global.css';
 
 const DataInspector: React.FC = () => {
     const [settings, setSettings] = useState<AppSettings | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        // Força o body a ocupar a tela cheia e remove bordas brancas
+        document.body.style.width = '100%';
+        document.body.style.minHeight = '100vh';
+        document.body.style.margin = '0';
+        document.body.style.padding = '0';
+        document.body.style.background = '#0f172a'; // Mesma cor do container
+        document.body.style.overflowX = 'hidden';
+
         const loadSettings = async () => {
-            const res = await chrome.storage.local.get("sigessSettings");
-            setSettings(res.sigessSettings || null);
+            try {
+                const s = await StorageService.getSettings();
+                setSettings(s);
+            } catch (e) {
+                console.error("Falha ao carregar configurações:", e);
+                setError("Erro ao carregar dados do storage.");
+            }
         };
         loadSettings();
     }, []);
 
+    if (error) return <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>{error}</div>;
     if (!settings) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Carregando dados...</div>;
 
     const rawData = settings.pessoaData_raw || {};
-    const sources = Object.keys(rawData);
+    // Oculta a coluna técnica '_init'
+    const sources = Object.keys(rawData).filter(s => s !== '_init');
     const mainData = settings.pessoaData || {};
+
+    const formatSourceName = (name: string) => {
+        if (name === 'cadunico_adv') return 'CadÚnico Individual';
+        return name.replace('_', ' ');
+    };
 
     const fieldGroups = [
         {
@@ -109,7 +131,7 @@ const DataInspector: React.FC = () => {
                                 <th style={{ textAlign: 'left', padding: '16px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', width: '200px' }}>Campo</th>
                                 {sources.map(s => (
                                     <th key={s} style={{ textAlign: 'left', padding: '16px', color: '#10b981', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        {s.replace('_', ' ')}
+                                        {formatSourceName(s)}
                                     </th>
                                 ))}
                                 <th style={{ textAlign: 'left', padding: '16px', color: '#38bdf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Consolidado</th>
