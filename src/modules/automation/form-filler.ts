@@ -18,12 +18,26 @@ export async function fillSIGESSForm(): Promise<void> {
     console.log("SIGESS: Dados recuperados para preenchimento:", data);
 
     let count = 0;
+    
+    // Passo 1: Preenche a aba atual (Dados Pessoais)
     count += fillStandardInputs(data);
     count += fillStandardRadios(data);
     count += await fillCustomSelects(data);
-
-    // Dispara gatilho de data para gerar códigos no SIGESS
+    
+    // Gatilho de data para gerar código de sócio
     triggerDateBlur(data);
+
+    // Passo 2: Troca para a aba "Documentos" e preenche o restante
+    console.log("SIGESS: Navegando para aba Documentos...");
+    // Tenta pelo valor interno (documents) ou rótulo visível (Documentos)
+    const switched = await switchTab("documents") || await switchTab("Documentos");
+    
+    if (switched) {
+      // Segunda passada para campos que surgiram na nova aba (RG, UF RG, etc)
+      count += fillStandardInputs(data);
+      count += fillStandardRadios(data);
+      count += await fillCustomSelects(data);
+    }
 
     console.log(`SIGESS: Formulário Assistido: ${count} campos preenchidos.`);
     if (count === 0) {
@@ -199,6 +213,40 @@ async function fillRadixSelect(labelText: string, value: string): Promise<boolea
   }
 
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  return false;
+}
+
+/**
+ * Navega entre abas do SIGESS (Radix UI).
+ */
+async function switchTab(tabValueOrLabel: string): Promise<boolean> {
+  const tabs = Array.from(document.querySelectorAll('[role="tab"], button[data-value], button[data-state]'));
+  
+  // Log de diagnóstico para o console (F12) do usuário
+  console.log(`SIGESS: Procurando "${tabValueOrLabel}" entre ${tabs.length} abas:`, 
+    tabs.map(t => `[${t.getAttribute('data-value') || 'no-val'}] "${t.textContent?.trim()}"`)
+  );
+
+  const targetTab = tabs.find(t => {
+    const val = t.getAttribute('data-value') || t.getAttribute('value');
+    if (val === tabValueOrLabel) return true;
+    
+    const aria = t.getAttribute('aria-label')?.toLowerCase() || "";
+    if (aria.includes(tabValueOrLabel.toLowerCase())) return true;
+
+    // Busca flexível por texto
+    const text = t.textContent?.trim().toLowerCase() || "";
+    return text.includes(tabValueOrLabel.toLowerCase());
+  });
+
+  if (targetTab) {
+    console.log("SIGESS: Aba localizada. Clicando...");
+    (targetTab as HTMLElement).focus();
+    (targetTab as HTMLElement).click();
+    await sleep(800); // Aumentado para garantir estabilidade
+    return true;
+  }
+
   return false;
 }
 

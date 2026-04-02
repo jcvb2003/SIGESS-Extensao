@@ -98,6 +98,7 @@ function mapDefaultValuesToPessoaData(dv: any): Partial<PessoaData> {
     cep: dp.cep || undefined,
     cidade: resolveMunicipio(dp.municipio),
     uf: resolveUF(dp.uf),
+    ufRgp: resolveUF(reg.uf || dp.uf),
 
     // Contato
     email: dp.email || undefined,
