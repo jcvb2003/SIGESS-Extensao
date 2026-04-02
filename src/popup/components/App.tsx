@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { UserCredentials } from "../../shared/types";
 import ESocialPanel from "./panels/ESocialPanel";
 import { LoginSection } from "./panels/LoginSection";
-import ReapAgroPanel from "./panels/ReapAgroPanel";
+
 import ReapMpaPanel from "./panels/ReapMpaPanel";
 import AutoRegistrationPanel from "./panels/AutoRegistrationPanel";
 import BatchLoginModal from "./ui/BatchLoginModal";
@@ -25,7 +25,6 @@ const AppContent: React.FC = () => {
     login: false,
     autoRegistration: false,
     esocial: false,
-    reapAgro: false,
     reapMpa: false,
   });
 
@@ -102,7 +101,6 @@ const AppContent: React.FC = () => {
         login: false,
         autoRegistration: false,
         esocial: false,
-        reapAgro: false,
         reapMpa: false,
       };
       newState[key] = nextOpen;
@@ -194,12 +192,7 @@ const AppContent: React.FC = () => {
           </div>
         </section>
 
-        <ReapAgroPanel
-          settings={settings}
-          onUpdate={updateSettings}
-          isOpen={openSections.reapAgro}
-          onToggle={() => toggleSection("reapAgro")}
-        />
+
 
         <ReapMpaPanel
           settings={settings}

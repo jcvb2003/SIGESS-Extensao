@@ -1,4 +1,13 @@
 import { Utils } from "../../shared/utils/dom-helpers";
+import { DaysGenerator } from '../reap-mpa/generators/days-schedule';
+import { ProductionGenerator } from '../reap-mpa/generators/fish-production';
+import type { FishProduction } from '../reap-mpa/types';
+
+const MONTH_NAMES: Record<number, string> = {
+  0: "Janeiro", 1: "Fevereiro", 2: "Março", 3: "Abril",
+  4: "Maio", 5: "Junho", 6: "Julho", 7: "Agosto",
+  8: "Setembro", 9: "Outubro", 10: "Novembro", 11: "Dezembro"
+};
 
 const getStorageSettings = async (): Promise<any> => {
   try {
@@ -55,143 +64,26 @@ export const AgroManager = {
     await Utils.sleep(400);
   },
 
-  async preencherQuantidadePreco() {
-    const settings = await getStorageSettings();
-    const reapData = settings.reapData || {};
-    return new Promise<any[] | null>((resolve) => {
-      const modal = this.createAgroModal(reapData, resolve);
-      document.body.appendChild(modal);
-    }).then(async (dados) => {
-      if (!dados) return;
-      await this.applyAgroData(dados);
-    });
-  },
-
-  createAgroModal(reapData: any, resolve: (val: any[] | null) => void): HTMLElement {
-    const modal = document.createElement("div");
-    modal.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 100000;`;
-    const box = document.createElement("div");
-    box.style.cssText = `background-color: white; padding: 25px; border-radius: 12px; width: 450px; max-width: 90%; text-align: center; font-family: sans-serif; box-shadow: 0 10px 25px rgba(0,0,0,0.5);`;
-    
-    const title = document.createElement("h3");
-    title.textContent = "Preenchimento Automático REAP";
-    title.style.cssText = `margin-top: 0; margin-bottom: 20px; color: #008080;`;
-    
-    const yearOptions = document.createElement("div");
-    yearOptions.style.marginBottom = "25px";
-    const labelArea = document.createElement("p");
-    labelArea.textContent = "Selecione o ano dos dados salvos:";
-    labelArea.style.cssText = `font-size: 14px; color: #4b5563; margin-bottom: 12px; font-weight: bold; text-align: left;`;
-    yearOptions.appendChild(labelArea);
-
-    ["2021", "2022", "2023", "2024"].forEach((year) => {
-      const data = reapData[year];
-      const hasData = typeof data === "string" && data.trim().length > 0;
-      const btn = this.createYearButton(year, data, hasData, modal, resolve);
-      yearOptions.appendChild(btn);
-    });
-
-    const manualDivider = document.createElement("div");
-    manualDivider.style.cssText = `height: 1px; background-color: #e5e7eb; margin: 20px 0; position: relative;`;
-    const dividerText = document.createElement("span");
-    dividerText.textContent = "OU COLOQUE MANUALMENTE";
-    dividerText.style.cssText = `position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: white; padding: 0 10px; font-size: 10px; color: #9ca3af; font-weight: bold;`;
-    manualDivider.appendChild(dividerText);
-
-    const textarea = document.createElement("textarea");
-    textarea.rows = 4;
-    textarea.style.cssText = `width: 100%; font-family: monospace; font-size: 12px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; resize: vertical;`;
-    textarea.placeholder = "Qtd\tPreço\n20\t10.50\n15\t8.00...";
-
-    const footer = document.createElement("div");
-    footer.style.cssText = `display: flex; gap: 10px; margin-top: 20px;`;
-    
-    const btnApply = document.createElement("button");
-    btnApply.textContent = "Aplicar Manual";
-    btnApply.style.cssText = `flex: 1.5; padding: 12px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 6px; font-weight: bold;`;
-    btnApply.onclick = () => {
-      const val = textarea.value.trim();
-      if (!val) return;
-      const lines = val.split("\n").map((l: string) => l.trim().split("\t"));
-      if (lines.some((l: string[]) => l.length !== 2)) {
-        alert("Formato inválido. Use Quantidade [TAB] Preço.");
-        return;
+  validateAgroSettings(settings: any): string | null {
+    if (!settings.mpaMunicipio) {
+      return "Configure um município no painel REAP MPA.";
+    }
+    const filled = (settings.mpaSpecies || []).filter((s: any) => s?.id);
+    if (filled.length < 5) {
+      return "Configure pelo menos 5 espécies no painel REAP MPA.";
+    }
+    for (const s of filled) {
+      if (!s.kgMin || !s.kgMax || !s.priceMin || !s.priceMax) {
+        return "Preencha todos os campos numéricos das espécies no painel REAP MPA.";
       }
-      modal.remove();
-      resolve(lines);
-    };
-
-    const btnCancel = document.createElement("button");
-    btnCancel.textContent = "Cancelar";
-    btnCancel.style.cssText = `flex: 1; padding: 12px; cursor: pointer; background-color: #6b7280; color: white; border: none; border-radius: 6px; font-weight: bold;`;
-    btnCancel.onclick = () => {
-      modal.remove();
-      resolve(null);
-    };
-
-    footer.appendChild(btnApply);
-    footer.appendChild(btnCancel);
-    box.appendChild(title);
-    box.appendChild(yearOptions);
-    box.appendChild(manualDivider);
-    box.appendChild(textarea);
-    box.appendChild(footer);
-    modal.appendChild(box);
-    return modal;
-  },
-
-  createYearButton(year: string, data: any, hasData: boolean, modal: HTMLElement, resolve: (val: any[] | null) => void): HTMLButtonElement {
-    const btn = document.createElement("button");
-    btn.textContent = hasData
-      ? `Usar dados de ${year}`
-      : `Ano ${year} (Vazio)`;
-    btn.style.cssText = `
-                display: block; width: 100%; margin: 6px 0; padding: 12px; 
-                background-color: ${hasData ? "#008080" : "#e5e7eb"}; 
-                color: ${hasData ? "white" : "#9ca3af"}; 
-                border: none; border-radius: 6px; 
-                cursor: ${hasData ? "pointer" : "not-allowed"}; 
-                font-weight: bold; font-size: 15px;
-                transition: all 0.2s;
-            `;
-    if (hasData) {
-      btn.onmouseover = () => (btn.style.backgroundColor = "#006666");
-      btn.onmouseout = () => (btn.style.backgroundColor = "#008080");
-      btn.onclick = () => {
-        const lines = data
-          .split("\n")
-          .map((l: string) => l.trim().split("\t"))
-          .filter((l: string[]) => l.length === 2);
-        modal.remove();
-        resolve(lines);
-      };
-    } else {
-      btn.disabled = true;
     }
-    return btn;
-  },
-
-  async applyAgroData(dados: any[]) {
-    for (let i = 0; i < dados.length; i++) {
-      const [qtd, preco] = dados[i];
-      let inputQtd = document.querySelector(
-        `input[name="resultadosPesca.${i}.quantidade"]`,
-      ) as HTMLInputElement;
-      let inputPreco = document.querySelector(
-        `input[name="resultadosPesca.${i}.preco"]`,
-      ) as HTMLInputElement;
-      
-      inputQtd ??= document.querySelector(
-        `input[name="resultadosOperacaoPesca.${i}.totalPescado"]`,
-      ) as HTMLInputElement || document.querySelectorAll('input[name^="resultadosOperacaoPesca"][name$=".totalPescado"]')[i] as HTMLInputElement;
-      inputPreco ??= document.querySelector(
-        `input[name="resultadosOperacaoPesca.${i}.precoQuilo"]`,
-      ) as HTMLInputElement || document.querySelectorAll('input[name^="resultadosOperacaoPesca"][name$=".precoQuilo"]')[i] as HTMLInputElement;
-      
-      if (inputQtd) Utils.setReactInput(inputQtd, qtd);
-      if (inputPreco) Utils.setReactInput(inputPreco, preco);
-      await Utils.sleep(200);
+    if (!settings.mpaMascDaysMin || !settings.mpaMascDaysMax) {
+      return "Configure os limites de dias trabalhados para MASCULINO no painel REAP MPA.";
     }
+    if (!settings.mpaMascProdMin || !settings.mpaMascProdMax) {
+      return "Configure as metas de produção para MASCULINO no painel REAP MPA.";
+    }
+    return null;
   },
 
   async executarAutomacao() {
@@ -216,8 +108,21 @@ export const AgroManager = {
         btn.textContent = "Executando...";
       }
 
-      await this.runFormAutomation();
-      await this.preencherQuantidadePreco();
+      const settings = await getStorageSettings();
+
+      const validationError = this.validateAgroSettings(settings);
+      if (validationError) {
+        alert(validationError);
+        return;
+      }
+
+      const gender: "MASCULINO" | "FEMININO" = "MASCULINO";
+      const daysMap = DaysGenerator.generate(gender, settings);
+      const production: FishProduction[] = ProductionGenerator.generate(daysMap, gender, settings);
+
+      await this.runFormAutomation(production, daysMap);
+      await this.applyProduction(production);
+      alert("✅ Automação REAP Agro concluída com sucesso!");
     } catch (error: any) {
       console.error("Erro na automação Agro:", error);
       alert("Erro na automação: " + error.message);
@@ -254,33 +159,32 @@ export const AgroManager = {
     }
   },
 
-  async runFormAutomation() {
+  async runFormAutomation(production: FishProduction[], daysMap: Record<number, number>) {
     await this.clickLabelByText("Artesanal");
     await this.clickLabelByText("Sim");
     await this.clickLabelByText("Rio");
     await this.clickLabelByText("PA");
-    
+
     await this.fillMunicipality();
-    
+
     await this.clickLabelByText("Emalhe");
     await this.clickLabelByText("Água doce");
-    
-    await this.addSpeciesInputs();
-    await this.fillUnits();
-    
+
+    await this.addSpeciesInputs(production.length);
+    await this.fillUnits(production.length);
+
     await this.clickLabelByText("Desembarcado");
     await this.clickLabelByText("Economia familiar");
-    
+
     await this.handleCommercialization();
-    await this.fillFishSpeciesInputs();
-    await this.fillCalendarDays();
+    await this.fillFishSpeciesInputs(production);
+    await this.fillCalendarDays(daysMap);
   },
 
   async fillMunicipality() {
     const settings = await getStorageSettings();
-    const municipioId = settings.mpaMunicipio; // Reusa o município configurado para o REAP MPA
-    
-    // Resolve o nome pelo ID
+    const municipioId = settings.mpaMunicipio;
+
     const { MUNICIPIOS_LIST } = await import("../../shared/data/municipios");
     const municipioName = MUNICIPIOS_LIST.find((m: any) => m.id === Number(municipioId))?.nome || "Oeiras do Pará";
 
@@ -298,7 +202,7 @@ export const AgroManager = {
     }
   },
 
-  async addSpeciesInputs() {
+  async addSpeciesInputs(count: number) {
     await Utils.waitFor(
       () =>
         Array.from(document.querySelectorAll("button")).some((b) =>
@@ -310,16 +214,16 @@ export const AgroManager = {
       b.textContent?.includes("Adicionar espécie"),
     ) as HTMLElement;
     if (addBtn) {
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < count - 1; i++) {
         addBtn.click();
         await Utils.sleep(400);
       }
     }
   },
 
-  async fillUnits() {
+  async fillUnits(count: number) {
     await Utils.waitFor(
-      () => document.querySelectorAll(".br-select").length >= 5,
+      () => document.querySelectorAll(".br-select").length >= count + 1,
       5000,
     );
     const selects = document.querySelectorAll(".br-select");
@@ -352,7 +256,7 @@ export const AgroManager = {
     try {
       await this.clickLabelByText("Venda direta ao consumidor");
     } catch { /* Ignora */ }
-    
+
     const inputs = document.querySelectorAll("input");
     const estadoComercInput = Array.from(inputs).find(
       (i) => i.previousElementSibling?.textContent?.includes("Estado de comercialização"),
@@ -362,7 +266,7 @@ export const AgroManager = {
         await this.selectBrSelect(estadoComercInput, "PA");
       } catch { /* Ignora */ }
     }
-    
+
     try {
       const peixeLabel = Array.from(document.querySelectorAll("label")).find(
         (l) => l.textContent?.trim().toLowerCase() === "peixes",
@@ -376,10 +280,10 @@ export const AgroManager = {
     } catch { /* Ignora */ }
   },
 
-  async fillFishSpeciesInputs() {
-    const especies = ["Matrinxã", "Acará", "Aracu", "Traíra", "Mapará"];
+  async fillFishSpeciesInputs(production: FishProduction[]) {
+    const especies = production.map(p => p.name);
     await Utils.waitFor(
-      () => document.querySelectorAll('input[placeholder*="Selecione a espécie"]').length >= 5,
+      () => document.querySelectorAll('input[placeholder*="Selecione a espécie"]').length >= especies.length,
       5000,
     );
     const rawInputs = document.querySelectorAll("input");
@@ -399,13 +303,13 @@ export const AgroManager = {
     );
   },
 
-  async fillCalendarDays() {
-    const meses: Record<string, number> = {
-      Janeiro: 0, Fevereiro: 0, Março: 0, Abril: 0, Maio: 20, Junho: 18,
-      Julho: 15, Agosto: 12, Setembro: 12, Outubro: 15, Novembro: 18, Dezembro: 20,
-    };
+  async fillCalendarDays(daysMap: Record<number, number>) {
+    const entries: [string, number][] = Object.keys(MONTH_NAMES).map(idx => {
+      const i = Number(idx);
+      return [MONTH_NAMES[i], daysMap[i] || 0];
+    });
     await Promise.all(
-      Object.entries(meses).map(async ([mes, valor]) => {
+      entries.map(async ([mes, valor]) => {
         try {
           const input = document.querySelector(`input[id^="dias-${mes}"]`) as HTMLInputElement;
           if (input) await this.selectBrSelect(input, String(valor));
@@ -415,53 +319,70 @@ export const AgroManager = {
       }),
     );
   },
+
+  async applyProduction(production: FishProduction[]) {
+    for (let i = 0; i < production.length; i++) {
+      // Fallback: tenta ambos os padrões de seletor
+      let qtdInput = document.querySelector(
+        `input[name="resultadosPesca.${i}.quantidade"]`,
+      ) as HTMLInputElement;
+      let precoInput = document.querySelector(
+        `input[name="resultadosPesca.${i}.preco"]`,
+      ) as HTMLInputElement;
+
+      qtdInput ??= document.querySelector(
+        `input[name="resultadosOperacaoPesca.${i}.totalPescado"]`,
+      ) as HTMLInputElement || document.querySelectorAll(
+        'input[name^="resultadosOperacaoPesca"][name$=".totalPescado"]'
+      )[i] as HTMLInputElement;
+      precoInput ??= document.querySelector(
+        `input[name="resultadosOperacaoPesca.${i}.precoQuilo"]`,
+      ) as HTMLInputElement || document.querySelectorAll(
+        'input[name^="resultadosOperacaoPesca"][name$=".precoQuilo"]'
+      )[i] as HTMLInputElement;
+
+      if (qtdInput) Utils.setReactInput(qtdInput, String(production[i].totalKg));
+      if (precoInput) Utils.setReactInput(precoInput, production[i].price.toFixed(2).replace('.', ','));
+      await Utils.sleep(200);
+    }
+  },
 };
 
 export const initAgroUI = () => {
   const handleVisibility = () => {
     const isReapPage = /agro\.gov\.br\/reap-simplificada\//.test(globalThis.location.href);
     const btnIniciar = document.querySelector('button[data-sigess-reap="iniciar"]') as HTMLElement;
-    const btnPrompt = document.querySelector('button[data-sigess-reap="prompt"]') as HTMLElement;
-    
+
     if (isReapPage) {
       if (btnIniciar === null) {
-        const btnStyle = (bottom: string, color: string) => `
-                    position: fixed;
-                    bottom: ${bottom};
-                    left: 20px;
-                    padding: 10px 20px;
-                    font-size: 16px;
-                    background-color: ${color};
-                    color: white;
-                    border: none;
-                    border-radius: 5px;
-                    cursor: pointer;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-                    transition: all 0.3s ease;
-                    z-index: 999999;
-                    font-family: sans-serif;
-                    font-weight: bold;
-                `;
+        const btnStyle = `
+          position: fixed;
+          bottom: 20px;
+          left: 20px;
+          padding: 10px 20px;
+          font-size: 16px;
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+          transition: all 0.3s ease;
+          z-index: 999999;
+          font-family: sans-serif;
+          font-weight: bold;
+        `;
         const ni = document.createElement("button");
         ni.textContent = "Iniciar Automação REAP";
         ni.dataset.sigessReap = "iniciar";
-        ni.style.cssText = btnStyle("20px", "#4CAF50");
+        ni.style.cssText = btnStyle;
         ni.onclick = () => AgroManager.executarAutomacao();
         document.body.appendChild(ni);
-        
-        const np = document.createElement("button");
-        np.textContent = "Abrir Prompt Qtd/Preço";
-        np.dataset.sigessReap = "prompt";
-        np.style.cssText = btnStyle("70px", "#FF9800");
-        np.onclick = () => AgroManager.preencherQuantidadePreco();
-        document.body.appendChild(np);
       } else {
         btnIniciar.style.display = "block";
-        btnPrompt.style.display = "block";
       }
     } else {
       if (btnIniciar) btnIniciar.style.display = "none";
-      if (btnPrompt) btnPrompt.style.display = "none";
     }
   };
 
