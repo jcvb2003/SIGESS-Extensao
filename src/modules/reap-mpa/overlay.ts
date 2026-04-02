@@ -113,14 +113,14 @@ function validateReapSettings(settings: any, gender: string): string | null {
   if (!settings.mpaMunicipio) {
     return "Por favor, selecione um MUNICÍPIO no painel de configurações do REAP MPA.";
   }
-  
-  for (let i = 0; i < 5; i++) {
-    const s = settings.mpaSpecies?.[i];
-    if (!s?.id) {
-      return `Por favor, selecione a Espécie ${i + 1} no painel de configurações. O preenchimento das 5 espécies é obrigatório.`;
-    }
+
+  const filled = (settings.mpaSpecies || []).filter((s: any) => s?.id);
+  if (filled.length < 5) {
+    return `Por favor, preencha pelo menos 5 espécies no painel de configurações do REAP MPA.`;
+  }
+  for (const s of filled) {
     if (!s.kgMin || !s.kgMax || !s.priceMin || !s.priceMax) {
-      return `Por favor, preencha todos os campos numéricos (KG e VAL Mín/Máx) para a Espécie ${i + 1} no painel.`;
+      return `Preencha todos os campos numéricos (KG e VAL Mín/Máx) para todas as espécies configuradas.`;
     }
   }
 

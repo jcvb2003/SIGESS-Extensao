@@ -38,6 +38,7 @@ export interface AppSettings {
     priceMin?: string;
     priceMax?: string;
   }>;
+  mpaSpeciesCount?: number;
 
   mpaMascProdMin?: string;
   mpaMascProdMax?: string;

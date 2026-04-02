@@ -8,7 +8,7 @@ export const ProductionGenerator: any = {
     gender: "MASCULINO" | "FEMININO",
     settings?: any
   ): FishProduction[] {
-    const currentFishTable = this.mapSpeciesFromSettings(settings?.mpaSpecies);
+    const currentFishTable = this.selectSpecies(settings);
     const { targetMin, targetMax } = this.getTargetRange(gender, settings);
     const totalDays = MONTHS.reduce((s, m) => s + (daysMap[m] || 16), 0);
 
@@ -21,6 +21,15 @@ export const ProductionGenerator: any = {
 
     this.logFinalProduction(bestResult, gender);
     return bestResult;
+  },
+
+  selectSpecies(settings?: any): FishData[] {
+    const count = Math.min(settings?.mpaSpeciesCount ?? 5, 10);
+    const pool = this.mapSpeciesFromSettings(settings?.mpaSpecies)
+      .filter((s: FishData) => s.id && s.kgMin != null && s.kgMax != null);
+
+    if (pool.length <= count) return pool;
+    return [...pool].sort(() => Math.random() - 0.5).slice(0, count);
   },
 
   mapSpeciesFromSettings(settingsSpecies?: any[]): FishData[] {
