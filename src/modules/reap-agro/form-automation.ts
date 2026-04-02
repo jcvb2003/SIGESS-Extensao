@@ -277,13 +277,21 @@ export const AgroManager = {
   },
 
   async fillMunicipality() {
+    const settings = await getStorageSettings();
+    const municipioId = settings.mpaMunicipio; // Reusa o município configurado para o REAP MPA
+    
+    // Resolve o nome pelo ID
+    const { MUNICIPIOS_LIST } = await import("../../shared/data/municipios");
+    const municipioName = MUNICIPIOS_LIST.find((m: any) => m.id === Number(municipioId))?.nome || "Oeiras do Pará";
+
     const inputs = document.querySelectorAll("input");
     const municipioInput = Array.from(inputs).find((i) =>
       i.placeholder?.includes("Município"),
     ) as HTMLInputElement;
+
     if (municipioInput) {
       try {
-        await this.selectBrSelect(municipioInput, "Oeiras do Pará");
+        await this.selectBrSelect(municipioInput, municipioName);
       } catch (e) {
         console.warn("Município falhou:", e);
       }
