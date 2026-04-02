@@ -11,8 +11,8 @@
   XHR.send = function (this: XMLHttpRequest) {
     this.addEventListener('load', function () {
       const url = (this as any)._url;
-      if (url && String(url).includes('consulta-situacao-eleitor')) {
-        console.log("SIGESS: Detectada resposta TSE Situacao Eleitor");
+      if (url && String(url).includes('/eleitores/onde-votar')) {
+        console.log("SIGESS: Detectada resposta TSE Onde Votar (API v3)");
         try {
           const data = JSON.parse(this.responseText);
           if (data) {
@@ -34,7 +34,7 @@
     const response = await originalFetch(...(args as [RequestInfo | URL, RequestInit | undefined]));
     const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
 
-    if (String(url).includes('consulta-situacao-eleitor')) {
+    if (String(url).includes('/eleitores/onde-votar')) {
       const clone = response.clone();
       clone.json().then(data => {
         globalThis.postMessage({

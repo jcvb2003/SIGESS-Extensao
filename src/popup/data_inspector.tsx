@@ -52,7 +52,8 @@ const DataInspector: React.FC = () => {
                 { key: "dataDeNascimento", label: "Data Nasc." },
                 { key: "sexo", label: "Gênero" },
                 { key: "mae", label: "Mãe" },
-                { key: "pai", label: "Pai" }
+                { key: "pai", label: "Pai" },
+                { key: "estadoCivil", label: "Estado Civil" }
             ]
         },
         {
@@ -60,11 +61,24 @@ const DataInspector: React.FC = () => {
             fields: [
                 { key: "rg", label: "RG" },
                 { key: "orgaoEmissorRg", label: "Órgão Emissor" },
+                { key: "ufRg", label: "UF RG" },
+                { key: "dataExpedicaoRg", label: "Data Exped. RG" },
                 { key: "tituloEleitor", label: "Título" },
                 { key: "zonaEleitoral", label: "Zona" },
                 { key: "secaoEleitoral", label: "Seção" },
                 { key: "nit", label: "NIS/NIT" },
                 { key: "caepf", label: "CAEPF" }
+            ]
+        },
+        {
+            title: "Dados de Registro (RGP/CTPS)",
+            fields: [
+                { key: "rgp", label: "Número RGP" },
+                { key: "tipoRgp", label: "Tipo RGP" },
+                { key: "emissaoRgp", label: "Emissão/1º RGP" },
+                { key: "ufRgp", label: "UF RGP" },
+                { key: "ctps", label: "Número CTPS" },
+                { key: "ctpsUf", label: "UF CTPS" }
             ]
         },
         {
@@ -75,6 +89,7 @@ const DataInspector: React.FC = () => {
                 { key: "cidade", label: "Cidade" },
                 { key: "uf", label: "UF" },
                 { key: "cep", label: "CEP" },
+                { key: "email", label: "E-mail" },
                 { key: "telefone", label: "Telefone" }
             ]
         },
@@ -83,7 +98,6 @@ const DataInspector: React.FC = () => {
             fields: [
                 { key: "escolaridade", label: "Escolaridade" },
                 { key: "alfabetizado", label: "Alfabetizado" },
-                { key: "estadoCivil", label: "Estado Civil" },
                 { key: "nacionalidade", label: "Nacionalidade" },
                 { key: "naturalidade", label: "Naturalidade" }
             ]
@@ -104,9 +118,29 @@ const DataInspector: React.FC = () => {
         return !values.every(v => v === values[0]);
     };
 
-    const renderValue = (val: any) => {
+    const renderValue = (val: any, key?: string) => {
         if (val === undefined || val === null || val === "") return "—";
         if (typeof val === 'object') return JSON.stringify(val);
+        
+        const strVal = String(val).replace(/\D/g, ''); // Remove não-números para formatação
+        
+        // Formatação de CPF
+        if (key === 'cpf' || (key === undefined && strVal.length === 11)) {
+            return strVal.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+        }
+
+        // Formatação de CEP
+        if (key === 'cep' || (key === undefined && strVal.length === 8)) {
+            return strVal.replace(/(\d{5})(\d{3})/, "$1-$2");
+        }
+
+        const originalStr = String(val);
+        // Detecta formato ISO YYYY-MM-DD e converte para DD/MM/YYYY
+        if (/^\d{4}-\d{2}-\d{2}$/.test(originalStr)) {
+            const [y, m, d] = originalStr.split('-');
+            return `${d}/${m}/${y}`;
+        }
+
         return String(val);
     };
 
@@ -168,13 +202,13 @@ const DataInspector: React.FC = () => {
                                                     </td>
                                                     {sources.map(s => (
                                                         <td key={s} style={{ padding: '12px 16px', color: rawData[s][field.key as keyof PessoaData] ? '#f1f5f9' : '#334155' }}>
-                                                            {renderValue(rawData[s][field.key as keyof PessoaData])}
+                                                            {renderValue(rawData[s][field.key as keyof PessoaData], field.key)}
                                                         </td>
                                                     ))}
                                                     <td style={{ padding: '12px 16px' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <span style={{ color: divergent ? '#f59e0b' : '#10b981', fontWeight: 600 }}>
-                                                                {renderValue(finalValue)}
+                                                                {renderValue(finalValue, field.key)}
                                                             </span>
                                                             {divergent && <span title="Divergência detectada entre as fontes"><AlertTriangle size={14} color="#f59e0b" /></span>}
                                                             {!divergent && finalValue && sources.length > 1 && (
@@ -206,7 +240,7 @@ const DataInspector: React.FC = () => {
                                           .map(([key, value]) => (
                                             <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '4px' }}>
                                                 <span style={{ color: '#64748b' }}>{key}</span>
-                                                <span style={{ color: '#cbd5e1', fontWeight: 500, textAlign: 'right' }}>{renderValue(value)}</span>
+                                                <span style={{ color: '#cbd5e1', fontWeight: 500, textAlign: 'right' }}>{renderValue(value, key)}</span>
                                             </div>
                                         ))}
                                     </div>

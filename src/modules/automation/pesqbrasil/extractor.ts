@@ -77,12 +77,18 @@ function mapDefaultValuesToPessoaData(dv: any): Partial<PessoaData> {
     mae: dp.nomeMae || dp.mae || dp.nomeMaePessoa || undefined,
     pai: dp.possuiNomePai ? (dp.nomePai || dp.pai || dp.nomePaiPessoa || undefined) : undefined,
     escolaridade: mapEscolaridade(dp.escolaridade),
+    alfabetizado: (Number(dp.escolaridade) === 1) ? "NÃO" : (Number(dp.escolaridade) >= 2 ? "SIM" : undefined),
+    estadoCivil: mapEstadoCivil(dp.estadoCivil),
+    nacionalidade: dp.nacionalidade || undefined,
+    naturalidade: dp.naturalidade || undefined,
+    ufNaturalidade: resolveUF(dp.ufNaturalidade),
 
     // Documentos
     rg: dp.numeroDocumento || undefined,
     dataExpedicaoRg: dp.dataEmissao?.split('T')[0],
     ufRg: resolveUF(dp.ufEmissao),
-    ctps: dp.numeroCtps || undefined,
+    nit: dp.numeroCtps || undefined, // O MPA usa numeroCtps para o NIS/PIS
+    ctps: undefined, // Limpa caso tenha vindo de outra fonte e queiramos priorizar a correção
 
     // RGP (Dados do registro principal)
     rgp: reg.codigoRGP?.trim() || dv.numeroAtualRgp?.trim() || undefined,
@@ -164,6 +170,19 @@ function mapEscolaridade(code: any): string | undefined {
     7: "ENSINO SUPERIOR INCOMPLETO",
     8: "ENSINO SUPERIOR COMPLETO",
     9: "ENSINO SUPERIOR COMPLETO", // pós-grad
+  };
+  return map[Number(code)] ?? (typeof code === 'string' ? code : undefined);
+}
+
+function mapEstadoCivil(code: any): string | undefined {
+  if (!code) return undefined;
+  const map: Record<number, string> = {
+    1: "SOLTEIRO(A)",
+    2: "CASADO(A)",
+    3: "DIVORCIADO(A)",
+    4: "VIÚVO(A)",
+    5: "UNIÃO ESTÁVEL",
+    6: "SEPARADO(A)",
   };
   return map[Number(code)] ?? (typeof code === 'string' ? code : undefined);
 }
