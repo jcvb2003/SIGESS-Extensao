@@ -114,11 +114,13 @@ class ReapTurbo {
         return encodeURIComponent(JSON.stringify(tree));
     }
 
-    private updateStateWithMonth(state: any, mesIndex: number, userConfig: TurboReapConfig): any {
+    private updateStateWithMonth(state: any, mesNumber: number, userConfig: TurboReapConfig): any {
         const newState = structuredClone(state);
-        const mesConfig = userConfig.meses.find(m => m.mes === (mesIndex + 1));
+        const mesConfig = userConfig.meses.find(m => m.mes === mesNumber);
         
-        newState.informesMensais = newState.informesMensais.map((oldMes: any, idx: number) => {
+        newState.informesMensais = newState.informesMensais.map((oldMes: any) => {
+            if (oldMes.mes !== mesNumber) return { ...oldMes };
+
             const m = { ...oldMes };
             m.observacao = m.observacao || "";
 
@@ -131,33 +133,30 @@ class ReapTurbo {
                 });
             }
 
-            if (idx === mesIndex) {
-                const houvePesca = mesConfig ? Boolean(mesConfig.houvePesca) : false;
-                
-                m.houvePesca = houvePesca;
-                m.preenchido = true;
-                
-                if (houvePesca) {
-                    m.diasTrabalhados = mesConfig?.diasTrabalhados || 15;
-                    m.justificativasNaoDeclaracao = [];
-                    m.areasRealizacaoPesca = [{
-                        ...userConfig.areaRealizacao,
-                        ambientePesca: String(userConfig.areaRealizacao.ambientePesca)
-                    }];
-                    m.resultadosOperacaoPesca = mesConfig?.especies?.map((esp, i) => {
-                        const existingId = oldMes.resultadosOperacaoPesca?.[i]?.id;
-                        return {
-                            ...esp,
-                            ...(existingId ? { id: existingId } : {})
-                        };
-                    }) || [];
-                } else {
-                    delete m.diasTrabalhados;
-                    m.justificativasNaoDeclaracao = [mesConfig?.justificativa || 1];
-                    m.areasRealizacaoPesca = [];
-                    m.resultadosOperacaoPesca = [];
-                }
-                return m;
+            const houvePesca = mesConfig ? Boolean(mesConfig.houvePesca) : false;
+            
+            m.houvePesca = houvePesca;
+            m.preenchido = true;
+            
+            if (houvePesca) {
+                m.diasTrabalhados = mesConfig?.diasTrabalhados || 15;
+                m.justificativasNaoDeclaracao = [];
+                m.areasRealizacaoPesca = [{
+                    ...userConfig.areaRealizacao,
+                    ambientePesca: String(userConfig.areaRealizacao.ambientePesca)
+                }];
+                m.resultadosOperacaoPesca = mesConfig?.especies?.map((esp, i) => {
+                    const existingId = oldMes.resultadosOperacaoPesca?.[i]?.id;
+                    return {
+                        ...esp,
+                        ...(existingId ? { id: existingId } : {})
+                    };
+                }) || [];
+            } else {
+                delete m.diasTrabalhados;
+                m.justificativasNaoDeclaracao = [mesConfig?.justificativa || 1];
+                m.areasRealizacaoPesca = [];
+                m.resultadosOperacaoPesca = [];
             }
             return m;
         });
@@ -203,10 +202,19 @@ class ReapTurbo {
                 break;
             }
 
+            // Pula meses que o servidor não retornou (não disponíveis para preenchimento)
+            const exists = currentState.informesMensais.some((mesObj: any) => mesObj.mes === m);
+            if (!exists) {
+                this.debugLogger.log(`Mês ${m} indisponível no servidor. Pulando...`, 'warn');
+                State.monthlyProgress[m - 1] = "skipped";
+                if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+                continue;
+            }
+
             this.debugLogger.log(`--- MÊS ${m} ---`, 'success');
             
-            // 1. Atualizar o estado CUMULATIVO local
-            currentState = this.updateStateWithMonth(currentState, m - 1, config);
+            // 1. Atualizar o estado CUMULATIVO local (passando o número do mês, não o índice)
+            currentState = this.updateStateWithMonth(currentState, m, config);
             
             // 2. Construir payload final com o estado completo
             const payload = [String(currentState.id), currentState, 3];
@@ -235,6 +243,15 @@ class ReapTurbo {
             this.debugLogger.log("Obtendo estado inicial...");
             const initialState = await this.getReapState();
             if (!initialState) throw new Error("Não foi possível carregar o estado atual do SIGESS.");
+
+            // Diagnóstico para confirmar o nome do campo de mês
+            if ((globalThis as any).__SIGESS_DEBUG && initialState.informesMensais?.[0]) {
+                const first = initialState.informesMensais[0];
+                this.debugLogger.log(`[DEBUG] Estrutura do mês detectada: ${JSON.stringify(first)}`);
+                if (first.mes === undefined) {
+                    this.debugLogger.log("[AVISO] Campo 'mes' não encontrado no objeto. Verifique o console.", 'error');
+                }
+            }
 
             await this.processMonths(startMonth, config, initialState);
 
