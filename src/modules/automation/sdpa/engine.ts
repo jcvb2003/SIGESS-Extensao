@@ -14,7 +14,7 @@ class SDPAEngine {
   public static async initialize() {
     if (!SDPAEngine.instance) {
       SDPAEngine.instance = new SDPAEngine();
-      
+
       // Listeners para navegação SPA do Portal MTE
       window.addEventListener('hashchange', () => SDPAEngine.instance?.handleRouteChange());
       window.addEventListener('popstate', () => SDPAEngine.instance?.handleRouteChange());
@@ -31,7 +31,7 @@ class SDPAEngine {
     }
 
     const isStepRoute = window.location.hash.includes('/solicitacao-pescador/etapas');
-    
+
     if (isStepRoute) {
       this.auditData = this.settings.pessoaData || null;
       this.injectStyles();
@@ -70,14 +70,14 @@ class SDPAEngine {
       
       .sigess-sdpa-panel {
         position: fixed;
-        top: 24px;
-        right: 24px;
-        width: 260px;
+        top: 16px;
+        right: 16px;
+        width: 180px;
         background: var(--sigess-glass);
-        backdrop-filter: blur(12px) saturate(180%);
-        -webkit-backdrop-filter: blur(12px) saturate(180%);
-        border-radius: 16px;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(16px) saturate(180%);
+        -webkit-backdrop-filter: blur(16px) saturate(180%);
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         z-index: 10000;
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
         overflow: hidden;
@@ -92,31 +92,31 @@ class SDPAEngine {
       }
       
       .sigess-panel-header {
-        background: linear-gradient(135deg, var(--sigess-teal) 0%, #0b6a65 100%);
-        padding: 14px 18px;
+        background: linear-gradient(135deg, var(--sigess-teal) 0%, #134e4a 100%);
+        padding: 8px 12px;
         display: flex;
         align-items: center;
-        gap: 12px;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
+        gap: 8px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
       }
 
       .sigess-header-title {
         color: white;
         font-weight: 700;
-        font-size: 14px;
+        font-size: 11px;
         letter-spacing: -0.01em;
       }
       
-      .sigess-panel-body { padding: 15px; display: flex; flex-direction: column; gap: 12px; }
+      .sigess-panel-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
       
       .sigess-data-card {
-        background: rgba(255,255,255,0.5);
-        border: 1px solid rgba(226, 232, 240, 0.5);
-        border-radius: 10px;
-        padding: 8px 10px;
+        background: rgba(255,255,255,0.4);
+        border: 1px solid rgba(226, 232, 240, 0.3);
+        border-radius: 6px;
+        padding: 4px 6px;
         display: flex;
         flex-direction: column;
-        gap: 3px;
+        gap: 1px;
         transition: all 0.2s ease;
       }
 
@@ -126,31 +126,31 @@ class SDPAEngine {
       }
 
       .sigess-label {
-        font-size: 10px;
+        font-size: 8px;
         font-weight: 700;
         color: #64748b;
         text-transform: uppercase;
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
       }
 
       .sigess-value {
-        font-size: 13px;
+        font-size: 10px;
         font-weight: 600;
         color: #1e293b;
-        line-height: 1.4;
+        line-height: 1.2;
       }
 
       .sigess-btn-fill {
         width: 100%;
-        padding: 12px;
+        padding: 8px;
         background: linear-gradient(135deg, var(--sigess-teal) 0%, var(--sigess-teal-dark) 100%);
         color: white;
         border: none;
-        border-radius: 10px;
+        border-radius: 6px;
         font-weight: 700;
-        font-size: 13px;
+        font-size: 10px;
         cursor: pointer;
         transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         display: flex;
@@ -188,9 +188,9 @@ class SDPAEngine {
       // Re-injeta se sumiu mas ainda estamos na rota
       if (window.location.hash.includes('/solicitacao-pescador/etapas')) {
         if (!document.getElementById('sigess-sdpa-panel')) this.injectUI();
-        
+
         if (document.querySelector('.card-content') || document.querySelector('.br-card')) {
-            this.runAudit();
+          this.runAudit();
         }
       } else {
         this.stop();
@@ -203,10 +203,10 @@ class SDPAEngine {
 
     // Limpeza global de estilos de auditoria antes de começar
     document.querySelectorAll('.sigess-audit-green, .sigess-audit-red, .sigess-audit-orange')
-        .forEach(el => el.classList.remove('sigess-audit-green', 'sigess-audit-red', 'sigess-audit-orange'));
+      .forEach(el => el.classList.remove('sigess-audit-green', 'sigess-audit-red', 'sigess-audit-orange'));
 
     this.auditDateField();
-    
+
     // 2. Auditoria de Endereço
     const d = this.auditData;
     this.auditTextField('input[name="endereco.cep"]', d.cep || "");
@@ -215,11 +215,11 @@ class SDPAEngine {
     this.auditTextField('input[name="endereco.bairro"]', d.bairro || "");
     this.auditTextField('input[name="endereco.municipio"]', d.cidade || "");
     this.auditTextField('input[name="endereco.uf"]', d.uf || "");
-    
+
     // 3. Auditoria de Regras (Atividade, Contribuição, etc)
     this.auditRadioRule('registroPesca.idAtividadePesqueira', 'Familiar');
     this.auditRadioStatus('registroPesca.realizouContribuicao', 'Sim');
-    this.auditRadioStatus('registroPesca.possuiNotaFiscal', 'não');
+    this.auditRadioStatus('registroPesca.possuiNotasFiscais', 'não');
     this.auditRadioStatus('informarDadosBancarios', 'não');
 
     this.validateSubmitButton();
@@ -229,7 +229,7 @@ class SDPAEngine {
     if (!el) return;
     el.classList.remove('sigess-audit-green', 'sigess-audit-red', 'sigess-audit-orange');
     if (status !== 'none') {
-        el.classList.add(`sigess-audit-${status}`);
+      el.classList.add(`sigess-audit-${status}`);
     }
   }
 
@@ -242,7 +242,7 @@ class SDPAEngine {
 
     const pageVal = input.value.trim().toLowerCase();
     const normalizeBase = (baseValue || "").trim().toLowerCase();
-    
+
     if (pageVal === normalizeBase && pageVal !== "") {
       this.applyAuditStyle(parent, 'green');
     } else if (normalizeBase !== "") {
@@ -259,13 +259,13 @@ class SDPAEngine {
 
     // 2. Fallback: Tenta capturar do Portal MTE via Label
     const cpfEl = Array.from(document.querySelectorAll('[id^="campo-informacao-"]')).find(el => {
-        const label = el.parentElement?.parentElement?.querySelector('div:first-child')?.textContent?.trim();
-        return label === "Nome" || label === "CPF"; // CPF costuma estar perto do nome
+      const label = el.parentElement?.parentElement?.querySelector('div:first-child')?.textContent?.trim();
+      return label === "Nome" || label === "CPF"; // CPF costuma estar perto do nome
     });
 
     if (cpfEl) {
-        // Se pegou o elemento do nome por engano, tenta o próximo
-        return cpfEl.textContent?.trim() || "";
+      // Se pegou o elemento do nome por engano, tenta o próximo
+      return cpfEl.textContent?.trim() || "";
     }
 
     return "";
@@ -280,20 +280,20 @@ class SDPAEngine {
 
     const pageVal = dateInput.value.trim();
     const baseVal = this.auditData.dataPrimeiroRegistro || "";
-    
+
     const normalize = (d: string) => {
-        const clean = d.replace(/\D/g, "");
-        if (clean.length !== 8) return clean;
-        if (d.includes('-')) {
-            const [y, m, day] = d.split('-');
-            return `${day}${m}${y}`;
-        }
-        return clean;
+      const clean = d.replace(/\D/g, "");
+      if (clean.length !== 8) return clean;
+      if (d.includes('-')) {
+        const [y, m, day] = d.split('-');
+        return `${day}${m}${y}`;
+      }
+      return clean;
     };
 
     const nPage = normalize(pageVal);
     const nBase = normalize(baseVal);
-    
+
     if (nPage === nBase && nPage !== "") {
       this.applyAuditStyle(parent, 'green');
     } else if (baseVal !== "") {
@@ -324,11 +324,11 @@ class SDPAEngine {
       // Foca estritamente no grupo de rádio
       const parent = checked.closest('.br-radio')?.parentElement;
       if (parent && parent instanceof HTMLElement && label) {
-          if (label.textContent?.toLowerCase().includes(expectedLabel.toLowerCase())) {
-              this.applyAuditStyle(parent, 'green');
-          } else {
-              this.applyAuditStyle(parent, 'red');
-          }
+        if (label.textContent?.toLowerCase().includes(expectedLabel.toLowerCase())) {
+          this.applyAuditStyle(parent, 'green');
+        } else {
+          this.applyAuditStyle(parent, 'red');
+        }
       }
     }
   }
@@ -336,29 +336,44 @@ class SDPAEngine {
   private validateSubmitButton() {
     const submitBtn = document.querySelector('button[type="submit"]');
     if (submitBtn) {
-        const hasRed = document.querySelectorAll('.sigess-audit-red').length > 0;
-        const parent = submitBtn.parentElement;
-        if (parent) {
-            if (hasRed) {
-                parent.style.border = "4px solid #ef4444";
-                parent.style.borderRadius = "8px";
-            } else {
-                parent.style.border = "4px solid #10b981";
-                parent.style.borderRadius = "8px";
-            }
+      const hasRed = document.querySelectorAll('.sigess-audit-red').length > 0;
+      const parent = submitBtn.parentElement;
+      if (parent) {
+        if (hasRed) {
+          parent.style.border = "4px solid #ef4444";
+          parent.style.borderRadius = "8px";
+        } else {
+          parent.style.border = "4px solid #10b981";
+          parent.style.borderRadius = "8px";
         }
+      }
     }
+  }
+
+  private mapEducationLevel(level: string): string {
+    const l = level.toUpperCase().trim();
+    const map: Record<string, string> = {
+      'FUNDAMENTAL INCOMPLETO': 'FUNDAMENTAL INCOMPL.',
+      'FUNDAMENTAL COMPLETO': 'FUNDAMENTAL COMPLETO',
+      'MÉDIO INCOMPLETO': 'ENS. MEDIO INCOMPL',
+      'MEDIO INCOMPLETO': 'ENS. MEDIO INCOMPL',
+      'MÉDIO COMPLETO': 'ENS. MEDIO COMPLETO',
+      'MEDIO COMPLETO': 'ENS. MEDIO COMPLETO',
+      'SUPERIOR INCOMPLETO': 'SUPERIOR INCOMPLETO',
+      'SUPERIOR COMPLETO': 'SUPERIOR COMPLETO'
+    };
+    return map[l] || level;
   }
 
   private formatDateBR(d?: string): string {
     if (!d) return "---";
     const clean = d.replace(/\D/g, "");
     if (clean.length === 8) {
-        if (d.includes('-')) {
-            const [y, m, day] = d.split('-');
-            return `${day}/${m}/${y}`;
-        }
-        return `${clean.substring(0, 2)}/${clean.substring(2, 4)}/${clean.substring(4)}`;
+      if (d.includes('-')) {
+        const [y, m, day] = d.split('-');
+        return `${day}/${m}/${y}`;
+      }
+      return `${clean.substring(0, 2)}/${clean.substring(2, 4)}/${clean.substring(4)}`;
     }
     return d;
   }
@@ -371,14 +386,14 @@ class SDPAEngine {
     panel.className = 'sigess-sdpa-panel';
 
     const firstReg = this.formatDateBR(this.auditData?.dataPrimeiroRegistro);
-    const address = this.auditData ? 
-        (`${this.auditData.endereco || ""}, ${this.auditData.numero || "S/N"} - ${this.auditData.bairro || ""} (${this.auditData.cidade || ""}/${this.auditData.uf || ""})`).trim() 
-        : "---";
+    const address = this.auditData ?
+      (`${this.auditData.endereco || ""}, ${this.auditData.numero || "S/N"} - ${this.auditData.bairro || ""} (${this.auditData.cidade || ""}/${this.auditData.uf || ""})`).trim()
+      : "---";
 
     panel.innerHTML = `
       <div class="sigess-panel-header">
-        <div class="sigess-icon-circle" style="background: rgba(255,255,255,0.2)">
-            <img src="${browser.runtime.getURL('icon.png')}" width="18" height="18" style="filter: brightness(0) invert(1);" />
+        <div class="sigess-icon-circle" style="background: rgba(255,255,255,0.1)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>
         </div>
         <span class="sigess-header-title">Solicitação SDPA</span>
       </div>
@@ -417,15 +432,15 @@ class SDPAEngine {
 
     // Atualiza nome extraído da página
     setTimeout(() => {
-        const nameEl = Array.from(document.querySelectorAll('[id^="campo-informacao-"]')).find(el => {
-            const label = el.parentElement?.parentElement?.querySelector('div:first-child')?.textContent?.trim();
-            return label === "Nome";
-        });
-        
-        if (nameEl) {
-            const nameTarget = document.getElementById('sigess-fisherman-name');
-            if (nameTarget) nameTarget.textContent = nameEl.textContent?.trim() || "---";
-        }
+      const nameEl = Array.from(document.querySelectorAll('[id^="campo-informacao-"]')).find(el => {
+        const label = el.parentElement?.parentElement?.querySelector('div:first-child')?.textContent?.trim();
+        return label === "Nome";
+      });
+
+      if (nameEl) {
+        const nameTarget = document.getElementById('sigess-fisherman-name');
+        if (nameTarget) nameTarget.textContent = nameEl.textContent?.trim() || "---";
+      }
     }, 2000);
 
     document.getElementById('sigess-btn-fill')?.addEventListener('click', () => {
@@ -445,22 +460,23 @@ class SDPAEngine {
     this.fillInput('input[name="contato.email"]', this.settings?.sdpaDefaultEmail || "");
     this.fillInput('input[name="contato.telefone"]', this.auditData.telefone || this.settings?.sdpaFallbackPhone || "");
 
-    // 2. Escolaridade
-    this.selectInBrSelect('grauInstrucao', this.auditData.escolaridade || "");
+    // 2. Escolaridade com Mapeamento MTE
+    const escolaridadeMTE = this.mapEducationLevel(this.auditData.escolaridade || "");
+    this.selectInBrSelect('grauInstrucao', escolaridadeMTE);
 
     // 3. RGP / CPF
     const cpfValue = this.getCPF();
     if (cpfValue) {
-        const rgpValue = `PAPA${cpfValue.replaceAll(/\D/g, "")}`;
-        const rgpInput = Array.from(document.querySelectorAll('input')).find(input => {
-            const label = input.closest('.br-input')?.querySelector('label')?.textContent?.trim() || 
-                          input.parentElement?.querySelector('label')?.textContent?.trim();
-            return label?.includes('RGP');
-        });
-        if (rgpInput && rgpValue !== "PAPA") {
-            rgpInput.value = rgpValue;
-            rgpInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+      const rgpValue = `PAPA${cpfValue.replaceAll(/\D/g, "")}`;
+      const rgpInput = Array.from(document.querySelectorAll('input')).find(input => {
+        const label = input.closest('.br-input')?.querySelector('label')?.textContent?.trim() ||
+          input.parentElement?.querySelector('label')?.textContent?.trim();
+        return label?.includes('RGP');
+      });
+      if (rgpInput && rgpValue !== "PAPA") {
+        rgpInput.value = rgpValue;
+        rgpInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
     }
 
     // 4. Endereço Completo
@@ -475,30 +491,30 @@ class SDPAEngine {
 
     // 5. Data 1º Registro
     if (this.auditData.dataPrimeiroRegistro) {
-        const dateInput = document.querySelector('.br-datetimepicker input');
-        if (dateInput && (dateInput as any)._flatpickr) {
-            (dateInput as any)._flatpickr.setDate(this.auditData.dataPrimeiroRegistro, true, "d/m/Y");
-        }
+      const dateInput = document.querySelector('.br-datetimepicker input');
+      if (dateInput && (dateInput as any)._flatpickr) {
+        (dateInput as any)._flatpickr.setDate(this.auditData.dataPrimeiroRegistro, true, "d/m/Y");
+      }
     }
 
     // 6. Regras Automáticas
     this.selectInBrSelect('registroPesca.idAtividadePesqueira', 'Familiar');
     this.clickRadio('registroPesca.realizouContribuicao', 'Sim');
-    this.clickRadio('registroPesca.possuiNotaFiscal', 'não');
+    this.clickRadio('registroPesca.possuiNotasFiscais', 'não');
     this.clickRadio('informarDadosBancarios', 'não');
-    
+
     const checkbox = document.querySelector('input[name="aceiteRegras"]') as HTMLInputElement;
     if (checkbox) checkbox.checked = true;
 
     // 7. Aguardar Portaria (Se necessário)
     setTimeout(() => {
-        this.selectInBrSelect('idDefeso', '48');
+      this.selectInBrSelect('idDefeso', '48');
     }, 1000);
 
     // 8. CEP (Último para disparar gatilhos se houver)
     setTimeout(() => {
-        this.fillInput('input[name="endereco.cep"]', this.auditData?.cep || "");
-        this.finalize();
+      this.fillInput('input[name="endereco.cep"]', this.auditData?.cep || "");
+      this.finalize();
     }, 2000);
   }
 
@@ -512,30 +528,30 @@ class SDPAEngine {
   }
 
   private clickRadio(name: string, labelText: string) {
-      const radios = document.querySelectorAll(`input[name="${name}"]`);
-      radios.forEach(r => {
-          const label = document.querySelector(`label[for="${r.id}"]`);
-          if (label?.textContent?.toLowerCase().includes(labelText.toLowerCase())) {
-              (r as HTMLElement).click();
-          }
-      });
+    const radios = document.querySelectorAll(`input[name="${name}"]`);
+    radios.forEach(r => {
+      const label = document.querySelector(`label[for="${r.id}"]`);
+      if (label?.textContent?.toLowerCase().includes(labelText.toLowerCase())) {
+        (r as HTMLElement).click();
+      }
+    });
   }
 
   private selectInBrSelect(id: string, search: string) {
     const selector = `.br-select:has(#${CSS.escape(id)})`;
     const parent = document.querySelector(selector);
     if (parent) {
-        const items = parent.querySelectorAll('.br-item label');
-        for (const label of Array.from(items)) {
-            if (label.textContent?.toUpperCase().includes(search.toUpperCase())) {
-                const radioId = (label as HTMLElement).getAttribute('for');
-                if (radioId) {
-                    const radio = document.getElementById(radioId);
-                    radio?.click();
-                }
-                break;
-            }
+      const items = parent.querySelectorAll('.br-item label');
+      for (const label of Array.from(items)) {
+        if (label.textContent?.toUpperCase().includes(search.toUpperCase())) {
+          const radioId = (label as HTMLElement).getAttribute('for');
+          if (radioId) {
+            const radio = document.getElementById(radioId);
+            radio?.click();
+          }
+          break;
         }
+      }
     }
   }
 
@@ -543,18 +559,18 @@ class SDPAEngine {
     // Clipboard
     const name = document.getElementById('sigess-fisherman-name')?.textContent || "";
     if (name) {
-        navigator.clipboard.writeText(name).catch(() => {});
+      navigator.clipboard.writeText(name).catch(() => { });
     }
 
     // Upload host visibility
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     if (fileInput) {
-        fileInput.style.display = 'block';
-        fileInput.style.width = '100%';
-        fileInput.style.padding = '20px';
-        fileInput.style.border = '2px dashed #f59e0b';
-        fileInput.style.marginTop = '10px';
-        fileInput.classList.add('sigess-flash-upload');
+      fileInput.style.display = 'block';
+      fileInput.style.width = '100%';
+      fileInput.style.padding = '20px';
+      fileInput.style.border = '2px dashed #f59e0b';
+      fileInput.style.marginTop = '10px';
+      fileInput.classList.add('sigess-flash-upload');
     }
 
     alert(`Preenchimento Concluído!\n\nNome copiado para o clipboard: ${name}\n\nO campo de upload agora está visível em destaque.`);
@@ -563,11 +579,11 @@ class SDPAEngine {
 
 // Inicializa o motor apenas na página específica de etapas
 if (document.location.href.includes('/solicitacao-pescador/etapas')) {
-    (async () => {
-        try {
-            await SDPAEngine.initialize();
-        } catch (err) {
-            console.error("[SIGESS] SDPA Factory Error:", err);
-        }
-    })();
+  (async () => {
+    try {
+      await SDPAEngine.initialize();
+    } catch (err) {
+      console.error("[SIGESS] SDPA Factory Error:", err);
+    }
+  })();
 }
