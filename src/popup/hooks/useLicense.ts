@@ -22,6 +22,23 @@ export const useLicense = (): UseLicenseReturn => {
   ): Promise<LicenseResult> => {
     setRefreshing(true);
     try {
+      // Prioridade: Se não for forçado, pede ao Background (que já tem em RAM)
+      // para evitar I/O lento de disco e HMAC no processo do popup
+      if (!forceLive && !forceConsume) {
+        const response = await browser.runtime.sendMessage({ action: "checkLicense" });
+        if (response && response.success) {
+          const { success: _s, ...licData } = response;
+          setLicense(licData as LicenseResult);
+          return licData as LicenseResult;
+        }
+      }
+
+      // Fallback para chamada direta em casos de força bruta ou falha na mensagem
+      const result = await LicenseService.checkLicense(forceLive, forceConsume);
+      setLicense(result);
+      return result;
+    } catch (e) {
+      console.warn("[SIGESS] Falha ao obter licença via Background, tentando direto...", e);
       const result = await LicenseService.checkLicense(forceLive, forceConsume);
       setLicense(result);
       return result;

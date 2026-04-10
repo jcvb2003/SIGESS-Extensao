@@ -5,6 +5,7 @@ import { MessageRequest, MessageResponse } from "../shared/types";
 import { routeMessage } from "./message-router";
 import { BadgeManager } from "./services/badge-manager";
 import { VersionChecker } from "./services/version-checker";
+import { LicenseService } from "../shared/services/license";
 
 let tabManager: TabManager | null = null;
 
@@ -73,3 +74,6 @@ StorageService.getSettings().then(settings => {
 
 // Inicializa o alerta de atualização usando a API do GitHub
 VersionChecker.start();
+
+// Warmup da Licença: Valida e aquece o memoryCache no startup para resposta instantânea ao popup
+LicenseService.getStatus().catch(err => console.error("Background License Warmup Error:", err));
