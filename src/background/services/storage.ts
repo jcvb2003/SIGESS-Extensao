@@ -123,7 +123,7 @@ export class StorageService {
 
     // 4. Metadados e status das fontes
     consolidated.fontes ??= {};
-    consolidateFontes(consolidated, fonte, data);
+    consolidateFontes(consolidated, fonte, normalizedIn as Partial<PessoaData>);
 
     const newSettings: AppSettings = { 
       ...settings, 

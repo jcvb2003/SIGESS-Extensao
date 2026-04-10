@@ -255,30 +255,32 @@ if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded)
     (globalThis as any).__sigessTurboLoaded = true;
 
     // --- DIAGNOSTIC INTERCEPTOR ---
-    const origFetch = globalThis.fetch;
-    globalThis.fetch = async function(...args) {
-        const [url, options] = args;
-        if (options?.method === 'POST' && typeof url === 'string' && url.includes('informe-mensal')) {
-            console.log("%c=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED ===", "color: #ff00ff; font-weight: bold; font-size: 14px;");
-            
-            const headersList: any = {};
-            const headers = options.headers;
-            if (headers instanceof Headers) {
-                headers.forEach((v, k) => { headersList[k] = v; });
-            } else {
-                Object.assign(headersList, headers || {});
+    if ((globalThis as any).__SIGESS_DEBUG) {
+        const origFetch = globalThis.fetch;
+        globalThis.fetch = async function(...args) {
+            const [url, options] = args;
+            if (options?.method === 'POST' && typeof url === 'string' && url.includes('informe-mensal')) {
+                console.log("%c=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED ===", "color: #ff00ff; font-weight: bold; font-size: 14px;");
+                
+                const headersList: any = {};
+                const headers = options.headers;
+                if (headers instanceof Headers) {
+                    headers.forEach((v, k) => { headersList[k] = v; });
+                } else {
+                    Object.assign(headersList, headers || {});
+                }
+                
+                console.log("Headers:", JSON.stringify(headersList, null, 2));
+                if (typeof options.body === 'string') {
+                    console.log("Body JSON:", JSON.stringify(JSON.parse(options.body), null, 2));
+                } else {
+                    console.log("Body (Raw):", options.body);
+                }
+                console.log("%c=====================================================", "color: #ff00ff; font-weight: bold;");
             }
-            
-            console.log("Headers:", JSON.stringify(headersList, null, 2));
-            if (typeof options.body === 'string') {
-                console.log("Body JSON:", JSON.stringify(JSON.parse(options.body), null, 2));
-            } else {
-                console.log("Body (Raw):", options.body);
-            }
-            console.log("%c=====================================================", "color: #ff00ff; font-weight: bold;");
-        }
-        return origFetch.apply(this, args);
-    };
+            return origFetch.apply(this, args);
+        };
+    }
 
     if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
         chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {

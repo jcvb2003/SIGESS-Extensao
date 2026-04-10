@@ -9,6 +9,9 @@ import { updateAssistantStatus, removeAssistantUI } from "../modules/automation/
 import { setupSPANavigationObserver } from "../modules/automation/spa-observer";
 import { PessoaData } from "../shared/types";
 
+declare var browser: any;
+declare var chrome: any;
+
 // Impede dupla execução quando o script é injetado em múltiplos frames (ex: e-CAC)
 if ((globalThis as any).__sigessAutoRegLoaded) {
   // Já carregado, não faz nada
@@ -42,7 +45,7 @@ async function initMain() {
       return;
     }
 
-    const result = await chrome.storage.local.get("sigessSettings");
+    const result = await (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings");
     const settings = result.sigessSettings || {};
     _autoEnabled = !!settings.autoRegistrationEnabled;
 
@@ -68,7 +71,7 @@ async function initMain() {
       _lastUrl = currentUrl;
 
       if (_autoEnabled) {
-        chrome.storage.local.get("sigessSettings").then(res => {
+        (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings").then(res => {
           // Se a URL mudou de fato, permitimos um novo preenchimento do TSE e re-checamos bridges
           resetTseFillGuard();
           initEnabledFeatures(res.sigessSettings || {});
@@ -158,7 +161,7 @@ async function initMain() {
 
     try {
       const script = document.createElement("script");
-      script.src = chrome.runtime.getURL(assetPath);
+      script.src = (globalThis.browser || globalThis.chrome).runtime.getURL(assetPath);
       (document.head || document.documentElement).appendChild(script);
       console.log(`SIGESS: Bridge script injected -> ${assetPath}`);
     } catch (e) {
@@ -186,22 +189,23 @@ async function initMain() {
 
   function saveData(data: Partial<import("../shared/types").PessoaData>, fonte: string) {
     console.log(`SIGESS: Dados extraídos de ${fonte}`, data);
-    chrome.runtime.sendMessage({
-      action: "SAVE_PESSOA_DATA",
-      data,
-      fonte
-    }, () => {
-      if (chrome.runtime.lastError) {
-        console.warn("SIGESS: Erro ao salvar dados:", chrome.runtime.lastError.message);
-        return;
-      }
-      globalThis.dispatchEvent(new CustomEvent('SIGESS_DATA_UPDATED'));
-    });
+    const api = (globalThis.browser || globalThis.chrome) as any;
+    
+    if (api?.runtime?.sendMessage) {
+      api.runtime.sendMessage({
+        action: "SAVE_PESSOA_DATA",
+        data,
+        fonte
+      });
+    }
+
+    // Disparamos o evento local de atualização
+    globalThis.dispatchEvent(new CustomEvent('SIGESS_DATA_UPDATED'));
   }
 
   // ── Reatividade (storage.onChanged) ──────────────────────────────────────
 
-  chrome.storage.onChanged.addListener((changes) => {
+  (globalThis.browser || globalThis.chrome).storage.onChanged.addListener((changes: any) => {
     if (changes.sigessSettings) {
       const newVal = changes.sigessSettings.newValue || {};
       const oldVal = changes.sigessSettings.oldValue || {};

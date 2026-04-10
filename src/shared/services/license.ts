@@ -40,9 +40,13 @@ export interface LicenseResult {
   max_devices?: number;
   expires_at?: string;
   reason?: LicenseReason;
-  valid_until?: string;
+  valid_until?: string; // Mantido no tipo, mas não confiamos no retorno do servidor
   sig?: string;
   device_name?: string;
+
+  // Cache Estendido (Gerado no cliente)
+  cache_until?: string;
+  last_check_date?: string;
 }
 
 export class LicenseService {
@@ -63,14 +67,27 @@ export class LicenseService {
     return (import.meta as any).env?.VITE_APP_SECRET || (globalThis as any).VITE_APP_SECRET_MOCK || "";
   }
 
+  /**
+   * Verifica a integridade dos dados usando HMAC SHA-256.
+   * O servidor assina o JSON.stringify() do objeto de resultado do RPC.
+   */
   private static async verifySignature(
     data: any,
     sig: string,
   ): Promise<boolean> {
     if (!sig) return false;
     try {
-      // Sincronizado com a Edge Function: ok, plan, status, manual, turbo, agro, devices, max_devices, valid_until
-      const msg = `${data.ok}${data.plan || ""}${data.status || ""}${data.usage_manual ?? ""}${data.usage_turbo ?? ""}${data.usage_agro ?? ""}${data.devices || ""}${data.max_devices || ""}${data.valid_until}`;
+      // Reconstroi o objeto exatamente como o servidor o assinou
+      // Remove campos injetados pelo cliente (sig, signature, cache_until, last_check_date)
+      const { 
+        sig: _s, 
+        signature: _sig, 
+        cache_until: _cu, 
+        last_check_date: _lcd, 
+        ...serverData 
+      } = data;
+      
+      const msg = JSON.stringify(serverData);
       
       const encoder = new TextEncoder();
       const secret = this.getAppSecret();
@@ -85,8 +102,10 @@ export class LicenseService {
         ["verify"],
       );
       
+      // Converte hex string para Uint8Array
+      const sigHex = sig;
       const sigArray = new Uint8Array(
-        sig.match(/.{1,2}/g)!.map((byte) => Number.parseInt(byte, 16)),
+        sigHex.match(/.{1,2}/g)!.map((byte) => Number.parseInt(byte, 16)),
       );
       
       return await crypto.subtle.verify("HMAC", cryptoKey, sigArray, msgData);
@@ -109,21 +128,16 @@ export class LicenseService {
       if (storage) return storage;
     }
     
-    // Na ativação (forceLive=true, forceConsume=false), usamos sempre "status"
-    // para apenas vincular o dispositivo e ler os dados atuais sem decrementar nada.
+    // Ação: "check" (consome) ou "status" (apenas consulta/vincula)
     const action = forceConsume ? "check" : "status";
     
     return this.performLiveCheck(action, usageType);
   }
 
   private static getMemoryCache(forceLive: boolean): LicenseResult | null {
-    if (!forceLive && this.memoryCache) {
-      const isFresh =
-        !this.memoryCache.valid_until ||
-        new Date(this.memoryCache.valid_until) > new Date();
-      if (isFresh) return this.memoryCache;
-    }
-    return null;
+    if (forceLive || !this.memoryCache) return null;
+    if (!this.isCacheValid(this.memoryCache)) return null;
+    return this.memoryCache;
   }
 
   private static async getStorageCache(
@@ -131,20 +145,32 @@ export class LicenseService {
   ): Promise<LicenseResult | null> {
     if (forceLive) return null;
     const { license_cache } = await browser.storage.local.get("license_cache");
-    if (license_cache?.sig) {
-      const isAuthentic = await this.verifySignature(
-        license_cache,
-        license_cache.sig,
-      );
-      const isFresh =
-        !license_cache.valid_until ||
-        new Date(license_cache.valid_until) > new Date();
-      if (isAuthentic && isFresh) {
+    
+    if (license_cache) {
+      const sig = license_cache.signature || license_cache.sig;
+      if (!sig) return null;
+
+      const isAuthentic = await this.verifySignature(license_cache, sig);
+      
+      if (isAuthentic && this.isCacheValid(license_cache)) {
         this.memoryCache = license_cache;
         return license_cache;
       }
     }
     return null;
+  }
+
+  private static isCacheValid(cache: LicenseResult): boolean {
+    const now = new Date();
+    
+    // 1. Midnight Boundary (Deve ter sido validado na data de hoje local)
+    const today = new Date().toISOString().split('T')[0];
+    if (cache.last_check_date !== today) return false;
+
+    // 2. Local Extended Cache (8h) - Gerado pelo cliente no performLiveCheck
+    if (cache.cache_until && new Date(cache.cache_until) < now) return false;
+
+    return true;
   }
 
   private static async performLiveCheck(
@@ -167,16 +193,29 @@ export class LicenseService {
            key, 
            fingerprint, 
            action, 
-           resource: usageType, // Alinhado com a Edge Function que espera 'resource'
+           resource: usageType, // REVERTIDO: O servidor v12 espera 'resource'
            device_name: deviceName
         }),
       });
 
       const result = await response.json();
-      const sig = result.sig || result.signature;
+      const sig = result.signature || result.sig;
+
       if (result.ok && sig) {
-        await browser.storage.local.set({ license_cache: result });
-        this.memoryCache = result;
+        // Enriquecemos o resultado com dados de cache local
+        // O cache_until e last_check_date são separados para não quebrar a conferência HMAC do serverData
+        const CACHE_8H = 8 * 60 * 60 * 1000;
+        const now = new Date();
+        const cachedResult: LicenseResult = {
+          ...result,
+          sig, // Garantimos que o campo sig/signature esteja presente para o storage
+          cache_until: new Date(now.getTime() + CACHE_8H).toISOString(),
+          last_check_date: now.toISOString().split('T')[0]
+        };
+
+        await browser.storage.local.set({ license_cache: cachedResult });
+        this.memoryCache = cachedResult;
+        return cachedResult;
       }
       return result;
     } catch (error) {
@@ -187,7 +226,8 @@ export class LicenseService {
 
   private static async handleFailOpen(): Promise<LicenseResult> {
     const { license_cache } = await browser.storage.local.get("license_cache");
-    if (license_cache?.plan === "paid") {
+    // Fail-open restrito ao mesmo dia e apenas para pagos
+    if (license_cache?.plan === "paid" && this.isCacheValid(license_cache)) {
       return { ...license_cache, ok: true };
     }
     return { ok: false, reason: "network_error" };

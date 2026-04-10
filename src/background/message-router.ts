@@ -1,7 +1,23 @@
 import { StorageService } from "./services/storage";
 import { LicenseService } from "../shared/services/license";
 import { MessageRequest, MessageResponse, MultiLoginItem } from "../shared/types";
-import { BadgeService } from "./services/badge-service";
+import { BadgeManager } from "./services/badge-manager";
+
+function isUrlAllowed(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url);
+    if (!protocol.startsWith("https")) return false;
+    return (
+      hostname.endsWith(".gov.br") ||
+      hostname.endsWith(".jus.br") ||
+      hostname.endsWith(".sigess.com.br") ||
+      hostname === "sigess.com.br" ||
+      hostname.endsWith(".vercel.app")
+    );
+  } catch {
+    return false;
+  }
+}
 
 export async function routeMessage(
   message: MessageRequest,
@@ -54,7 +70,7 @@ async function handleUpdateSettings(message: MessageRequest) {
   
   // Atualiza o badge caso a fila tenha mudado
   if (message.settings.multiLoginQueue) {
-    await BadgeService.updateQueueBadge(newSettings.multiLoginQueue?.length || 0);
+    BadgeManager.setQueueCount(newSettings.multiLoginQueue?.length || 0);
   }
   
   return { success: true, settings: newSettings };
@@ -64,7 +80,8 @@ async function handleStartBatchLogin(
   message: MessageRequest,
   getTabManager: () => any,
 ) {
-  const license = await LicenseService.checkLicense(true, false);
+  // Otimizado: Permite o uso de cache (8h) para abrir o lote
+  const license = await LicenseService.checkLicense(false, false);
   if (!license.ok) {
     return {
       success: false,
@@ -95,7 +112,8 @@ async function handleAbrirAbaContainer(
   message: MessageRequest,
   getTabManager: () => any,
 ) {
-  const license = await LicenseService.checkLicense(true, false);
+  // Otimizado: Permite o uso de cache (8h) para enfileirar/abrir abas
+  const license = await LicenseService.checkLicense(false, false);
   if (!license.ok) {
     return {
       success: false,
@@ -103,15 +121,27 @@ async function handleAbrirAbaContainer(
     };
   }
   const { url, cpf, senha, nome } = message;
-  if (!url?.startsWith("http")) {
-    return { success: false, error: "URL inválida" };
+  
+  // Whitelist de Segurança
+  try {
+    if (!isUrlAllowed(url || '')) {
+      return { success: false, error: "Este host não está autorizado para login via container SIGESS." };
+    }
+  } catch (error) {
+    console.warn("Falha ao validar host de destino:", error);
+    return { success: false, error: "URL de destino inválida." };
   }
 
   const settings = await StorageService.getSettings();
   
   // Se o login múltiplo estiver ATIVADO, enfileira
   if (settings.multiLoginEnabled) {
-    const queue = settings.multiLoginQueue || [];
+    // Limpeza de itens expirados (30 minutos)
+    const now = Date.now();
+    const queue = (settings.multiLoginQueue || []).filter(item => {
+      const age = now - item.timestamp;
+      return age < 30 * 60 * 1000;
+    });
     
     // Limite de 5 itens conforme solicitado
     if (queue.length >= 5) {
@@ -130,7 +160,7 @@ async function handleAbrirAbaContainer(
 
     const newQueue = [...queue, newItem];
     await StorageService.saveSettings({ ...settings, multiLoginQueue: newQueue });
-    await BadgeService.updateQueueBadge(newQueue.length);
+    BadgeManager.setQueueCount(newQueue.length);
     
     return { success: true, queued: true, nome: newItem.nome };
   }
@@ -142,12 +172,20 @@ async function handleAbrirAbaContainer(
 }
 
 async function handleTurboFillReap(message: MessageRequest) {
-  const license = await LicenseService.checkLicense(true, true, 'turbo');
+  // Lógica Decisória: Plano Pago usa cache (0ms). Plano Teste faz verificação live e consome cota.
+  const current = await LicenseService.getStatus();
+  const isPaid = current.ok && current.plan === 'paid';
+  
+  const forceLive = !isPaid;
+  const forceConsume = !isPaid;
+
+  const license = await LicenseService.checkLicense(forceLive, forceConsume, 'turbo');
+  
   if (!license.ok) {
     return {
       success: false,
       error: license.reason === 'limit_reached_turbo' 
-        ? "Limite de Preenchimento Turbo (3 usos) atingido. Você ainda pode usar o Preenchimento Passo a Passo."
+        ? `Limite de Preenchimento Turbo atingido (${license.usage_turbo}/${license.max_turbo}). Evolua para o Plano Pro para uso ilimitado.`
         : `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }

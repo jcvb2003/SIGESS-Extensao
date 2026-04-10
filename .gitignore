@@ -10,6 +10,7 @@ build/
 
 # env
 .env
+.env.production
 
 # OS
 .DS_Store

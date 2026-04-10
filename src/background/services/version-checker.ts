@@ -1,4 +1,5 @@
 import { StorageService } from "./storage";
+import { BadgeManager } from "./badge-manager";
 
 const GITHUB_API_URL = "https://api.github.com/repos/jcvb2003/SIGESS-Extensao/releases/latest";
 
@@ -29,12 +30,11 @@ export class VersionChecker {
         });
         
         // Exibe um badge na extensão para alertar o usuário (opcional)
-        browser.action.setBadgeText({ text: "!" });
-        browser.action.setBadgeBackgroundColor({ color: "#FF0000" });
+        BadgeManager.setUpdate(true);
       } else {
          // Se estiver atualizado, limpa qualquer badge/aviso anterior
         await StorageService.remove("updateAvailable");
-        browser.action.setBadgeText({ text: "" });
+        BadgeManager.setUpdate(false);
       }
     } catch (error) {
       console.error("Falha ao verificar atualização:", error);
