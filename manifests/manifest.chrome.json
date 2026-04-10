@@ -112,6 +112,15 @@
         "assets/capture_indicator.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://servicos.mte.gov.br/*"
+      ],
+      "js": [
+        "assets/content_sdpa.js"
+      ],
+      "run_at": "document_end"
     }
   ]
 }

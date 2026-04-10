@@ -187,7 +187,6 @@ export class LicenseService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-app-secret": this.getAppSecret(),
         },
         body: JSON.stringify({ 
            key, 

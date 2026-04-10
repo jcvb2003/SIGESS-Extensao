@@ -5,6 +5,7 @@ import { LoginSection } from "./panels/LoginSection";
 
 import ReapMpaPanel from "./panels/ReapMpaPanel";
 import AutoRegistrationPanel from "./panels/AutoRegistrationPanel";
+import SDPAPanel from "./panels/SDPAPanel";
 import BatchLoginModal from "./ui/BatchLoginModal";
 import { LicenseInfo } from "./ui/LicenseInfo";
 import { Skeleton, SkeletonBadge, SkeletonCard } from "./ui/Skeleton";
@@ -26,6 +27,7 @@ const AppContent: React.FC = () => {
     autoRegistration: false,
     esocial: false,
     reapMpa: false,
+    sdpa: false,
   });
 
   const { license, loading: licenseLoading, activating, activate } = useLicense();
@@ -102,6 +104,7 @@ const AppContent: React.FC = () => {
         autoRegistration: false,
         esocial: false,
         reapMpa: false,
+        sdpa: false,
       };
       newState[key] = nextOpen;
       return newState;
@@ -188,6 +191,31 @@ const AppContent: React.FC = () => {
           >
             <div className="section-content">
               <ESocialPanel settings={settings} onUpdate={updateSettings} />
+            </div>
+          </div>
+        </section>
+
+        <section className="section accordion filter-amber">
+          <button
+            type="button"
+            className="accordion-header"
+            aria-expanded={openSections.sdpa}
+            onClick={() => toggleSection("sdpa")}
+          >
+            <div className="section-header">
+              <h2 className="section-title">Solicitação SDPA</h2>
+              <p className="section-description">
+                Automação para o portal de Seguro-Desemprego
+              </p>
+            </div>
+            <ShieldCheck size={18} className={`accordion-icon ${openSections.sdpa ? "open" : ""}`} />
+          </button>
+          <div
+            className={`accordion-content ${openSections.sdpa ? "open" : "collapsed"
+              }`}
+          >
+            <div className="section-content">
+              <SDPAPanel settings={settings} onUpdate={updateSettings} />
             </div>
           </div>
         </section>

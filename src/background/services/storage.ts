@@ -57,6 +57,9 @@ export class StorageService {
       mpaFemDaysMin: "118",
       mpaFemDaysMax: "124",
       autoRegistrationEnabled: false,
+      sdpaEnabled: false,
+      sdpaDefaultEmail: "",
+      sdpaFallbackPhone: "",
     };
 
     return {

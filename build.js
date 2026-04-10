@@ -29,6 +29,7 @@ const targets = [
   "cadunico_bridge",
   "tse_bridge",
   "capture_indicator",
+  "content_sdpa",
 ];
 
 console.log(`Building extension for ${browserTarget}...`);

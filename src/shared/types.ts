@@ -52,6 +52,11 @@ export interface AppSettings {
   pessoaData?: PessoaData;
   pessoaData_raw?: Record<string, Partial<PessoaData>>;
   autoRegistrationEnabled?: boolean;
+  
+  // SDPA (MTE)
+  sdpaEnabled?: boolean;
+  sdpaDefaultEmail?: string;
+  sdpaFallbackPhone?: string;
 }
 
 export interface PessoaData {

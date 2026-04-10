@@ -134,6 +134,21 @@ async function handleAbrirAbaContainer(
 
   const settings = await StorageService.getSettings();
   
+  // Se houver dados de auditoria (SDPA), salva no storage local associado a este sócio
+  if (message.auditoriaData) {
+    try {
+      // Garante que o CPF vindo da mensagem principal seja incluído nos dados de auditoria
+      const dataWithCpf = { 
+        ...message.auditoriaData, 
+        cpf: message.cpf || message.auditoriaData.cpf 
+      };
+      await StorageService.mergePessoaData(dataWithCpf, "SIGESS_WEB");
+      console.log("[SIGESS] Dados de auditoria (SDPA) persistidos com sucesso.");
+    } catch (error) {
+      console.warn("[SIGESS] Falha ao persistir dados de auditoria:", error);
+    }
+  }
+
   // Se o login múltiplo estiver ATIVADO, enfileira
   if (settings.multiLoginEnabled) {
     // Limpeza de itens expirados (30 minutos)
