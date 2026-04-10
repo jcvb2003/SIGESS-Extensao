@@ -8,9 +8,25 @@ import {
 export class TabManager {
   private readonly strategies: AuthStrategy[] = [];
   private static readonly TAB_CONTAINER_PREFIX = "tab_container_";
+  private static readonly RECENT_CONTAINERS_KEY = "sigessRecentContainers";
+  private _containerQueueLock: Promise<void> = Promise.resolve();
 
   constructor() {
     this.strategies = [new PesqBrasilStrategy(), new ESocialStrategy()];
+  }
+
+  private enqueueContainerOp(fn: () => Promise<void>): Promise<void> {
+    this._containerQueueLock = this._containerQueueLock.then(() => fn()).catch(() => {});
+    return this._containerQueueLock;
+  }
+
+  private async getRecentContainers(): Promise<string[]> {
+    const result = await StorageService.get<string[]>(TabManager.RECENT_CONTAINERS_KEY);
+    return result[TabManager.RECENT_CONTAINERS_KEY] || [];
+  }
+
+  private async saveRecentContainers(containers: string[]): Promise<void> {
+    await StorageService.set({ [TabManager.RECENT_CONTAINERS_KEY]: containers });
   }
 
   private supportsContextualIdentities(): boolean {
@@ -104,15 +120,40 @@ export class TabManager {
   ) {
     await StorageService.clearCredentials(tabId);
     const containerId = await this.getTabContainer(tabId);
+    await this.clearTabContainer(tabId);
 
     if (containerId && this.supportsContextualIdentities()) {
-      try {
-        await (browser as any).contextualIdentities.remove(containerId);
-        console.log(`Container ${containerId} removido para aba ${tabId}`);
-      } catch (error) {
-        console.error(`Erro ao remover container ${containerId}:`, error);
-      }
+      // Enfileira a operação para evitar race conditions no storage
+      this.enqueueContainerOp(() => this.processContainerRetention(containerId));
     }
-    await this.clearTabContainer(tabId);
+  }
+
+  private async processContainerRetention(containerId: string): Promise<void> {
+    try {
+      const list = await this.getRecentContainers();
+      
+      // Move para o início (mais recente) e remove duplicatas
+      const deduped = list.filter(id => id !== containerId);
+      const updated = [containerId, ...deduped];
+
+      // Se exceder 5, remove o mais antigo do Firefox e da lista
+      if (updated.length > 5) {
+        const oldestId = updated.pop();
+        if (oldestId) {
+          try {
+            await (browser as any).contextualIdentities.remove(oldestId);
+            console.log(`[SIGESS] Conteiner excedente ${oldestId} removido.`);
+          } catch (e) {
+            // Pode já ter sido removido manualmente ou não existir mais
+            console.debug(`[SIGESS] Não foi possível remover conteiner ${oldestId}:`, e);
+          }
+        }
+      }
+
+      await this.saveRecentContainers(updated);
+      console.log(`[SIGESS] Conteiner ${containerId} mantido na lista de recentes.`);
+    } catch (error) {
+      console.error("[SIGESS] Erro no processamento de retenção de conteiner:", error);
+    }
   }
 }
