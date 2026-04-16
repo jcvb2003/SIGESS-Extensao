@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
-// import obfuscator from 'vite-plugin-javascript-obfuscator';
+import obfuscator from 'vite-plugin-javascript-obfuscator';
 
 const outputDir = process.env.BUILD_OUTPUT_DIR || 'dist';
 
@@ -17,7 +17,7 @@ export default defineConfig({
     },
     plugins: [
         react(),
-        /* obfuscator({
+        obfuscator({
             // @ts-ignore
             compact: true,
             controlFlowFlattening: true,
@@ -31,7 +31,7 @@ export default defineConfig({
             splitStrings: true,
             splitStringsChunkLength: 10,
             identifierNamesGenerator: 'mangled'
-        }) */
+        })
     ],
     build: {
         outDir: outputDir,

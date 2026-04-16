@@ -42,7 +42,7 @@ export default defineConfig({
     build: {
         outDir: outputDir,
         emptyOutDir: false,
-        minify: false,
+        minify: true,
         lib: {
             entry: entryFile,
             formats: ['iife'],

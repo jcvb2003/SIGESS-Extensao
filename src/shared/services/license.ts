@@ -86,8 +86,6 @@ export class LicenseService {
     if (!sig) return false;
     try {
       const secret = this.getAppSecret();
-      console.log('[HMAC DEBUG] Secret length:', secret?.length);
-      console.log('[HMAC DEBUG] Secret prefix:', secret?.substring(0, 4));
       
       // Reconstroi o objeto com campos em ordem fixa para garantir o mesmo hash JSON.stringify
       const msg = JSON.stringify({
@@ -108,7 +106,6 @@ export class LicenseService {
         valid_until: data.valid_until,
         updated_at: data.updated_at
       });
-      console.log('[HMAC DEBUG] Payload to verify:', msg);
       
       const encoder = new TextEncoder();
       const keyData = encoder.encode(secret);
@@ -137,7 +134,8 @@ export class LicenseService {
   static async checkLicense(
     forceLive = false,
     forceConsume = false,
-    usageType: 'manual' | 'turbo' | 'agro' | 'activate' = 'manual'
+    usageType: 'manual' | 'turbo' | 'agro' | 'activate' = 'manual',
+    deviceName?: string
   ): Promise<LicenseResult> {
     // Se não for para consumir e não houver obrigatoriedade de live check, tenta o cache
     if (!forceConsume && !forceLive) {
@@ -150,7 +148,7 @@ export class LicenseService {
     // Ação: "check" (consome) ou "status" (apenas consulta/vincula)
     const action = forceConsume ? "check" : "status";
     
-    return this.performLiveCheck(action, usageType);
+    return this.performLiveCheck(action, usageType, deviceName);
   }
 
   private static async getMemoryCache(forceLive: boolean): Promise<LicenseResult | null> {

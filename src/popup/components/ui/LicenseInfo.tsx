@@ -101,7 +101,7 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const loadLicense = useCallback(async (forceLive = false, usageType: 'manual' | 'turbo' | 'agro' | 'activate' = 'manual') => {
     setRefreshing(true);
     try {
-      const result = await LicenseService.checkLicense(forceLive, false, usageType);
+      const result = await LicenseService.checkLicense(forceLive, false, usageType, deviceName);
       setLicense(result);
     } catch (e) {
       console.error(e);
@@ -109,7 +109,7 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [deviceName]);
 
   useEffect(() => {
     loadLicense();
