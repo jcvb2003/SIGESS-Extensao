@@ -19,7 +19,7 @@ const BatchLoginModal: React.FC<BatchLoginModalProps> = ({
       .map((l) => l.trim())
       .filter((l) => l);
     lines.forEach((line) => {
-      const parts = line.split(/[\t]+| {2,}/).map((item) => item.trim());
+      const parts = line.split(/[ \t]+/).map((item) => item.trim());
       for (let i = 0; i < parts.length; i += 2) {
         const cpf = parts[i];
         const senha = parts[i + 1];
@@ -32,7 +32,7 @@ const BatchLoginModal: React.FC<BatchLoginModalProps> = ({
       onConfirm(credentials);
     } else {
       alert(
-        "Nenhuma credencial válida encontrada. Use o formato: CPF [TAB] SENHA",
+        "Nenhuma credencial válida encontrada. Use o formato: CPF [TAB ou ESPAÇO] SENHA",
       );
     }
   };
@@ -48,13 +48,13 @@ const BatchLoginModal: React.FC<BatchLoginModalProps> = ({
 
         <div className="modal-body">
           <div className="modal-note">
-            Cole os dados do Excel abaixo. <br />
-            Formato: <strong>CPF [TAB] SENHA</strong>
+            Cole os dados do Excel ou texto abaixo. <br />
+            Formato: <strong>CPF [ESPAÇO ou TAB] SENHA</strong>
           </div>
 
           <textarea
             className="reap-textarea modal-textarea"
-            placeholder={`000.000.000-00\tSenha123\n111.111.111-11\tSenha456`}
+            placeholder={`000.000.000-00 Senha123\n111.111.111-11\tSenha456`}
             value={text}
             onChange={(e) => setText(e.target.value)}
           />

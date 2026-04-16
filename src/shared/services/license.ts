@@ -17,7 +17,8 @@ export type LicenseReason =
   | "internal_error"
   | "limit_reached_manual"
   | "limit_reached_turbo"
-  | "limit_reached_agro";
+  | "limit_reached_agro"
+  | "invalid_signature";
 
 export interface LicenseResult {
   ok: boolean;
@@ -39,8 +40,9 @@ export interface LicenseResult {
   devices?: number;
   max_devices?: number;
   expires_at?: string;
+  updated_at?: string; // NOVO: Timestamp de última alteração no servidor
   reason?: LicenseReason;
-  valid_until?: string; // Mantido no tipo, mas não confiamos no retorno do servidor
+  valid_until?: string;
   sig?: string;
   device_name?: string;
 
@@ -57,14 +59,20 @@ export class LicenseService {
     return license_key || null;
   }
 
-  static async saveKey(key: string): Promise<void> {
-    await browser.storage.local.set({ license_key: key });
+  static async resetCache(): Promise<void> {
     await browser.storage.local.remove("license_cache");
     this.memoryCache = null;
+    console.log("License cache has been reset.");
+  }
+
+  static async saveKey(key: string): Promise<void> {
+    await browser.storage.local.set({ license_key: key });
+    await this.resetCache();
   }
 
   private static getAppSecret(): string {
-    return (import.meta as any).env?.VITE_APP_SECRET || (globalThis as any).VITE_APP_SECRET_MOCK || "";
+    // @ts-ignore: Vite injects this
+    return (import.meta as any).env?.VITE_APP_SECRET || "";
   }
 
   /**
@@ -77,20 +85,32 @@ export class LicenseService {
   ): Promise<boolean> {
     if (!sig) return false;
     try {
-      // Reconstroi o objeto exatamente como o servidor o assinou
-      // Remove campos injetados pelo cliente (sig, signature, cache_until, last_check_date)
-      const { 
-        sig: _s, 
-        signature: _sig, 
-        cache_until: _cu, 
-        last_check_date: _lcd, 
-        ...serverData 
-      } = data;
+      const secret = this.getAppSecret();
+      console.log('[HMAC DEBUG] Secret length:', secret?.length);
+      console.log('[HMAC DEBUG] Secret prefix:', secret?.substring(0, 4));
       
-      const msg = JSON.stringify(serverData);
+      // Reconstroi o objeto com campos em ordem fixa para garantir o mesmo hash JSON.stringify
+      const msg = JSON.stringify({
+        ok: data.ok,
+        plan: data.plan,
+        status: data.status,
+        usage_manual: data.usage_manual,
+        max_manual: data.max_manual,
+        usage_turbo: data.usage_turbo,
+        max_turbo: data.max_turbo,
+        usage_agro: data.usage_agro,
+        max_agro: data.max_agro,
+        usage_count: data.usage_count,
+        max_usage: data.max_usage,
+        devices: data.devices,
+        max_devices: data.max_devices,
+        expires_at: data.expires_at,
+        valid_until: data.valid_until,
+        updated_at: data.updated_at
+      });
+      console.log('[HMAC DEBUG] Payload to verify:', msg);
       
       const encoder = new TextEncoder();
-      const secret = this.getAppSecret();
       const keyData = encoder.encode(secret);
       const msgData = encoder.encode(msg);
       
@@ -103,9 +123,8 @@ export class LicenseService {
       );
       
       // Converte hex string para Uint8Array
-      const sigHex = sig;
       const sigArray = new Uint8Array(
-        sigHex.match(/.{1,2}/g)!.map((byte) => Number.parseInt(byte, 16)),
+        sig.match(/.{1,2}/g)!.map((byte) => Number.parseInt(byte, 16)),
       );
       
       return await crypto.subtle.verify("HMAC", cryptoKey, sigArray, msgData);
@@ -122,7 +141,7 @@ export class LicenseService {
   ): Promise<LicenseResult> {
     // Se não for para consumir e não houver obrigatoriedade de live check, tenta o cache
     if (!forceConsume && !forceLive) {
-      const memory = this.getMemoryCache(forceLive);
+      const memory = await this.getMemoryCache(forceLive);
       if (memory) return memory;
       const storage = await this.getStorageCache(forceLive);
       if (storage) return storage;
@@ -134,9 +153,9 @@ export class LicenseService {
     return this.performLiveCheck(action, usageType);
   }
 
-  private static getMemoryCache(forceLive: boolean): LicenseResult | null {
+  private static async getMemoryCache(forceLive: boolean): Promise<LicenseResult | null> {
     if (forceLive || !this.memoryCache) return null;
-    if (!this.isCacheValid(this.memoryCache)) return null;
+    if (!(await this.isCacheValid(this.memoryCache))) return null;
     return this.memoryCache;
   }
 
@@ -152,7 +171,7 @@ export class LicenseService {
 
       const isAuthentic = await this.verifySignature(license_cache, sig);
       
-      if (isAuthentic && this.isCacheValid(license_cache)) {
+      if (isAuthentic && (await this.isCacheValid(license_cache))) {
         this.memoryCache = license_cache;
         return license_cache;
       }
@@ -160,17 +179,60 @@ export class LicenseService {
     return null;
   }
 
-  private static isCacheValid(cache: LicenseResult): boolean {
+  /**
+   * Verifica se o cache ainda é confiável.
+   * Além do tempo de expiração local (8h), realiza um "Version Check" rápido via REST 
+   * se o cache local estiver prestes a ser usado em uma sessão ativa.
+   */
+  private static async isCacheValid(cache: LicenseResult): Promise<boolean> {
     const now = new Date();
     
     // 1. Midnight Boundary (Deve ter sido validado na data de hoje local)
     const today = new Date().toISOString().split('T')[0];
     if (cache.last_check_date !== today) return false;
 
-    // 2. Local Extended Cache (8h) - Gerado pelo cliente no performLiveCheck
+    // 2. Local Extended Cache (8h)
     if (cache.cache_until && new Date(cache.cache_until) < now) return false;
 
+    // 3. Version Check (updated_at) - Otimizado via REST
+    // Se temos a key e o fingerprint, verificamos se o servidor tem um updated_at mais novo
+    if (cache.updated_at) {
+      const remoteVersion = await this.checkRemoteVersion();
+      if (remoteVersion && remoteVersion !== cache.updated_at) {
+        console.log("License cache invalidated: server version mismatch.");
+        return false;
+      }
+    }
+
     return true;
+  }
+
+  /**
+   * Query REST direta para buscar apenas o updated_at.
+   * Zero custo de Edge Function.
+   */
+  static async checkRemoteVersion(): Promise<string | null> {
+    try {
+      const key = await this.getSavedKey();
+      if (!key) return null;
+
+      const SUPABASE_URL = EDGE_FUNCTION_URL.split('/functions')[0];
+      const ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || "";
+      
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/licenses?select=updated_at&key=eq.${key}`, {
+        headers: {
+          "apikey": ANON_KEY,
+          "Authorization": `Bearer ${ANON_KEY}`
+        }
+      });
+
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data[0]?.updated_at || null;
+    } catch (e) {
+      console.error("Remote version check failed:", e);
+      return null;
+    }
   }
 
   private static async performLiveCheck(
@@ -187,12 +249,13 @@ export class LicenseService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-app-secret": this.getAppSecret()
         },
         body: JSON.stringify({ 
            key, 
            fingerprint, 
            action, 
-           resource: usageType, // REVERTIDO: O servidor v12 espera 'resource'
+           usage_type: usageType,
            device_name: deviceName
         }),
       });
@@ -201,6 +264,13 @@ export class LicenseService {
       const sig = result.signature || result.sig;
 
       if (result.ok && sig) {
+        // Validação imediata da assinatura recebida
+        const isValid = await this.verifySignature(result, sig);
+        if (!isValid) {
+          console.error('[SIGESS] Falha crítica: Assinatura do servidor inválida!');
+          return { ok: false, reason: "invalid_signature" };
+        }
+
         // Enriquecemos o resultado com dados de cache local
         // O cache_until e last_check_date são separados para não quebrar a conferência HMAC do serverData
         const CACHE_8H = 8 * 60 * 60 * 1000;
@@ -226,7 +296,7 @@ export class LicenseService {
   private static async handleFailOpen(): Promise<LicenseResult> {
     const { license_cache } = await browser.storage.local.get("license_cache");
     // Fail-open restrito ao mesmo dia e apenas para pagos
-    if (license_cache?.plan === "paid" && this.isCacheValid(license_cache)) {
+    if (license_cache?.plan === "paid" && (await this.isCacheValid(license_cache))) {
       return { ...license_cache, ok: true };
     }
     return { ok: false, reason: "network_error" };

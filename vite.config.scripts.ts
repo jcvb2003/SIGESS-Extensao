@@ -30,29 +30,29 @@ if (!entryFile) {
 }
 
 // Build dos Scripts (IIFE - Standalone)
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, process.cwd());
-    
-    return {
-        define: {
-            'import.meta.env.VITE_APP_SECRET': JSON.stringify(env.VITE_APP_SECRET)
+// Carrega as variáveis de ambiente (o '' força carregar todas independente de prefixo)
+const env = loadEnv('', process.cwd(), '');
+
+export default defineConfig({
+    define: {
+        'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
+        'import.meta.env.VITE_APP_SECRET': JSON.stringify(env.VITE_APP_SECRET),
+    },
+    plugins: [],
+    build: {
+        outDir: outputDir,
+        emptyOutDir: false,
+        minify: false,
+        lib: {
+            entry: entryFile,
+            formats: ['iife'],
+            name: `SIGESS_${target}`,
+            fileName: () => `assets/${target}.js`
         },
-        plugins: [],
-        build: {
-            outDir: outputDir,
-            emptyOutDir: false,
-            minify: true,
-            lib: {
-                entry: entryFile,
-                formats: ['iife'],
-                name: `SIGESS_${target}`,
-                fileName: () => `assets/${target}.js`
-            },
-            rollupOptions: {
-                output: {
-                    extend: true
-                }
+        rollupOptions: {
+            output: {
+                extend: true
             }
         }
-    };
+    }
 });

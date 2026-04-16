@@ -6,6 +6,7 @@ import { routeMessage } from "./message-router";
 import { BadgeManager } from "./services/badge-manager";
 import { VersionChecker } from "./services/version-checker";
 import { LicenseService } from "../shared/services/license";
+import { RealtimeLicenseService } from "./services/realtime-license";
 
 let tabManager: TabManager | null = null;
 
@@ -75,5 +76,10 @@ StorageService.getSettings().then(settings => {
 // Inicializa o alerta de atualização usando a API do GitHub
 VersionChecker.start();
 
-// Warmup da Licença: Valida e aquece o memoryCache no startup para resposta instantânea ao popup
+// Inicializa o Realtime para invalidação de cache instatânea
+RealtimeLicenseService.init().catch(err => console.error("Realtime Init Error:", err));
+
+// Warmup da Licença: Valida e aquece o memoryCache no startup.
+// Graças ao Version Check (REST) no isCacheValid, isso garante que se houver desvínculo, 
+// o cache será invalidado já no primeiro milissegundo de ativação do background.
 LicenseService.getStatus().catch(err => console.error("Background License Warmup Error:", err));
