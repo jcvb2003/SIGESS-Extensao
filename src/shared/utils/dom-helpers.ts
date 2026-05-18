@@ -1,16 +1,22 @@
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function simulateClick(element: HTMLElement) {
+  const view = element.ownerDocument?.defaultView ?? window;
   const events = ["mousedown", "mouseup", "click"];
-  events.forEach((evt) => {
-    const mouseEvt = new MouseEvent(evt, {
-      bubbles: true,
-      cancelable: true,
-      view: globalThis as unknown as Window,
-      detail: 1,
+  try {
+    events.forEach((evt) => {
+      const mouseEvt = new MouseEvent(evt, {
+        bubbles: true,
+        cancelable: true,
+        view,
+        detail: 1,
+      });
+      element.dispatchEvent(mouseEvt);
     });
-    element.dispatchEvent(mouseEvt);
-  });
+  } catch (error) {
+    console.warn("Falha ao disparar clique sintético; usando click() como fallback.", error);
+    element.click();
+  }
 }
 
 export async function waitFor(
