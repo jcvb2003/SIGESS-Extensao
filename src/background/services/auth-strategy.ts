@@ -71,23 +71,15 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     );
 
     if (isCpfScreen) {
-      try {
-        await DOMInjector.waitForElement(tabId, "#accountId", 5000);
-        await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
-        await DOMInjector.clickElement(tabId, "#enter-account-id");
-        await new Promise(r => setTimeout(r, 2000));
-      } catch (e) {
-        await this.updateStatus(tabId, "erro", "Erro no Login", `Falha ao preencher CPF: ${e}`);
-      }
+      await DOMInjector.waitForElement(tabId, "#accountId", 5000);
+      await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
+      await DOMInjector.clickElement(tabId, "#enter-account-id");
+      await new Promise(r => setTimeout(r, 2000));
     } else if (isPassScreen) {
-      try {
-        await DOMInjector.waitForElement(tabId, "#password", 5000);
-        await DOMInjector.setInputValue(tabId, "#password", creds.senha);
-        await DOMInjector.clickElement(tabId, "#submit-button");
-        await this.markLoginComplete(tabId);
-      } catch (e) {
-        await this.updateStatus(tabId, "erro", "Erro no Login", `Falha ao preencher senha: ${e}`);
-      }
+      await DOMInjector.waitForElement(tabId, "#password", 5000);
+      await DOMInjector.setInputValue(tabId, "#password", creds.senha);
+      await DOMInjector.clickElement(tabId, "#submit-button");
+      await this.markLoginComplete(tabId);
     }
   }
 }

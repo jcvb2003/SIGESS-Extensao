@@ -147,7 +147,8 @@ export class TabManager {
       } catch (error) {
         if (attempt === maxRetries) {
           console.error(`[TabManager] Falha na execução após ${maxRetries} tentativas:`, error);
-          throw error;
+          await strategy.updateStatus(tabId, "erro", "Erro no Login", `${error}`);
+          return;
         }
         const delayMs = 1000 * attempt;
         console.log(`[TabManager] Tentativa ${attempt} falhou, aguardando ${delayMs}ms antes de retry...`);
