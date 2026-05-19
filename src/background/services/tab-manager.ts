@@ -127,7 +127,32 @@ export class TabManager {
     );
 
     if (strategy) {
-      await strategy.execute(tabId, tab.url, credentials);
+      await this.executeWithRetry(tabId, tab.url, credentials, strategy);
+    }
+  }
+
+  private async executeWithRetry(
+    tabId: number,
+    tabUrl: string,
+    credentials: any,
+    strategy: any,
+    maxRetries = 3,
+  ): Promise<void> {
+    await new Promise(r => setTimeout(r, 2000));
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await strategy.execute(tabId, tabUrl, credentials);
+        return;
+      } catch (error) {
+        if (attempt === maxRetries) {
+          console.error(`[TabManager] Falha na execução após ${maxRetries} tentativas:`, error);
+          throw error;
+        }
+        const delayMs = 1000 * attempt;
+        console.log(`[TabManager] Tentativa ${attempt} falhou, aguardando ${delayMs}ms antes de retry...`);
+        await new Promise(r => setTimeout(r, delayMs));
+      }
     }
   }
 
