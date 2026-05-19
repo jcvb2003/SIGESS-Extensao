@@ -109,6 +109,10 @@ async function automatizarGPS(settings: AppSettings) {
     return;
   }
 
+  if (sessionStorage.getItem(`sigess_gps_flow_done_${competencia}`) === "true") {
+    return;
+  }
+
   const guiaExistente = await consultarGuiaExistente(competencia);
   if (guiaExistente.paga) {
     sessionStorage.setItem(`sigess_gps_flow_done_${competencia}`, "true");
@@ -130,6 +134,7 @@ async function automatizarGPS(settings: AppSettings) {
       { overlayState: null },
     );
     await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia);
+    window.location.href = "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias";
     return;
   }
 
