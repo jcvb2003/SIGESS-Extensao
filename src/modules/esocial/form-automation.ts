@@ -58,6 +58,11 @@ async function automatizarCompetencias(settings: AppSettings) {
     return;
   }
 
+  if (sessionStorage.getItem("sigess_volta_pos_download") === "1") {
+    sessionStorage.removeItem("sigess_volta_pos_download");
+    return;
+  }
+
   const competenciesLoadedMsg = esocialMessages.competenciesLoaded();
   logger.info("eSocial", competenciesLoadedMsg.title);
   reportBatchStatus(competenciesLoadedMsg.status, competenciesLoadedMsg.title, competenciesLoadedMsg.description);
@@ -123,7 +128,8 @@ async function automatizarGPS(settings: AppSettings) {
     const issuedMsg = esocialMessages.guideAlreadyIssued(formatCompetencia(competencia));
     logger.info("eSocial", issuedMsg.title);
     reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, { overlayState: null });
-    await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia);
+    await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+    sessionStorage.setItem("sigess_volta_pos_download", "1");
     window.location.href = "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias";
     return;
   }

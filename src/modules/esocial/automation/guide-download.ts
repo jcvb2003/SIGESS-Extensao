@@ -17,7 +17,11 @@ import { getBestCpf, getBestNome, extractCompetenciaFromUrl, extractCompetenciaF
 import { reportBatchStatus } from "./overlay-ui";
 import { esocialMessages } from "../utils/status-messages";
 
-export { baixarGuiaPdf as baixarGuiaPdfDirecto };
+export { baixarGuiaPdfDirecto };
+
+function baixarGuiaPdfDirecto(guiaUrl: string, competencia: string, boletoGerado = false, valorDeclarado?: number, valorPago?: number) {
+  return baixarGuiaPdf(guiaUrl, competencia, boletoGerado, valorDeclarado, valorPago);
+}
 
 export function observarBotaoEmitirGuia() {
   const sigessWindow = window as unknown as Record<string, unknown>;
@@ -114,7 +118,7 @@ function clearManualGuideDownloadInProgress() {
   sessionStorage.removeItem(MANUAL_GUIDE_DOWNLOAD_KEY);
 }
 
-async function baixarGuiaPdf(guiaUrl: string, competencia: string) {
+async function baixarGuiaPdf(guiaUrl: string, competencia: string, boletoGerado = false, valorDeclarado?: number, valorPago?: number) {
   const downloadingMsg = esocialMessages.manualEmitGuideDetected();
   logger.info("eSocial", downloadingMsg.title);
   reportBatchStatus(downloadingMsg.status, downloadingMsg.title, downloadingMsg.description, {
@@ -167,7 +171,7 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string) {
           contentType,
         });
 
-        return baixarGuiaPdf(resolvedPdfUrl, competencia);
+        return baixarGuiaPdf(resolvedPdfUrl, competencia, boletoGerado, valorDeclarado, valorPago);
       }
 
       if (html && looksLikeHtmlDocument(html)) {
@@ -206,10 +210,12 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string) {
 
     const successMsg = esocialMessages.pdfDownloadedSuccessfully(filename);
     logger.info("eSocial", successMsg.title);
-    reportBatchStatus(successMsg.status, successMsg.title, successMsg.description, {
+    reportBatchStatus("boleto_salvo", successMsg.title, successMsg.description, {
       loginConcluido: true,
       progressStep: 3,
       progressTotal: 3,
+      boletoGerado,
+      boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), valorDeclarado, valorPago },
       overlayState: {
         step: 3,
         total: 3,

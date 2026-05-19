@@ -103,7 +103,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     throw new Error("Nao foi possivel localizar a URL de emissao da guia apos o fechamento.");
   }
 
-  await baixarGuiaPdfDirecto(guiaUrl, competencia);
+  await baixarGuiaPdfDirecto(guiaUrl, competencia, true);
 
   sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
   await new Promise<void>((resolve) => setTimeout(resolve, 800));
@@ -233,6 +233,8 @@ export function releaseGpsFlowLock() {
 export type GuiaExistenteInfo = {
   paga: boolean;
   emissaoUrl: string | null;
+  valorDeclarado?: number;
+  valorPago?: number;
 };
 
 export async function consultarGuiaExistente(competencia: string): Promise<GuiaExistenteInfo> {
@@ -269,10 +271,14 @@ function extractGuiaExistenteInfo(doc: Document, competencia: string): GuiaExist
     if (!link) continue;
 
     const cells = Array.from(row.querySelectorAll("td"));
+    const declaredCell = cells[3];
     const paidCell = cells[4];
     if (!paidCell) return { paga: false, emissaoUrl: null };
 
+    const declaredValues = extractMoneyValues(declaredCell?.textContent || "");
     const paidValues = extractMoneyValues(paidCell.textContent || "");
+    const valorDeclarado = declaredValues[0];
+    const valorPago = paidValues[0] ?? 0;
     const hasPaidValue = paidValues.some((value) => value > 0);
     const emitirGuiaAnchor = Array.from(row.querySelectorAll("a")).find((anchor) =>
       isEmitirGuiaAnchor(anchor as HTMLAnchorElement),
@@ -283,12 +289,13 @@ function extractGuiaExistenteInfo(doc: Document, competencia: string): GuiaExist
 
     console.debug("[SIGESS] Verificacao de guia existente na competencia:", {
       competencia,
-      paidText: (paidCell.textContent || "").replace(/\s+/g, " ").trim(),
+      valorDeclarado,
+      valorPago,
       hasPaidValue,
       emissaoUrl,
     });
 
-    return { paga: hasPaidValue, emissaoUrl };
+    return { paga: hasPaidValue, emissaoUrl, valorDeclarado, valorPago };
   }
 
   return { paga: false, emissaoUrl: null };

@@ -356,6 +356,8 @@ async function handleGetGovBatchStatuses(message: MessageRequest) {
       progressStep: credentials.progressStep,
       progressTotal: credentials.progressTotal,
       loginConcluido: !!credentials.loginConcluido,
+      boletoInfo: credentials.boletoInfo,
+      boletoGerado: credentials.boletoGerado,
       lastError: credentials.lastError,
       lastUpdatedAt: credentials.lastUpdatedAt,
     }))
@@ -386,15 +388,7 @@ async function handleUpdateGovBatchStatus(
     return { success: false, error: "Nao foi possivel identificar a aba da automacao." };
   }
 
-  const {
-    status,
-    statusTitle,
-    statusDescription,
-    lastError,
-    loginConcluido,
-    progressStep,
-    progressTotal,
-  } = message as MessageRequest & {
+  const msg = message as MessageRequest & {
     status?: any;
     statusTitle?: string;
     statusDescription?: string;
@@ -402,7 +396,11 @@ async function handleUpdateGovBatchStatus(
     loginConcluido?: boolean;
     progressStep?: number;
     progressTotal?: number;
+    boletoInfo?: any;
+    boletoGerado?: boolean;
   };
+
+  const { status, statusTitle, statusDescription, lastError, loginConcluido, progressStep, progressTotal, boletoInfo, boletoGerado } = msg;
 
   if (!status || !statusTitle || !statusDescription) {
     return { success: false, error: "Payload de status incompleto." };
@@ -418,6 +416,8 @@ async function handleUpdateGovBatchStatus(
       loginConcluido,
       progressStep,
       progressTotal,
+      boletoInfo,
+      boletoGerado,
     },
   );
 
