@@ -1,3 +1,4 @@
+import { logger } from "../../../shared/services/logger";
 import {
   HOOKED_BUTTON_ATTR,
   GUIDE_OBSERVER_ATTR,
@@ -14,6 +15,7 @@ import {
 import { buildEsocialFilename, formatCompetencia } from "../utils/file-naming";
 import { getBestCpf, getBestNome, extractCompetenciaFromUrl, extractCompetenciaFromDom } from "../utils/esocial-extractors";
 import { reportBatchStatus } from "./overlay-ui";
+import { esocialMessages } from "../utils/status-messages";
 
 export { baixarGuiaPdf as baixarGuiaPdfDirecto };
 
@@ -67,25 +69,22 @@ export function observarBotaoEmitirGuia() {
           console.log("[SIGESS] Competencia extraida:", competencia);
 
           if (!targetUrl || !competencia) {
-            reportBatchStatus(
-              "erro",
-              "Nao foi possivel resolver a URL da guia",
-              "O botao foi encontrado, mas a extensao nao conseguiu descobrir o endereco final da emissao.",
-              { lastError: "URL de emissao nao resolvida." },
-            );
+            const resolveMsg = esocialMessages.failedToResolveGuideUrl();
+            logger.error("eSocial", resolveMsg.title);
+            reportBatchStatus(resolveMsg.status, resolveMsg.title, resolveMsg.description, {
+              lastError: "URL de emissão não resolvida."
+            });
             return;
           }
 
           try {
             await baixarGuiaPdf(targetUrl, competencia);
           } catch (error) {
-            console.error("[SIGESS] Falha ao baixar guia do eSocial:", error);
-            reportBatchStatus(
-              "erro",
-              "Falha ao baixar a guia",
-              "O eSocial nao devolveu o PDF esperado para a guia. A extensao voltou para o fluxo normal da pagina.",
-              { lastError: error instanceof Error ? error.message : String(error) },
-            );
+            const downloadMsg = esocialMessages.failedToDownloadGuide();
+            logger.error("eSocial", downloadMsg.title, { error: error instanceof Error ? error.message : String(error) });
+            reportBatchStatus(downloadMsg.status, downloadMsg.title, downloadMsg.description, {
+              lastError: error instanceof Error ? error.message : String(error)
+            });
             window.location.href = targetUrl;
           } finally {
             clearManualGuideDownloadInProgress();
@@ -116,21 +115,18 @@ function clearManualGuideDownloadInProgress() {
 }
 
 async function baixarGuiaPdf(guiaUrl: string, competencia: string) {
-  reportBatchStatus(
-    "processando",
-    "Baixando PDF da guia",
-    `A folha foi encerrada e a extensao esta solicitando o PDF da competencia ${formatCompetencia(competencia)}.`,
-    {
-      progressStep: 2,
-      progressTotal: 3,
-      overlayState: {
-        step: 2,
-        total: 3,
-        title: "Executando script no eSocial",
-        description: `Preparando o download do PDF da competencia ${formatCompetencia(competencia)}.`,
-      },
+  const downloadingMsg = esocialMessages.manualEmitGuideDetected();
+  logger.info("eSocial", downloadingMsg.title);
+  reportBatchStatus(downloadingMsg.status, downloadingMsg.title, downloadingMsg.description, {
+    progressStep: 2,
+    progressTotal: 3,
+    overlayState: {
+      step: 2,
+      total: 3,
+      title: "Executando script no eSocial",
+      description: `Preparando download do boleto de ${formatCompetencia(competencia)}...`,
     },
-  );
+  });
 
   console.log("[SIGESS] Iniciando fetch da guia URL:", guiaUrl);
   const controller = new AbortController();
@@ -182,24 +178,21 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string) {
 
         await savePendingEsocialDownloadHint(filename);
         openBlobInNewTab(blob, contentType || "text/html");
-        reportBatchStatus(
-          "concluido",
-          "Guia aberta em nova aba",
-          `O eSocial retornou uma pagina HTML de emissao para a competencia ${periodo}. A extensao abriu essa guia em nova aba, como no script manual.`,
-          {
-            loginConcluido: true,
-            progressStep: 3,
-            progressTotal: 3,
-            overlayState: {
-              step: 3,
-              total: 3,
-              title: "Guia aberta em nova aba",
-              description: `A emissao da guia ${filename} foi aberta para finalizacao.`,
-              complete: true,
-              hideAt: Date.now() + 4000,
-            },
+        const tabMsg = esocialMessages.guideOpenedInNewTab(filename);
+        logger.info("eSocial", tabMsg.title);
+        reportBatchStatus(tabMsg.status, tabMsg.title, tabMsg.description, {
+          loginConcluido: true,
+          progressStep: 3,
+          progressTotal: 3,
+          overlayState: {
+            step: 3,
+            total: 3,
+            title: "Boleto aberto em nova aba",
+            description: `Finalize a emissão: ${filename}`,
+            complete: true,
+            hideAt: Date.now() + 4000,
           },
-        );
+        });
         return;
       }
 
@@ -213,30 +206,23 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string) {
     const periodo = formatCompetencia(competencia);
     const filename = buildEsocialFilename(nomeBruto, cpf, competencia);
 
-    console.log("[SIGESS] Preparado para download:", { filename, cpf, nomeBruto });
-
-    reportBatchStatus(
-      "concluido",
-      "PDF baixado com sucesso",
-      `A guia da competencia ${periodo} foi gerada e o download ${filename} foi iniciado.`,
-      {
-        loginConcluido: true,
-        progressStep: 3,
-        progressTotal: 3,
-        overlayState: {
-          step: 3,
-          total: 3,
-          title: "PDF baixado com sucesso",
-          description: `A guia ${filename} foi gerada e baixada com sucesso.`,
-          complete: true,
-          hideAt: Date.now() + 4000,
-        },
+    const successMsg = esocialMessages.pdfDownloadedSuccessfully(filename);
+    logger.info("eSocial", successMsg.title);
+    reportBatchStatus(successMsg.status, successMsg.title, successMsg.description, {
+      loginConcluido: true,
+      progressStep: 3,
+      progressTotal: 3,
+      overlayState: {
+        step: 3,
+        total: 3,
+        title: "Boleto salvo com sucesso",
+        description: `Arquivo: ${filename}`,
+        complete: true,
+        hideAt: Date.now() + 4000,
       },
-    );
+    });
 
-    console.log("[SIGESS] Triggerando download local...");
     await triggerLocalDownload(blob, filename);
-    console.log("[SIGESS] Download completado");
   } finally {
     clearTimeout(timeoutId);
   }
