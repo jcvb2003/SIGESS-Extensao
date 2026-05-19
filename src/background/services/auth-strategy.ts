@@ -50,6 +50,25 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     }
   }
 
+  async setBoletoInfo(
+    tabId: number,
+    detectado: boolean,
+    competencia?: string,
+    valorDeclarado?: number,
+    valorPago?: number,
+    gerado?: boolean,
+  ): Promise<void> {
+    const creds = await StorageService.getCredentials(tabId);
+    if (creds) {
+      creds.boletoInfo = { detectado, competencia, valorDeclarado, valorPago };
+      if (gerado !== undefined) {
+        creds.boletoGerado = gerado;
+      }
+      creds.lastUpdatedAt = Date.now();
+      await StorageService.saveCredentials(tabId, creds);
+    }
+  }
+
   async isLoginComplete(tabId: number): Promise<boolean> {
     const creds = await StorageService.getCredentials(tabId);
     return !!creds?.loginConcluido;
