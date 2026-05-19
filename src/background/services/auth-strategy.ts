@@ -71,15 +71,25 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     );
 
     if (isCpfScreen) {
-      await DOMInjector.waitForElement(tabId, "#accountId", 5000);
-      await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
-      await DOMInjector.clickElement(tabId, "#enter-account-id");
-      await new Promise(r => setTimeout(r, 2000));
+      try {
+        await DOMInjector.waitForElement(tabId, "#accountId", 5000);
+        await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
+        await DOMInjector.clickElement(tabId, "#enter-account-id");
+        await new Promise(r => setTimeout(r, 2000));
+      } catch (e) {
+        console.log(`[Auth] Erro ao preencher CPF:`, e);
+        throw e;
+      }
     } else if (isPassScreen) {
-      await DOMInjector.waitForElement(tabId, "#password", 5000);
-      await DOMInjector.setInputValue(tabId, "#password", creds.senha);
-      await DOMInjector.clickElement(tabId, "#submit-button");
-      await this.markLoginComplete(tabId);
+      try {
+        await DOMInjector.waitForElement(tabId, "#password", 5000);
+        await DOMInjector.setInputValue(tabId, "#password", creds.senha);
+        await DOMInjector.clickElement(tabId, "#submit-button");
+        await this.markLoginComplete(tabId);
+      } catch (e) {
+        console.log(`[Auth] Erro ao preencher senha:`, e);
+        throw e;
+      }
     }
   }
 }
