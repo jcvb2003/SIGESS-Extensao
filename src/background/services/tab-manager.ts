@@ -98,7 +98,9 @@ export class TabManager {
           loginConcluido: false,
           govBrCpfSubmitted: false,
           govBrPasswordSubmitted: false,
-          status: "abrindo_sessao",
+          status: "abrindo_em_lote",
+          statusTitle: "Abrindo em lote",
+          statusDescription: "Abrindo aba para autenticação...",
           lastUpdatedAt: Date.now(),
         });
       }

@@ -21,11 +21,32 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     credentials: UserCredentials,
   ): Promise<void>;
 
+  async updateStatus(
+    tabId: number,
+    status: string,
+    title: string,
+    description: string,
+  ): Promise<void> {
+    const creds = await StorageService.getCredentials(tabId);
+    if (creds) {
+      creds.status = status as any;
+      creds.statusTitle = title;
+      creds.statusDescription = description;
+      creds.lastUpdatedAt = Date.now();
+      await StorageService.saveCredentials(tabId, creds);
+    }
+  }
+
   async markLoginComplete(tabId: number): Promise<void> {
     const creds = await StorageService.getCredentials(tabId);
     if (creds) {
       creds.loginConcluido = true;
+      creds.status = "acessando_esocial";
+      creds.statusTitle = "Acessando o E-social";
+      creds.statusDescription = "Conectando ao portal de serviços...";
+      creds.lastUpdatedAt = Date.now();
       await StorageService.saveCredentials(tabId, creds);
+      console.log(`[Auth] markLoginComplete executada para tabId=${tabId}`);
     }
   }
 
@@ -38,6 +59,8 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     tabId: number,
     creds: UserCredentials,
   ): Promise<void> {
+    await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Preenchendo credenciais no Gov.BR...");
+
     const isCpfScreen = await DOMInjector.execute(
       tabId,
       () => !!document.querySelector("#accountId"),
@@ -48,14 +71,23 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     );
 
     if (isCpfScreen) {
-      await DOMInjector.waitForElement(tabId, "#accountId");
-      await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
-      await DOMInjector.clickElement(tabId, "#enter-account-id");
+      try {
+        await DOMInjector.waitForElement(tabId, "#accountId", 5000);
+        await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
+        await DOMInjector.clickElement(tabId, "#enter-account-id");
+        await new Promise(r => setTimeout(r, 2000));
+      } catch (e) {
+        await this.updateStatus(tabId, "erro", "Erro no Login", `Falha ao preencher CPF: ${e}`);
+      }
     } else if (isPassScreen) {
-      await DOMInjector.waitForElement(tabId, "#password");
-      await DOMInjector.setInputValue(tabId, "#password", creds.senha);
-      await DOMInjector.clickElement(tabId, "#submit-button");
-      await this.markLoginComplete(tabId);
+      try {
+        await DOMInjector.waitForElement(tabId, "#password", 5000);
+        await DOMInjector.setInputValue(tabId, "#password", creds.senha);
+        await DOMInjector.clickElement(tabId, "#submit-button");
+        await this.markLoginComplete(tabId);
+      } catch (e) {
+        await this.updateStatus(tabId, "erro", "Erro no Login", `Falha ao preencher senha: ${e}`);
+      }
     }
   }
 }
