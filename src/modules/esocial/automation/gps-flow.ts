@@ -1,6 +1,5 @@
 import { logger } from "../../../shared/services/logger";
 import { AppSettings } from "../../../shared/types";
-import { formatCompetencia } from "../utils/file-naming";
 import { extractMoneyValues } from "../utils/esocial-extractors";
 import {
   GPS_FLOW_LOCK_KEY,

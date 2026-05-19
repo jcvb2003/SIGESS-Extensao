@@ -171,7 +171,6 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string) {
       }
 
       if (html && looksLikeHtmlDocument(html)) {
-        const periodo = formatCompetencia(competencia);
         const cpf = await getBestCpf();
         const nomeBruto = await getBestNome();
         const filename = buildEsocialFilename(nomeBruto, cpf, competencia);
@@ -203,7 +202,6 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string) {
 
     const cpf = await getBestCpf();
     const nomeBruto = await getBestNome();
-    const periodo = formatCompetencia(competencia);
     const filename = buildEsocialFilename(nomeBruto, cpf, competencia);
 
     const successMsg = esocialMessages.pdfDownloadedSuccessfully(filename);

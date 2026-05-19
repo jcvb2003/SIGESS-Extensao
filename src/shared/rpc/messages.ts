@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { AppSettings } from "../types";
 
 // ============ Base Response ============
 export const BaseResponseSchema = z.object({
@@ -14,15 +13,17 @@ export const CheckLicenseRequestSchema = z.object({
   action: z.literal("checkLicense"),
 });
 
-export const CheckLicenseResponseSchema = BaseResponseSchema.extend({
-  ok: z.boolean().optional(),
-  plan: z.string().optional(),
-  reason: z.string().optional(),
-  usage_manual: z.number().optional(),
-  max_manual: z.number().optional(),
-  usage_turbo: z.number().optional(),
-  max_turbo: z.number().optional(),
-});
+export const CheckLicenseResponseSchema = BaseResponseSchema.merge(
+  z.object({
+    ok: z.boolean().optional(),
+    plan: z.string().optional(),
+    reason: z.string().optional(),
+    usage_manual: z.number().optional(),
+    max_manual: z.number().optional(),
+    usage_turbo: z.number().optional(),
+    max_turbo: z.number().optional(),
+  })
+);
 
 export type CheckLicenseRequest = z.infer<typeof CheckLicenseRequestSchema>;
 export type CheckLicenseResponse = z.infer<typeof CheckLicenseResponseSchema>;
@@ -30,12 +31,14 @@ export type CheckLicenseResponse = z.infer<typeof CheckLicenseResponseSchema>;
 // ============ Settings Messages ============
 export const UpdateESocialSettingsRequestSchema = z.object({
   action: z.literal("updateESocialSettings"),
-  settings: z.record(z.unknown()),
+  settings: z.any(),
 });
 
-export const UpdateESocialSettingsResponseSchema = BaseResponseSchema.extend({
-  settings: z.record(z.unknown()).optional(),
-});
+export const UpdateESocialSettingsResponseSchema = BaseResponseSchema.merge(
+  z.object({
+    settings: z.any().optional(),
+  })
+);
 
 export type UpdateESocialSettingsRequest = z.infer<typeof UpdateESocialSettingsRequestSchema>;
 export type UpdateESocialSettingsResponse = z.infer<typeof UpdateESocialSettingsResponseSchema>;
@@ -70,10 +73,12 @@ export const StartBatchLoginRequestSchema = z.object({
   ),
 });
 
-export const StartBatchLoginResponseSchema = BaseResponseSchema.extend({
-  count: z.number().optional(),
-  failed: z.number().optional(),
-});
+export const StartBatchLoginResponseSchema = BaseResponseSchema.merge(
+  z.object({
+    count: z.number().optional(),
+    failed: z.number().optional(),
+  })
+);
 
 export type StartBatchLoginRequest = z.infer<typeof StartBatchLoginRequestSchema>;
 export type StartBatchLoginResponse = z.infer<typeof StartBatchLoginResponseSchema>;
@@ -85,12 +90,14 @@ export const AbrirAbaContainerRequestSchema = z.object({
   cpf: z.string(),
   senha: z.string(),
   nome: z.string().optional(),
-  auditoriaData: z.record(z.unknown()).optional(),
+  auditoriaData: z.any().optional(),
 });
 
-export const AbrirAbaContainerResponseSchema = BaseResponseSchema.extend({
-  queued: z.boolean().optional(),
-});
+export const AbrirAbaContainerResponseSchema = BaseResponseSchema.merge(
+  z.object({
+    queued: z.boolean().optional(),
+  })
+);
 
 export type AbrirAbaContainerRequest = z.infer<typeof AbrirAbaContainerRequestSchema>;
 export type AbrirAbaContainerResponse = z.infer<typeof AbrirAbaContainerResponseSchema>;
