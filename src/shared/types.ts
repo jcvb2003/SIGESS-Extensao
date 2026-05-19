@@ -11,6 +11,8 @@ export interface UserCredentials {
   status?: GovBatchItemStatus;
   statusTitle?: string;
   statusDescription?: string;
+  boletoInfo?: BoletoInfo;
+  boletoGerado?: boolean;
   lastError?: string;
   lastUpdatedAt?: number;
 }
@@ -22,12 +24,20 @@ export type GovBatchItemStatus =
   | "acessando_esocial"
   | "consultando"
   | "verificando_boleto"
+  | "boleto_salvo"
   | "gerando_pdf"
   | "redirecionando"
   | "concluido"
   | "erro"
   | "expirado"
   | "ignorado";
+
+export interface BoletoInfo {
+  detectado: boolean;
+  competencia?: string;
+  valorDeclarado?: number;
+  valorPago?: number;
+}
 
 export interface MultiLoginItem {
   id: string;
