@@ -1,6 +1,11 @@
 import { StorageService } from "./services/storage";
 import { LicenseService } from "../shared/services/license";
-import { MessageRequest, MessageResponse, MultiLoginItem } from "../shared/types";
+import {
+  GovBatchQueueItem,
+  MessageRequest,
+  MessageResponse,
+  MultiLoginItem,
+} from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
 
 function isUrlAllowed(url: string): boolean {
@@ -22,6 +27,7 @@ function isUrlAllowed(url: string): boolean {
 export async function routeMessage(
   message: MessageRequest,
   getTabManager: () => any,
+  sender?: browser.runtime.MessageSender,
 ): Promise<MessageResponse> {
   const action = message.action || (message as any).type;
   try {
@@ -41,10 +47,18 @@ export async function routeMessage(
         return await handleStartBatchLogin(message, getTabManager);
       case "abrirAbaContainer":
         return await handleAbrirAbaContainer(message, getTabManager);
+      case "enqueueGovBatchSessions":
+        return await handleEnqueueGovBatchSessions(message, getTabManager);
+      case "getGovBatchStatuses":
+        return await handleGetGovBatchStatuses(message);
+      case "updateGovBatchStatus":
+        return await handleUpdateGovBatchStatus(message, sender);
       case "turboFillReap":
         return await handleTurboFillReap(message);
       case "SAVE_PESSOA_DATA":
         return await handleSavePessoaData(message);
+      case "downloadESocialGuide":
+        return await handleDownloadESocialGuide(message);
       default:
         return {
           success: false,
@@ -100,7 +114,14 @@ async function handleStartBatchLogin(
   if (!targetUrl) return { success: false, error: "Tipo de login inválido" };
   const results = await Promise.allSettled(
     credentials.map((cred: any, index: number) =>
-      getTabManager().createSession(targetUrl, cred.cpf, cred.senha, index + 1, cred.nome),
+      getTabManager().createSession(
+        targetUrl,
+        cred.cpf,
+        cred.senha,
+        index + 1,
+        cred.nome,
+        type as "pesqbrasil" | "esocial",
+      ),
     ),
   );
   const succeeded = results.filter((r) => r.status === "fulfilled").length;
@@ -182,7 +203,210 @@ async function handleAbrirAbaContainer(
 
   // Se estiver DESATIVADO, abre a aba imediatamente (comportamento original)
   const randIndex = Math.floor(Math.random() * 1000);
-  await getTabManager().createSession(url, cpf, senha, randIndex, nome);
+  await getTabManager().createSession(
+    url,
+    cpf,
+    senha,
+    randIndex,
+    nome,
+    url.includes("esocial") ? "esocial" : "pesqbrasil",
+  );
+  return { success: true };
+}
+
+async function handleEnqueueGovBatchSessions(
+  message: MessageRequest,
+  getTabManager: () => any,
+) {
+  const license = await LicenseService.checkLicense(false, false);
+  if (!license.ok) {
+    return {
+      success: false,
+      error: `LicenÃ§a InvÃ¡lida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
+    };
+  }
+
+  const rawItems = Array.isArray((message as any).items)
+    ? ((message as any).items as GovBatchQueueItem[])
+    : [];
+
+  if (rawItems.length === 0) {
+    return { success: false, error: "Nenhum item GOV foi informado para a fila." };
+  }
+
+  const settings = await StorageService.getSettings();
+  const now = Date.now();
+  const queue = (settings.multiLoginQueue || []).filter((item) => {
+    const age = now - item.timestamp;
+    return age < 30 * 60 * 1000;
+  });
+
+  const availableSlots = Math.max(0, 5 - queue.length);
+  if (availableSlots === 0) {
+    return {
+      success: false,
+      error: "Fila da extensÃ£o cheia (mÃ¡x 5). Abra o lote atual antes de enviar novos itens.",
+    };
+  }
+
+  const existingCpfs = new Set(queue.map((item) => item.cpf));
+  const newQueueItems: MultiLoginItem[] = [];
+
+  for (const item of rawItems) {
+    if (!item?.cpf || !item?.senha || !item?.url) {
+      continue;
+    }
+
+    if (newQueueItems.length >= availableSlots) {
+      break;
+    }
+
+    if (existingCpfs.has(item.cpf)) {
+      continue;
+    }
+
+    existingCpfs.add(item.cpf);
+    newQueueItems.push({
+      id: Math.random().toString(36).substring(2, 11),
+      nome: item.nome || item.cpf,
+      cpf: item.cpf,
+      senha: item.senha,
+      url: item.url,
+      type: "esocial",
+      timestamp: Date.now(),
+    });
+  }
+
+  if (newQueueItems.length === 0) {
+    return {
+      success: false,
+      error: "Nenhum item GOV novo e valido foi aceito para a fila.",
+    };
+  }
+
+  const nextQueue = [...queue, ...newQueueItems];
+  await StorageService.saveSettings({ ...settings, multiLoginQueue: nextQueue });
+  BadgeManager.setQueueCount(nextQueue.length);
+
+  const credentials = newQueueItems.map((item) => ({
+    cpf: item.cpf,
+    senha: item.senha,
+    nome: item.nome,
+  }));
+
+  const openResult = await handleStartBatchLogin(
+    {
+      action: "startBatchLogin",
+      type: "esocial",
+      credentials,
+    } as MessageRequest,
+    getTabManager,
+  );
+
+  const remainingQueue = nextQueue.filter(
+    (queuedItem) => !newQueueItems.some((newItem) => newItem.id === queuedItem.id),
+  );
+  await StorageService.saveSettings({ ...settings, multiLoginQueue: remainingQueue });
+  BadgeManager.setQueueCount(remainingQueue.length);
+
+  return {
+    success: true,
+    queued: true,
+    count: newQueueItems.length,
+    total: remainingQueue.length,
+    opened: openResult.success ? openResult.count || 0 : 0,
+    failed: openResult.success ? openResult.failed || 0 : newQueueItems.length,
+  };
+}
+
+async function handleGetGovBatchStatuses(message: MessageRequest) {
+  const requestedCpfs = Array.isArray((message as any).cpfs)
+    ? ((message as any).cpfs as string[])
+    : [];
+
+  const normalizedCpfs = new Set(
+    requestedCpfs
+      .map((cpf) => String(cpf || "").replace(/\D/g, ""))
+      .filter(Boolean),
+  );
+
+  const allCredentials = await StorageService.getAllCredentials();
+  const rawItems = Object.entries(allCredentials)
+    .map(([key, credentials]) => ({
+      tabId: Number(key.replace("credenciais_", "")),
+      cpf: String(credentials.cpf || "").replace(/\D/g, ""),
+      nome: credentials.nome,
+      status: credentials.status || (credentials.loginConcluido ? "concluido" : "aguardando_pagina"),
+      statusTitle: credentials.statusTitle,
+      statusDescription: credentials.statusDescription,
+      progressStep: credentials.progressStep,
+      progressTotal: credentials.progressTotal,
+      loginConcluido: !!credentials.loginConcluido,
+      lastError: credentials.lastError,
+      lastUpdatedAt: credentials.lastUpdatedAt,
+    }))
+    .filter((item) => item.cpf && (normalizedCpfs.size === 0 || normalizedCpfs.has(item.cpf)));
+
+  const latestByCpf = new Map<string, (typeof rawItems)[number]>();
+  for (const item of rawItems) {
+    const current = latestByCpf.get(item.cpf);
+    if (!current || (item.lastUpdatedAt || 0) >= (current.lastUpdatedAt || 0)) {
+      latestByCpf.set(item.cpf, item);
+    }
+  }
+
+  const items = Array.from(latestByCpf.values());
+
+  return {
+    success: true,
+    items,
+  };
+}
+
+async function handleUpdateGovBatchStatus(
+  message: MessageRequest,
+  sender?: browser.runtime.MessageSender,
+) {
+  const tabId = sender?.tab?.id;
+  if (typeof tabId !== "number") {
+    return { success: false, error: "Nao foi possivel identificar a aba da automacao." };
+  }
+
+  const {
+    status,
+    statusTitle,
+    statusDescription,
+    lastError,
+    loginConcluido,
+    progressStep,
+    progressTotal,
+  } = message as MessageRequest & {
+    status?: any;
+    statusTitle?: string;
+    statusDescription?: string;
+    lastError?: string;
+    loginConcluido?: boolean;
+    progressStep?: number;
+    progressTotal?: number;
+  };
+
+  if (!status || !statusTitle || !statusDescription) {
+    return { success: false, error: "Payload de status incompleto." };
+  }
+
+  await StorageService.updateBatchStatus(
+    tabId,
+    status,
+    statusTitle,
+    statusDescription,
+    {
+      lastError,
+      loginConcluido,
+      progressStep,
+      progressTotal,
+    },
+  );
+
   return { success: true };
 }
 
@@ -233,5 +457,27 @@ async function handleSavePessoaData(message: MessageRequest) {
     return { success: true, settings: newSettings };
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+}
+
+async function handleDownloadESocialGuide(message: MessageRequest) {
+  const { dataUrl, filename } = message;
+  if (!dataUrl || !filename) {
+    return { success: false, error: "Dados do download não fornecidos." };
+  }
+
+  console.log("[SIGESS] Background: Iniciando download com filename:", filename);
+  try {
+    const downloadId = await (browser as any).downloads.download({
+      url: dataUrl,
+      filename,
+      saveAs: false,
+      conflictAction: "uniquify",
+    });
+    console.log("[SIGESS] Background: Download iniciado com ID:", downloadId);
+
+    return { success: true, downloadId };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Falha ao baixar guia do eSocial." };
   }
 }

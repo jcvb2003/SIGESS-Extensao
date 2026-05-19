@@ -1,4 +1,4 @@
-import { AppSettings, UserCredentials, PessoaData } from "../../shared/types";
+import { AppSettings, GovBatchItemStatus, UserCredentials, PessoaData } from "../../shared/types";
 
 declare var chrome: any;
 declare var browser: any;
@@ -147,11 +147,67 @@ export class StorageService {
   static async saveCredentials(tabId: number, creds: UserCredentials): Promise<void> {
     const key = `credenciais_${tabId}`;
     await this.set({ [key]: creds });
+    await this.set({ sigess_last_esocial_credentials: creds });
   }
 
   static async clearCredentials(tabId: number): Promise<void> {
     const key = `credenciais_${tabId}`;
     await this.remove(key);
+  }
+
+  static async updateCredentials(
+    tabId: number,
+    patch: Partial<UserCredentials>,
+  ): Promise<UserCredentials | null> {
+    const current = await this.getCredentials(tabId);
+    if (!current) return null;
+
+    const next: UserCredentials = {
+      ...current,
+      ...patch,
+      lastUpdatedAt: Date.now(),
+    };
+
+    await this.saveCredentials(tabId, next);
+    return next;
+  }
+
+  static async updateBatchStatus(
+    tabId: number,
+    status: GovBatchItemStatus,
+    statusTitle: string,
+    statusDescription: string,
+    extra?: Partial<UserCredentials>,
+  ): Promise<UserCredentials | null> {
+    return this.updateCredentials(tabId, {
+      status,
+      statusTitle,
+      statusDescription,
+      lastError: extra?.lastError,
+      loginConcluido: extra?.loginConcluido,
+      ...extra,
+    });
+  }
+
+  static async getLastEsocialCredentials(): Promise<UserCredentials | null> {
+    const result = await this.get<UserCredentials>("sigess_last_esocial_credentials");
+    return result.sigess_last_esocial_credentials || null;
+  }
+
+  static async getAllCredentials(): Promise<Record<string, UserCredentials>> {
+    const storage = getBrowserStorage();
+    if (!storage) return {};
+
+    const all = await storage.get(null);
+    const credentials: Record<string, UserCredentials> = {};
+
+    for (const [key, value] of Object.entries(all)) {
+      if (key.startsWith("credenciais_")) {
+        credentials[key] = value as UserCredentials;
+      }
+    }
+
+    return credentials;
   }
 }
 

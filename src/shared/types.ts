@@ -1,8 +1,29 @@
 export interface UserCredentials {
   cpf: string;
   senha: string;
+  nome?: string;
+  portalType?: "pesqbrasil" | "esocial";
+  progressStep?: number;
+  progressTotal?: number;
   loginConcluido?: boolean;
+  govBrCpfSubmitted?: boolean;
+  govBrPasswordSubmitted?: boolean;
+  status?: GovBatchItemStatus;
+  statusTitle?: string;
+  statusDescription?: string;
+  lastError?: string;
+  lastUpdatedAt?: number;
 }
+
+export type GovBatchItemStatus =
+  | "enfileirado"
+  | "abrindo_sessao"
+  | "aguardando_pagina"
+  | "processando"
+  | "concluido"
+  | "erro"
+  | "expirado"
+  | "ignorado";
 
 export interface MultiLoginItem {
   id: string;
@@ -12,6 +33,13 @@ export interface MultiLoginItem {
   url: string;
   type: 'pesqbrasil' | 'esocial';
   timestamp: number;
+}
+
+export interface GovBatchQueueItem {
+  cpf: string;
+  senha: string;
+  nome?: string;
+  url: string;
 }
 
 export interface AppSettings {

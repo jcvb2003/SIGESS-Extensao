@@ -10,6 +10,7 @@
     "activeTab",
     "scripting",
     "storage",
+    "downloads",
     "alarms",
     "clipboardWrite",
     "https://pesqbrasil-pescadorprofissional.agro.gov.br/*",
@@ -71,7 +72,8 @@
       "matches": [
         "https://www.esocial.gov.br/portal/Home/Inicial*",
         "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias*",
-        "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/ListarPagamentos*"
+        "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/ListarPagamentos*",
+        "https://www.esocial.gov.br/portal/FolhaPagamento/FechamentoFolha*"
       ],
       "js": [
         "assets/content_esocial.js"

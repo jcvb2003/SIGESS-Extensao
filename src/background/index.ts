@@ -9,6 +9,7 @@ import { LicenseService } from "../shared/services/license";
 import { RealtimeLicenseService } from "./services/realtime-license";
 
 let tabManager: TabManager | null = null;
+const ESOCIAL_PENDING_DOWNLOAD_HINT_KEY = "sigess_esocial_pending_download_hint";
 
 function getTabManager() {
   tabManager ??= new TabManager();
@@ -19,10 +20,10 @@ console.log("SIGESS Background Service Initialized");
 browser.runtime.onMessage.addListener(
   (
     message: MessageRequest,
-    _sender,
+    sender,
     sendResponse: (response: MessageResponse) => void,
   ) => {
-    routeMessage(message, getTabManager).then(sendResponse);
+    routeMessage(message, getTabManager, sender).then(sendResponse);
     return true;
   },
 );
@@ -48,7 +49,16 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       const cpf = cpfMatch ? cpfMatch[1] : null;
       const senha = senhaMatch ? decodeURIComponent(senhaMatch[1]) : null;
       if (cpf && senha) {
-        await StorageService.saveCredentials(tabId, { cpf, senha });
+        const existingCreds = await StorageService.getCredentials(tabId);
+        await StorageService.saveCredentials(tabId, {
+          cpf,
+          senha,
+          nome: existingCreds?.nome,
+          portalType: existingCreds?.portalType,
+          loginConcluido: existingCreds?.loginConcluido,
+          govBrCpfSubmitted: existingCreds?.govBrCpfSubmitted,
+          govBrPasswordSubmitted: existingCreds?.govBrPasswordSubmitted,
+        });
         const cleanUrl = currentUrl.split("#")[0];
         await browser.tabs.update(tabId, { url: cleanUrl });
       }
@@ -67,6 +77,118 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
     console.error("TabManager onRemoved error:", e);
   }
 });
+
+setInterval(() => {
+  void getTabManager().retryPendingSessions().catch((error) => {
+    console.error("Pending sessions watchdog error:", error);
+  });
+}, 4000);
+
+const downloadsApi = (browser as any).downloads;
+
+if (downloadsApi?.onDeterminingFilename?.addListener) {
+  downloadsApi.onDeterminingFilename.addListener((downloadItem: any, suggest: any) => {
+    void handleEsocialFilename(downloadItem, suggest);
+    return true;
+  });
+}
+
+async function handleEsocialFilename(downloadItem: any, suggest: any): Promise<void> {
+  try {
+    const sourceUrl = downloadItem.finalUrl || downloadItem.url || "";
+    const currentFilename = downloadItem.filename || "";
+    const pendingHintResult = await StorageService.get<any>(ESOCIAL_PENDING_DOWNLOAD_HINT_KEY);
+    const pendingHint = pendingHintResult?.[ESOCIAL_PENDING_DOWNLOAD_HINT_KEY];
+    const hasPendingHint = !!pendingHint?.filename && Number(pendingHint?.expiresAt || 0) > Date.now();
+    const isEsocialGuide =
+      sourceUrl.includes("esocial.gov.br") ||
+      currentFilename.includes("GuiaPagamento_") ||
+      (hasPendingHint &&
+        (sourceUrl.startsWith("blob:") ||
+          sourceUrl.startsWith("data:") ||
+          currentFilename.toLowerCase().endsWith(".pdf")));
+
+    if (!isEsocialGuide) {
+      if (pendingHint?.expiresAt && pendingHint.expiresAt <= Date.now()) {
+        await StorageService.remove(ESOCIAL_PENDING_DOWNLOAD_HINT_KEY);
+      }
+      suggest();
+      return;
+    }
+
+    const tabCreds =
+      typeof downloadItem.tabId === "number" && downloadItem.tabId >= 0
+        ? await StorageService.getCredentials(downloadItem.tabId)
+        : null;
+
+    const fallbackCreds = await StorageService.getLastEsocialCredentials();
+    const creds = tabCreds ?? fallbackCreds;
+
+    const nome = normalizeFilePart(creds?.nome || "SEM_NOME");
+    const cpf = onlyDigits(creds?.cpf) || extractCpfFromFilename(currentFilename) || "SEM_CPF";
+    const periodo =
+      formatCompetenciaFromUrl(sourceUrl) ||
+      formatCompetenciaFromFilename(currentFilename) ||
+      "SEM_PERIODO";
+    const extension = getFileExtension(currentFilename || sourceUrl) || "pdf";
+    const filename = hasPendingHint
+      ? pendingHint.filename
+      : `${nome}_${cpf}_${periodo}.${extension}`;
+
+    console.log("[SIGESS] Renomeando download do eSocial para:", filename);
+    if (hasPendingHint) {
+      await StorageService.remove(ESOCIAL_PENDING_DOWNLOAD_HINT_KEY);
+    }
+    suggest({
+      filename,
+      conflictAction: "uniquify",
+    });
+  } catch (error) {
+    console.error("[SIGESS] Erro ao renomear download do eSocial:", error);
+    suggest();
+  }
+}
+
+function onlyDigits(value?: string | null): string {
+  return (value || "").replace(/\D/g, "");
+}
+
+function normalizeFilePart(value: string): string {
+  const withoutAccents = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return withoutAccents
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "SEM_NOME";
+}
+
+function formatCompetenciaFromUrl(url: string): string | null {
+  const parsedUrl = safeParseUrl(url);
+  const competencia = parsedUrl?.searchParams.get("competencia");
+  if (!competencia || !/^\d{6}$/.test(competencia)) return null;
+  return `${competencia.slice(0, 4)}-${competencia.slice(4, 6)}`;
+}
+
+function getFileExtension(value: string): string | null {
+  const match = /\.([a-z0-9]+)(?:$|\?)/i.exec(value);
+  return match?.[1]?.toLowerCase() || null;
+}
+
+function extractCpfFromFilename(value: string): string | null {
+  const match = /GuiaPagamento_(\d{11})_/i.exec(value);
+  return match?.[1] || null;
+}
+
+function formatCompetenciaFromFilename(_value: string): string | null {
+  return null;
+}
+
+function safeParseUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
 
 // Inicializa o Badge no startup
 StorageService.getSettings().then(settings => {

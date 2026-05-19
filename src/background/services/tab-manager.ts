@@ -57,8 +57,13 @@ export class TabManager {
     senha: string,
     index: number,
     nome?: string,
+    portalType?: "pesqbrasil" | "esocial",
   ): Promise<void> {
     try {
+      const resolvedPortalType =
+        portalType ||
+        (url.includes("esocial") ? "esocial" : "pesqbrasil");
+
       let tab: browser.tabs.Tab;
 
       if (this.supportsContextualIdentities()) {
@@ -71,20 +76,30 @@ export class TabManager {
         tab = await browser.tabs.create({
           url,
           cookieStoreId: container.cookieStoreId,
+          active: false,
         });
 
         if (tab.id) {
           await this.saveTabContainer(tab.id, container.cookieStoreId);
         }
       } else {
-        tab = await browser.tabs.create({ url });
+        tab = await browser.tabs.create({
+          url,
+          active: false,
+        });
       }
 
       if (tab.id) {
         await StorageService.saveCredentials(tab.id, {
           cpf,
           senha,
+          nome,
+          portalType: resolvedPortalType,
           loginConcluido: false,
+          govBrCpfSubmitted: false,
+          govBrPasswordSubmitted: false,
+          status: "abrindo_sessao",
+          lastUpdatedAt: Date.now(),
         });
       }
     } catch (error) {
@@ -103,14 +118,60 @@ export class TabManager {
     const credentials = await StorageService.getCredentials(tabId);
     if (!credentials || credentials.loginConcluido) return;
 
-    const strategy = this.strategies.find(
-      (s) =>
-        tab.url?.includes(s.urlTrigger) ||
-        tab.url?.includes("sso.acesso.gov.br"),
-    );
+    const strategy = this.resolveStrategy(tab.url, credentials.portalType);
 
     if (strategy) {
-      await strategy.execute(tabId, tab.url, credentials);
+      try {
+        await strategy.execute(tabId, tab.url, credentials);
+      } catch (error: any) {
+        await StorageService.updateCredentials(tabId, {
+          status: "erro",
+          lastError: error?.message || "Falha ao executar automacao.",
+        });
+        throw error;
+      }
+    }
+  }
+
+  private resolveStrategy(
+    url: string,
+    portalType?: "pesqbrasil" | "esocial",
+  ): AuthStrategy | undefined {
+    const directMatch = this.strategies.find((strategy) => url.includes(strategy.urlTrigger));
+    if (directMatch) {
+      return directMatch;
+    }
+
+    if (url.includes("sso.acesso.gov.br")) {
+      if (portalType === "esocial") {
+        return this.strategies.find((strategy) => strategy instanceof ESocialStrategy);
+      }
+
+      if (portalType === "pesqbrasil") {
+        return this.strategies.find((strategy) => strategy instanceof PesqBrasilStrategy);
+      }
+    }
+
+    return undefined;
+  }
+
+  async retryPendingSessions() {
+    const allCredentials = await StorageService.getAllCredentials();
+
+    for (const [key, credentials] of Object.entries(allCredentials)) {
+      if (!credentials || credentials.loginConcluido) continue;
+      if (credentials.status === "concluido" || credentials.status === "erro") continue;
+
+      const tabId = Number(key.replace("credenciais_", ""));
+      if (!Number.isFinite(tabId)) continue;
+
+      try {
+        const tab = await browser.tabs.get(tabId);
+        if (!tab?.url) continue;
+        await this.handleTabUpdate(tabId, { status: tab.status }, tab);
+      } catch {
+        // A aba pode ter sido fechada enquanto a rechecagem ocorria.
+      }
     }
   }
 
