@@ -1,3 +1,4 @@
+import { logger } from "../../../shared/services/logger";
 import { AppSettings } from "../../../shared/types";
 import { formatCompetencia } from "../utils/file-naming";
 import { extractMoneyValues } from "../utils/esocial-extractors";
@@ -11,6 +12,7 @@ import { postJson, getText, buildEsocialUrl } from "../services/esocial-api";
 import { buildComercializacaoPayload } from "../services/comercializacao";
 import { reportBatchStatus } from "./overlay-ui";
 import { baixarGuiaPdfDirecto } from "./guide-download";
+import { esocialMessages } from "../utils/status-messages";
 
 export async function executarFluxoDiretoGps(settings: AppSettings, competencia: string) {
   const valorComercializado = normalizeMoneyValue(settings.valorComercializado);
@@ -33,36 +35,30 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     comercializacaoPayload,
   );
 
-  reportBatchStatus(
-    "processando",
-    "Salvando rascunho da comercializacao",
-    "A extensao esta enviando o JSON de rascunho da comercializacao diretamente ao eSocial.",
-  );
+  const savingMsg = esocialMessages.savingCommercializationDraft();
+  logger.info("eSocial", savingMsg.title);
+  reportBatchStatus(savingMsg.status, savingMsg.title, savingMsg.description);
 
   await postJson(
     "/FolhaPagamento/SeguradoEspecial/EnviarEventosComercializacaoProducao",
     comercializacaoPayload,
   );
 
-  reportBatchStatus(
-    "processando",
-    "Enviando eventos da comercializacao",
-    "O rascunho foi salvo e a extensao esta transmitindo os eventos para liberar o fechamento.",
-  );
+  const sendingMsg = esocialMessages.sendingCommercializationEvents();
+  logger.info("eSocial", sendingMsg.title);
+  reportBatchStatus(sendingMsg.status, sendingMsg.title, sendingMsg.description);
 
   const verificacaoTexto = await verificarAcessoFechamento(competencia);
   if (verificacaoTexto) {
     const verificacao = safeParseJson<{ Sucesso?: boolean }>(verificacaoTexto);
     if (verificacao && verificacao.Sucesso === false) {
-      throw new Error("O eSocial nao liberou o fechamento da folha.");
+      throw new Error("O eSocial não liberou o fechamento da folha.");
     }
   }
 
-  reportBatchStatus(
-    "processando",
-    "Carregando tela de fechamento",
-    `A comercializacao da competencia ${formatCompetencia(competencia)} foi enviada e a extensao esta abrindo o fechamento da folha por requisicao direta.`,
-  );
+  const closureScreenMsg = esocialMessages.loadingClosureScreen();
+  logger.info("eSocial", closureScreenMsg.title);
+  reportBatchStatus(closureScreenMsg.status, closureScreenMsg.title, closureScreenMsg.description);
 
   const fechamentoGetResponse = await fetch(
     buildEsocialUrl(`/FolhaPagamento/FechamentoFolha?competencia=${competencia}`),
@@ -80,11 +76,9 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
   const fechamentoGetDoc = parseHtml(fechamentoGetHtml);
   const fechamentoForm = buildFechamentoFormData(fechamentoGetDoc, competencia);
 
-  reportBatchStatus(
-    "processando",
-    "Fechando a folha",
-    `A extensao esta enviando o POST de fechamento da competencia ${formatCompetencia(competencia)}.`,
-  );
+  const closingMsg = esocialMessages.closingPayroll();
+  logger.info("eSocial", closingMsg.title);
+  reportBatchStatus(closingMsg.status, closingMsg.title, closingMsg.description);
 
   const fechamentoPostResponse = await fetch(
     buildEsocialUrl(`/FolhaPagamento/FechamentoFolha?competencia=${competencia}`),
@@ -120,11 +114,9 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
 }
 
 async function carregarDadosComercializacao(competencia: string) {
-  reportBatchStatus(
-    "processando",
-    "Carregando dados de comercializacao",
-    `A extensao esta consultando os dados da competencia ${formatCompetencia(competencia)} antes do envio.`,
-  );
+  const loadingMsg = esocialMessages.loadingCommercializationData();
+  logger.info("eSocial", loadingMsg.title);
+  reportBatchStatus(loadingMsg.status, loadingMsg.title, loadingMsg.description);
 
   const comercializacaoPromise = fetch(
     buildEsocialUrl(
@@ -161,11 +153,9 @@ async function carregarDadosComercializacao(competencia: string) {
 }
 
 async function verificarAcessoFechamento(competencia: string) {
-  reportBatchStatus(
-    "processando",
-    "Verificando acesso ao fechamento",
-    `A extensao esta confirmando se a competencia ${formatCompetencia(competencia)} ja pode seguir para o fechamento da folha.`,
-  );
+  const verifyingMsg = esocialMessages.verifyingClosureAccess();
+  logger.info("eSocial", verifyingMsg.title);
+  reportBatchStatus(verifyingMsg.status, verifyingMsg.title, verifyingMsg.description);
 
   try {
     const response = await getText(
