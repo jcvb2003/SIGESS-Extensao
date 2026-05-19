@@ -199,9 +199,13 @@ browserAPI.storage.local.get(["sigessSettings"], (result: any) => {
   }
 });
 
-browserAPI.runtime.onMessage.addListener((message: any) => {
+browserAPI.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: (response: any) => void) => {
   if (message.action === "updateESocialSettings") {
     const settings = message.settings as AppSettings;
     start(settings, true);
+    sendResponse({ success: true });
+    return;
   }
+  // Don't interfere with other messages
+  return false;
 });

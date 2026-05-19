@@ -29,9 +29,9 @@ window.addEventListener("message", function (event) {
     .sendMessage(event.data)
     .then((response: unknown) => {
       console.log("[SIGESS] Content Script: Resposta recebida do background", {
-        type: messageType,
+        originalType: messageType,
         requestId: event.data.requestId,
-        hasResponse: !!response,
+        response,
       });
 
       // Retorna resposta para a página Web

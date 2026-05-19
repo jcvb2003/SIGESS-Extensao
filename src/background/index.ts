@@ -23,7 +23,18 @@ browser.runtime.onMessage.addListener(
     sender,
     sendResponse: (response: MessageResponse) => void,
   ) => {
-    routeMessage(message, getTabManager, sender).then(sendResponse);
+    routeMessage(message, getTabManager, sender)
+      .then((response) => {
+        console.log("[SIGESS] Background: Enviando resposta", {
+          action: message.action || (message as any).type,
+          response,
+        });
+        sendResponse(response);
+      })
+      .catch((error) => {
+        console.error("[SIGESS] Background: Erro em routeMessage", error);
+        sendResponse({ success: false, error: error.message });
+      });
     return true;
   },
 );
