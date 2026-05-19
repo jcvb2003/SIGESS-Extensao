@@ -1,3 +1,4 @@
+import { logger } from "../shared/services/logger";
 import { StorageService } from "./services/storage";
 import { LicenseService } from "../shared/services/license";
 import {
@@ -30,15 +31,19 @@ export async function routeMessage(
   sender?: browser.runtime.MessageSender,
 ): Promise<MessageResponse> {
   const action = message.action || (message as any).type;
+  logger.info("Extension", `Requisição recebida: ${action}`);
+
   try {
     switch (action) {
       case "checkLicense": {
         const lic = await LicenseService.checkLicense();
+        logger.info("Licença", "Validação de licença concluída");
         return { success: true, ...lic };
       }
       case "consumeLicense": {
         const usageType = message.usageType || "manual";
         const lic = await LicenseService.checkLicense(true, true, usageType);
+        logger.info("Licença", `Uso consumido: ${usageType}`);
         return { success: lic.ok, ...lic };
       }
       case "updateESocialSettings":
@@ -60,34 +65,43 @@ export async function routeMessage(
       case "downloadESocialGuide":
         return await handleDownloadESocialGuide(message);
       default:
+        logger.error("Extension", `Ação desconhecida: ${action}`);
         return {
           success: false,
-          error: `Unknown action: ${message.action || (message as any).type}`,
+          error: `Ação desconhecida: ${action}`,
         };
     }
   } catch (error: any) {
-    console.error("Background Message Handler Error:", error);
+    logger.error("Extension", "Erro ao processar requisição", { action, error: error.message });
     return { success: false, error: error.message };
   }
 }
 
 async function handleUpdateSettings(message: MessageRequest) {
-  if (!message.settings)
-    return { success: false, error: "Settings not provided" };
-  const current = await StorageService.getSettings();
-  const newSettings = { ...current, ...message.settings };
-  if (message.settings.consultarGuias && message.settings.gerarGps) {
-    if (message.settings.consultarGuias) newSettings.gerarGps = false;
-    else if (message.settings.gerarGps) newSettings.consultarGuias = false;
+  if (!message.settings) {
+    logger.error("Configurações", "Configurações não fornecidas");
+    return { success: false, error: "Configurações não fornecidas" };
   }
-  await StorageService.saveSettings(newSettings);
-  
-  // Atualiza o badge caso a fila tenha mudado
-  if (message.settings.multiLoginQueue) {
-    BadgeManager.setQueueCount(newSettings.multiLoginQueue?.length || 0);
+
+  try {
+    const current = await StorageService.getSettings();
+    const newSettings = { ...current, ...message.settings };
+    if (message.settings.consultarGuias && message.settings.gerarGps) {
+      if (message.settings.consultarGuias) newSettings.gerarGps = false;
+      else if (message.settings.gerarGps) newSettings.consultarGuias = false;
+    }
+    await StorageService.saveSettings(newSettings);
+
+    if (message.settings.multiLoginQueue) {
+      BadgeManager.setQueueCount(newSettings.multiLoginQueue?.length || 0);
+    }
+
+    logger.info("Configurações", "Configurações atualizadas com sucesso");
+    return { success: true, settings: newSettings };
+  } catch (error: any) {
+    logger.error("Configurações", "Erro ao atualizar", { error: error.message });
+    throw error;
   }
-  
-  return { success: true, settings: newSettings };
 }
 
 async function handleStartBatchLogin(
