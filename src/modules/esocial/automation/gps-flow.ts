@@ -263,6 +263,15 @@ export async function jaExisteGuiaComValor(competencia: string): Promise<boolean
   return (await consultarGuiaExistente(competencia)).paga;
 }
 
+export function consultarGuiaExistenteNoDom(competencia: string): GuiaExistenteInfo {
+  try {
+    return extractGuiaExistenteInfo(document, competencia);
+  } catch (error) {
+    console.debug("[SIGESS] Falha ao extrair guia do DOM:", error);
+    return { paga: false, emissaoUrl: null };
+  }
+}
+
 function extractGuiaExistenteInfo(doc: Document, competencia: string): GuiaExistenteInfo {
   const rows = Array.from(doc.querySelectorAll("table tbody tr"));
 

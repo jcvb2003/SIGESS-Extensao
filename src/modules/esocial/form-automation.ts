@@ -7,11 +7,13 @@ import {
   reportBatchStatus,
 } from "./automation/overlay-ui";
 import { observarBotaoEmitirGuia, baixarGuiaPdfDirecto } from "./automation/guide-download";
+import { buildEsocialUrl } from "./services/esocial-api";
 import {
   executarFluxoDiretoGps,
   acquireGpsFlowLock,
   releaseGpsFlowLock,
   consultarGuiaExistente,
+  consultarGuiaExistenteNoDom,
   buildCompetenciaFromSettings,
 } from "./automation/gps-flow";
 import {
@@ -39,6 +41,19 @@ function processarConfiguracoes(settings: AppSettings, force = false) {
   };
 
   if (!isHomePage()) return;
+
+  if (settings.gerarGps) {
+    const competencia = buildCompetenciaFromSettings(settings);
+    if (competencia && canRedirect("sigess_last_redir_gps", competencia)) {
+      const msg = esocialMessages.redirectingToCompetencies();
+      logger.info("eSocial", msg.title);
+      reportBatchStatus(msg.status, msg.title, msg.description);
+      sessionStorage.setItem("sigess_last_redir_gps", competencia);
+      sessionStorage.setItem("sigess_refresh_valor", competencia);
+      window.location.href = buildEsocialUrl(`/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competencia}`);
+      return;
+    }
+  }
 
   if (settings.consultarGuias) {
     const yearStr = settings.selectedYear || "current";
@@ -114,7 +129,10 @@ async function automatizarGPS(settings: AppSettings) {
     return;
   }
 
-  const guiaExistente = await consultarGuiaExistente(competencia);
+  const onCompetenciasPage = window.location.href.includes("FolhaPagamento/Listagem/Competencias");
+  const guiaExistente = onCompetenciasPage
+    ? consultarGuiaExistenteNoDom(competencia)
+    : await consultarGuiaExistente(competencia);
   if (guiaExistente.paga) {
     sessionStorage.setItem(`sigess_gps_flow_done_${competencia}`, "true");
     const existsMsg = esocialMessages.guideAlreadyExists(formatCompetencia(competencia));
@@ -129,8 +147,6 @@ async function automatizarGPS(settings: AppSettings) {
     logger.info("eSocial", issuedMsg.title);
     reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, { overlayState: null });
     await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
-    sessionStorage.setItem("sigess_volta_pos_download", "1");
-    window.location.href = "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias";
     return;
   }
 
@@ -166,6 +182,18 @@ async function automatizarGPS(settings: AppSettings) {
   }
 }
 
+async function automatizarListarPagamentos() {
+  if (!window.location.href.includes("FolhaPagamento/Listagem/ListarPagamentos")) return;
+  if (!sessionStorage.getItem("sigess_refresh_valor")) return;
+
+  await Utils.waitForElement("#menuConsultarGuiasPagas", 10000, document, false);
+  const link = document.getElementById("menuConsultarGuiasPagas") as HTMLAnchorElement | null;
+  if (link) {
+    sessionStorage.removeItem("sigess_refresh_valor");
+    window.location.href = link.href;
+  }
+}
+
 function isManualGuideDownloadInProgress(): boolean {
   const expiresAt = Number(sessionStorage.getItem(MANUAL_GUIDE_DOWNLOAD_KEY) || 0);
   if (!expiresAt) return false;
@@ -189,10 +217,12 @@ function start(settings: AppSettings, force = false) {
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
+      automatizarListarPagamentos();
       automatizarCompetencias(settings);
       automatizarGPS(settings);
     });
   } else {
+    automatizarListarPagamentos();
     automatizarCompetencias(settings);
     automatizarGPS(settings);
   }
