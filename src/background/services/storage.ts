@@ -179,13 +179,14 @@ export class StorageService {
     statusDescription: string,
     extra?: Partial<UserCredentials>,
   ): Promise<UserCredentials | null> {
+    const shouldKeepError = status === "erro";
+
     return this.updateCredentials(tabId, {
       status,
       statusTitle,
       statusDescription,
-      lastError: extra?.lastError,
-      loginConcluido: extra?.loginConcluido,
       ...extra,
+      lastError: shouldKeepError ? extra?.lastError : undefined,
     });
   }
 

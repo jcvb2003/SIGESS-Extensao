@@ -118,60 +118,14 @@ export class TabManager {
     const credentials = await StorageService.getCredentials(tabId);
     if (!credentials || credentials.loginConcluido) return;
 
-    const strategy = this.resolveStrategy(tab.url, credentials.portalType);
+    const strategy = this.strategies.find(
+      (s) =>
+        tab.url?.includes(s.urlTrigger) ||
+        tab.url?.includes("sso.acesso.gov.br"),
+    );
 
     if (strategy) {
-      try {
-        await strategy.execute(tabId, tab.url, credentials);
-      } catch (error: any) {
-        await StorageService.updateCredentials(tabId, {
-          status: "erro",
-          lastError: error?.message || "Falha ao executar automacao.",
-        });
-        throw error;
-      }
-    }
-  }
-
-  private resolveStrategy(
-    url: string,
-    portalType?: "pesqbrasil" | "esocial",
-  ): AuthStrategy | undefined {
-    const directMatch = this.strategies.find((strategy) => url.includes(strategy.urlTrigger));
-    if (directMatch) {
-      return directMatch;
-    }
-
-    if (url.includes("sso.acesso.gov.br")) {
-      if (portalType === "esocial") {
-        return this.strategies.find((strategy) => strategy instanceof ESocialStrategy);
-      }
-
-      if (portalType === "pesqbrasil") {
-        return this.strategies.find((strategy) => strategy instanceof PesqBrasilStrategy);
-      }
-    }
-
-    return undefined;
-  }
-
-  async retryPendingSessions() {
-    const allCredentials = await StorageService.getAllCredentials();
-
-    for (const [key, credentials] of Object.entries(allCredentials)) {
-      if (!credentials || credentials.loginConcluido) continue;
-      if (credentials.status === "concluido" || credentials.status === "erro") continue;
-
-      const tabId = Number(key.replace("credenciais_", ""));
-      if (!Number.isFinite(tabId)) continue;
-
-      try {
-        const tab = await browser.tabs.get(tabId);
-        if (!tab?.url) continue;
-        await this.handleTabUpdate(tabId, { status: tab.status }, tab);
-      } catch {
-        // A aba pode ter sido fechada enquanto a rechecagem ocorria.
-      }
+      await strategy.execute(tabId, tab.url, credentials);
     }
   }
 

@@ -78,12 +78,6 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   }
 });
 
-setInterval(() => {
-  void getTabManager().retryPendingSessions().catch((error) => {
-    console.error("Pending sessions watchdog error:", error);
-  });
-}, 4000);
-
 const downloadsApi = (browser as any).downloads;
 
 if (downloadsApi?.onDeterminingFilename?.addListener) {
@@ -101,12 +95,9 @@ async function handleEsocialFilename(downloadItem: any, suggest: any): Promise<v
     const pendingHint = pendingHintResult?.[ESOCIAL_PENDING_DOWNLOAD_HINT_KEY];
     const hasPendingHint = !!pendingHint?.filename && Number(pendingHint?.expiresAt || 0) > Date.now();
     const isEsocialGuide =
+      hasPendingHint ||
       sourceUrl.includes("esocial.gov.br") ||
-      currentFilename.includes("GuiaPagamento_") ||
-      (hasPendingHint &&
-        (sourceUrl.startsWith("blob:") ||
-          sourceUrl.startsWith("data:") ||
-          currentFilename.toLowerCase().endsWith(".pdf")));
+      currentFilename.includes("GuiaPagamento_");
 
     if (!isEsocialGuide) {
       if (pendingHint?.expiresAt && pendingHint.expiresAt <= Date.now()) {
