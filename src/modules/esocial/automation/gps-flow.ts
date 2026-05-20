@@ -404,6 +404,67 @@ export async function consultarGuiaExistenteViaApi(competencia: string): Promise
   }
 }
 
+async function extrairValorTotalComercializadoDaPagina(competencia: string): Promise<number> {
+  try {
+    const response = await fetch(
+      buildEsocialUrl(
+        `/FolhaPagamento/SeguradoEspecial/ComercializacaoProducao?competencia=${competencia}`,
+      ),
+      {
+        method: "GET",
+        credentials: "include",
+      },
+    );
+
+    if (!response.ok) {
+      console.debug("[SIGESS] Falha ao carregar página de comercialização");
+      return 0;
+    }
+
+    const html = await response.text();
+    const doc = parseHtml(html);
+
+    // Procura por elementos que contêm "total" e extrai valores de dinheiro
+    const labels = Array.from(doc.querySelectorAll("*")).filter((el) => {
+      const text = (el.textContent || "").toLowerCase();
+      return text.includes("total") && text.includes("comercializado");
+    });
+
+    for (const label of labels) {
+      const text = label.textContent || "";
+      const values = extractMoneyValues(text);
+      if (values.length > 0) {
+        const valor = values[values.length - 1];
+        console.debug("[SIGESS] Valor total comercializado encontrado na página:", valor);
+        return valor;
+      }
+    }
+
+    // Procura por qualquer elemento com "total"
+    const totalLabels = Array.from(doc.querySelectorAll("*")).filter((el) => {
+      const text = (el.textContent || "").trim().toLowerCase();
+      return text === "total" || text.startsWith("total");
+    });
+
+    for (const label of totalLabels) {
+      const nextSibling = label.nextElementSibling;
+      if (nextSibling) {
+        const values = extractMoneyValues(nextSibling.textContent || "");
+        if (values.length > 0) {
+          console.debug("[SIGESS] Valor total encontrado:", values[0]);
+          return values[0];
+        }
+      }
+    }
+
+    console.debug("[SIGESS] Não foi possível extrair valor total da página de comercialização");
+    return 0;
+  } catch (error) {
+    console.debug("[SIGESS] Erro ao extrair valor total da comercialização:", error);
+    return 0;
+  }
+}
+
 export async function executarFluxoDirectoFromHome(settings: AppSettings): Promise<void> {
   const competencia = buildCompetenciaFromSettings(settings);
   if (!competencia) {
@@ -426,6 +487,10 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     },
   });
 
+  // Primeiro, obtém o valor total comercializado declarado na página
+  const valorDeclradoNaPagina = await extrairValorTotalComercializadoDaPagina(competencia);
+  console.debug("[SIGESS] Valor declarado na página de comercialização:", valorDeclradoNaPagina);
+
   const guiaExistente = await consultarGuiaExistenteViaApi(competencia);
 
   if (guiaExistente.paga) {
@@ -439,12 +504,13 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     return;
   }
 
-  if (guiaExistente.valorDeclarado && guiaExistente.valorDeclarado > 0) {
+  // Se há valor declarado na página (não é 0), tenta baixar boleto existente
+  if (valorDeclradoNaPagina > 0) {
     const issuedMsg = esocialMessages.guideAlreadyIssued(competencia);
     logger.info("eSocial", issuedMsg.title);
     reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, { overlayState: null });
     if (guiaExistente.emissaoUrl) {
-      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, valorDeclradoNaPagina, guiaExistente.valorPago);
       showSuccessModal("Boleto Gerado!");
     }
     return;
@@ -474,7 +540,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
       const downloadMsg = esocialMessages.guideAlreadyIssued(competencia);
       logger.info("eSocial", downloadMsg.title);
       reportBatchStatus(downloadMsg.status, downloadMsg.title, downloadMsg.description, { overlayState: null });
-      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, valorDeclradoNaPagina, guiaExistente.valorPago);
       showSuccessModal("Boleto Gerado!");
       return;
     }
