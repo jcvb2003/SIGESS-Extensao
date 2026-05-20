@@ -103,7 +103,23 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     throw new Error("Nao foi possivel localizar a URL de emissao da guia apos o fechamento.");
   }
 
-  await baixarGuiaPdfDirecto(guiaUrl, competencia, true);
+  const successMsg = esocialMessages.pdfDownloadedSuccessfully(competencia);
+  logger.info("eSocial", successMsg.title);
+  reportBatchStatus("boleto_salvo", successMsg.title, successMsg.description, {
+    loginConcluido: true,
+    progressStep: 3,
+    progressTotal: 3,
+    boletoGerado: true,
+    boletoInfo: { detectado: true, competencia, valorDeclarado: 0, valorPago: 0 },
+    overlayState: {
+      step: 3,
+      total: 3,
+      title: "Boleto gerado com sucesso",
+      description: `Navegando para download...`,
+      complete: true,
+      hideAt: Date.now() + 4000,
+    },
+  });
 
   sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
   await new Promise<void>((resolve) => setTimeout(resolve, 800));
@@ -386,11 +402,13 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     return;
   }
 
-  if (guiaExistente.emissaoUrl && guiaExistente.emissaoUrl.trim()) {
+  if (guiaExistente.valorDeclarado && guiaExistente.valorDeclarado > 0) {
     const issuedMsg = esocialMessages.guideAlreadyIssued(competencia);
     logger.info("eSocial", issuedMsg.title);
     reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, { overlayState: null });
-    await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+    if (guiaExistente.emissaoUrl) {
+      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+    }
     return;
   }
 
