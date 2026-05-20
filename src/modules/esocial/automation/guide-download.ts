@@ -19,8 +19,19 @@ import { esocialMessages } from "../utils/status-messages";
 
 export { baixarGuiaPdfDirecto };
 
-function baixarGuiaPdfDirecto(guiaUrl: string, competencia: string, boletoGerado = false, valorDeclarado?: number, valorPago?: number) {
-  return baixarGuiaPdf(guiaUrl, competencia, boletoGerado, valorDeclarado, valorPago);
+type BoletoValores = {
+  valorComercializado?: number;
+  valorDeclarado?: number;
+  valorPago?: number;
+};
+
+function baixarGuiaPdfDirecto(
+  guiaUrl: string,
+  competencia: string,
+  boletoGerado = false,
+  valores: BoletoValores = {},
+) {
+  return baixarGuiaPdf(guiaUrl, competencia, boletoGerado, valores);
 }
 
 export function observarBotaoEmitirGuia() {
@@ -118,7 +129,12 @@ function clearManualGuideDownloadInProgress() {
   sessionStorage.removeItem(MANUAL_GUIDE_DOWNLOAD_KEY);
 }
 
-async function baixarGuiaPdf(guiaUrl: string, competencia: string, boletoGerado = false, valorDeclarado?: number, valorPago?: number) {
+async function baixarGuiaPdf(
+  guiaUrl: string,
+  competencia: string,
+  boletoGerado = false,
+  valores: BoletoValores = {},
+) {
   const downloadingMsg = esocialMessages.manualEmitGuideDetected();
   logger.info("eSocial", downloadingMsg.title);
   reportBatchStatus(downloadingMsg.status, downloadingMsg.title, downloadingMsg.description, {
@@ -171,7 +187,7 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string, boletoGerado 
           contentType,
         });
 
-        return baixarGuiaPdf(resolvedPdfUrl, competencia, boletoGerado, valorDeclarado, valorPago);
+        return baixarGuiaPdf(resolvedPdfUrl, competencia, boletoGerado, valores);
       }
 
       if (html && looksLikeHtmlDocument(html)) {
@@ -188,7 +204,7 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string, boletoGerado 
           progressStep: 3,
           progressTotal: 3,
           boletoGerado,
-          boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), valorDeclarado, valorPago },
+          boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), ...valores },
           overlayState: {
             step: 3,
             total: 3,
@@ -217,7 +233,7 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string, boletoGerado 
       progressStep: 3,
       progressTotal: 3,
       boletoGerado,
-      boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), valorDeclarado, valorPago },
+      boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), ...valores },
       overlayState: {
         step: 3,
         total: 3,

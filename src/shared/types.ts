@@ -35,6 +35,7 @@ export type GovBatchItemStatus =
 export interface BoletoInfo {
   detectado: boolean;
   competencia?: string;
+  valorComercializado?: number;
   valorDeclarado?: number;
   valorPago?: number;
 }

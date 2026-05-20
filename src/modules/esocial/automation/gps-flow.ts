@@ -121,8 +121,10 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     guiaUrl,
     competencia,
     true,
-    guiaAposFechamento.valorDeclarado,
-    guiaAposFechamento.valorPago,
+    {
+      valorDeclarado: guiaAposFechamento.valorDeclarado,
+      valorPago: guiaAposFechamento.valorPago,
+    },
   );
 
   sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
@@ -492,8 +494,11 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
       guiaUrl,
       competencia,
       false,
-      guiaExistente.valorDeclarado,
-      guiaExistente.valorPago,
+      {
+        valorComercializado: valorTotalComercializado,
+        valorDeclarado: guiaExistente.valorDeclarado,
+        valorPago: guiaExistente.valorPago,
+      },
     );
     sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
     showSuccessModal("Boleto Gerado!");
