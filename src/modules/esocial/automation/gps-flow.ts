@@ -329,3 +329,92 @@ export function buildCompetenciaFromSettings(settings: AppSettings): string | nu
   if (!/^\d{2}$/.test(mes)) return null;
   return `${anoAtual}${mes}`;
 }
+
+export async function consultarGuiaExistenteViaApi(competencia: string): Promise<GuiaExistenteInfo> {
+  try {
+    const targetUrl = buildEsocialUrl(
+      `/FolhaPagamento/Listagem/Competencias?competencia=${competencia}`,
+    );
+
+    const response = await fetch(targetUrl, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      return { paga: false, emissaoUrl: null };
+    }
+
+    return extractGuiaExistenteInfo(parseHtml(await response.text()), competencia);
+  } catch (error) {
+    console.debug("[SIGESS] Falha ao verificar guia existente via API:", error);
+    return { paga: false, emissaoUrl: null };
+  }
+}
+
+export async function executarFluxoDirectoFromHome(settings: AppSettings): Promise<void> {
+  const competencia = buildCompetenciaFromSettings(settings);
+  if (!competencia) {
+    console.debug("[SIGESS] Não foi possível construir competência a partir de settings");
+    return;
+  }
+
+  console.debug("[SIGESS] Iniciando fluxo direto da home page para competência:", competencia);
+
+  const checkMsg = esocialMessages.verifyingBoletoStatus();
+  logger.info("eSocial", checkMsg.title);
+  reportBatchStatus(checkMsg.status, checkMsg.title, checkMsg.description, {
+    progressStep: 1,
+    progressTotal: 3,
+    overlayState: {
+      step: 1,
+      total: 3,
+      title: "Verificando boleto",
+      description: `Consultando status do boleto de ${competencia}...`,
+    },
+  });
+
+  const guiaExistente = await consultarGuiaExistenteViaApi(competencia);
+
+  if (guiaExistente.paga) {
+    const existsMsg = esocialMessages.guideAlreadyExists(competencia);
+    logger.info("eSocial", existsMsg.title);
+    reportBatchStatus(existsMsg.status, existsMsg.title, existsMsg.description, { overlayState: null });
+    if (guiaExistente.emissaoUrl) {
+      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+    }
+    return;
+  }
+
+  if (guiaExistente.emissaoUrl && guiaExistente.emissaoUrl.trim()) {
+    const issuedMsg = esocialMessages.guideAlreadyIssued(competencia);
+    logger.info("eSocial", issuedMsg.title);
+    reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, { overlayState: null });
+    await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+    return;
+  }
+
+  try {
+    const initMsg = esocialMessages.initializingGuideGeneration(competencia);
+    logger.info("eSocial", initMsg.title);
+    reportBatchStatus(initMsg.status, initMsg.title, initMsg.description, {
+      progressStep: 2,
+      progressTotal: 3,
+      overlayState: {
+        step: 2,
+        total: 3,
+        title: "Gerando boleto",
+        description: `Executando fluxo de GPS para ${competencia}...`,
+      },
+    });
+
+    await executarFluxoDiretoGps(settings, competencia);
+  } catch (error) {
+    const failMsg = esocialMessages.failedToGenerateGuide();
+    logger.error("eSocial", failMsg.title, { error: error instanceof Error ? error.message : String(error) });
+    reportBatchStatus(failMsg.status, failMsg.title, failMsg.description, {
+      lastError: error instanceof Error ? error.message : String(error),
+      overlayState: null,
+    });
+  }
+}

@@ -5,6 +5,12 @@ export interface StatusMessage {
 }
 
 export const esocialMessages = {
+  verifyingBoletoStatus: (): StatusMessage => ({
+    status: "processando",
+    title: "Verificando status do boleto",
+    description: "Consultando boleto existente...",
+  }),
+
   redirectingToCompetencies: (): StatusMessage => ({
     status: "processando",
     title: "Abrindo lista de competências",
