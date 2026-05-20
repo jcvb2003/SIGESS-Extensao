@@ -15,6 +15,8 @@ import { esocialMessages } from "../utils/status-messages";
 
 export async function executarFluxoDiretoGps(settings: AppSettings, competencia: string) {
   const valorComercializado = normalizeMoneyValue(settings.valorComercializado);
+  console.debug("[SIGESS] valorComercializado from settings:", settings.valorComercializado);
+  console.debug("[SIGESS] valorComercializado normalized:", valorComercializado);
   const comercializacaoResponse = await carregarDadosComercializacao(competencia);
 
   if (!comercializacaoResponse?.ok) {

@@ -12,6 +12,7 @@ export function buildComercializacaoPayload(
   competencia: string,
   valorComercializado: string,
 ): ComercializacaoPayload {
+  console.debug("[SIGESS] buildComercializacaoPayload - valorComercializado param:", valorComercializado);
   const grouped = new Map<string, Record<string, string>>();
   const hiddenInputs = Array.from(
     doc.querySelectorAll('input[type="hidden"][name]'),
@@ -27,7 +28,7 @@ export function buildComercializacaoPayload(
     grouped.set(index, current);
   }
 
-  return Array.from(grouped.entries())
+  const payload = Array.from(grouped.entries())
     .sort(([left], [right]) => Number(left) - Number(right))
     .map(([, fields]) => ({
       IdComercializacao: fields.IdComercializacao || "0",
@@ -38,6 +39,9 @@ export function buildComercializacaoPayload(
       Competencia: fields.Competencia || competencia,
       TiposComercializacao: extractTiposComercializacao(fields, valorComercializado),
     }));
+
+  console.debug("[SIGESS] Payload final:", JSON.stringify(payload, null, 2));
+  return payload;
 }
 
 function extractTiposComercializacao(
