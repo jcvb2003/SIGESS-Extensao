@@ -70,14 +70,14 @@ export function resolveGuiaUrlFromDocument(doc: Document, competencia: string): 
   }
 
   console.warn(
-    "[SIGESS] HTML de fechamento sem ancora explicita da guia. Aplicando fallback direto para EmitirGuiaMensal.",
+    "[SIGESS] HTML de fechamento sem confirmacao de sucesso nem ancora explicita da guia.",
     {
       competencia,
       preview: html.slice(0, 1200),
     },
   );
 
-  return buildPortalUrl(`/FolhaPagamento/EmitirGuia/EmitirGuiaMensal?competencia=${competencia}`);
+  return null;
 }
 
 export function resolvePdfUrlFromHtml(html: string, baseUrl: string): string | null {

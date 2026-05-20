@@ -101,29 +101,29 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
 
   const fechamentoPostHtml = await fechamentoPostResponse.text();
   const fechamentoPostDoc = parseHtml(fechamentoPostHtml);
-  const guiaUrl = resolveGuiaUrlFromDocument(fechamentoPostDoc, competencia);
+  let guiaUrl = resolveGuiaUrlFromDocument(fechamentoPostDoc, competencia);
+  const guiaAposFechamento = await consultarGuiaExistenteViaApi(competencia);
 
-  if (!guiaUrl) {
-    throw new Error("Nao foi possivel localizar a URL de emissao da guia apos o fechamento.");
+  if (!guiaUrl && guiaAposFechamento.emissaoUrl && (guiaAposFechamento.valorDeclarado ?? 0) > 0) {
+    guiaUrl = guiaAposFechamento.emissaoUrl;
   }
 
-  const successMsg = esocialMessages.pdfDownloadedSuccessfully(competencia);
-  logger.info("eSocial", successMsg.title);
-  reportBatchStatus("boleto_salvo", successMsg.title, successMsg.description, {
-    loginConcluido: true,
-    progressStep: 3,
-    progressTotal: 3,
-    boletoGerado: true,
-    boletoInfo: { detectado: true, competencia, valorDeclarado: 0, valorPago: 0 },
-    overlayState: {
-      step: 3,
-      total: 3,
-      title: "Boleto gerado com sucesso",
-      description: `Clique em 'Emitir Guia' para fazer download`,
-      complete: true,
-      hideAt: Date.now() + 6000,
-    },
-  });
+  if (!guiaUrl || (guiaAposFechamento.valorDeclarado ?? 0) <= 0) {
+    console.warn("[SIGESS] Fechamento sem guia confirmada apos POST:", {
+      guiaUrl,
+      guiaAposFechamento,
+      preview: fechamentoPostHtml.slice(0, 1200),
+    });
+    throw new Error("A folha nao foi fechada com guia confirmada apos o POST de fechamento.");
+  }
+
+  await baixarGuiaPdfDirecto(
+    guiaUrl,
+    competencia,
+    true,
+    guiaAposFechamento.valorDeclarado,
+    guiaAposFechamento.valorPago,
+  );
 
   sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
   showSuccessModal("Boleto Gerado!");
@@ -185,7 +185,6 @@ async function verificarAcessoFechamento(competencia: string) {
 }
 
 function buildFechamentoFormData(doc: Document, competencia: string): URLSearchParams {
-  const params = new URLSearchParams();
   const form = doc.querySelector("form");
   console.debug("[SIGESS] Form encontrado:", !!form);
 
@@ -194,12 +193,6 @@ function buildFechamentoFormData(doc: Document, competencia: string): URLSearchP
   ) as Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>;
 
   console.debug("[SIGESS] buildFechamentoFormData - elementos encontrados:", elements.length);
-
-  if (elements.length === 0) {
-    console.debug("[SIGESS] Nenhum elemento encontrado, tentando alternativa");
-    const allInputs = Array.from(doc.querySelectorAll("input, select, textarea"));
-    console.debug("[SIGESS] Inputs sem querySelector de form:", allInputs.length);
-  }
 
   for (const element of elements) {
     const name = element.getAttribute("name");
@@ -214,44 +207,37 @@ function buildFechamentoFormData(doc: Document, competencia: string): URLSearchP
     ) {
       if (element.checked) {
         console.debug("[SIGESS] Adicionando checkbox/radio:", name, element.value || "true");
-        params.append(name, element.value || "true");
       }
       continue;
     }
 
     console.debug("[SIGESS] Adicionando campo:", name, "=", element.value ?? "");
-    params.append(name, element.value ?? "");
   }
 
+  const params = new URLSearchParams();
   params.set("Competencia", competencia);
   params.set("PeriodoApuracao", `${competencia.slice(0, 4)}-${competencia.slice(4, 6)}`);
+  params.set("ProximoPasso", "");
+  params.set("IndicatorApuracao", "1");
+  params.set("HabilitaEmissaoGuia", "True");
+  params.set("DataPagamento", "01/01/0001 00:00:00");
+  params.set(
+    "UrlRetorno",
+    `/portal/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competencia}`,
+  );
+  params.set("TipoEmpregador", "EMPREGADOR_DOMESTICO");
+  params.set("FechamentoFolha.EhSeguradoEspecial", "True");
+  params.set("IndicadorTipoGuia", "1");
   params.set("commandName", "confirmar");
 
   console.debug("[SIGESS] Fechamento FormData final:", Array.from(params.entries()));
+  console.debug("[SIGESS] Fechamento FormData body:", params.toString());
   return params;
 }
 
 function normalizeMoneyValue(value: string): string {
   const trimmed = String(value || "").trim();
-  const normalized = (trimmed || "0").replace(",", ".");
-
-  // Convert reais to centavos (divide by 100) and return as integer string
-  // Example: "375.00" → "37500" (centavos)
-  const numValue = Number(normalized);
-  if (!Number.isFinite(numValue)) {
-    console.warn("[SIGESS] Invalid money value:", value);
-    return "0";
-  }
-
-  const centavos = Math.round(numValue * 100);
-  console.debug("[SIGESS] normalizeMoneyValue conversion:", {
-    input: value,
-    normalized,
-    numValue,
-    centavos,
-  });
-
-  return String(centavos);
+  return trimmed || "0";
 }
 
 function safeParseJson<T>(value: string): T | null {
@@ -404,7 +390,7 @@ export async function consultarGuiaExistenteViaApi(competencia: string): Promise
   }
 }
 
-async function extrairValorTotalComercializadoDaPagina(competencia: string): Promise<number> {
+export async function extrairValorTotalComercializadoDaPagina(competencia: string): Promise<number> {
   try {
     const response = await fetch(
       buildEsocialUrl(
@@ -487,32 +473,29 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     },
   });
 
-  // Primeiro, obtém o valor total comercializado declarado na página
-  const valorDeclradoNaPagina = await extrairValorTotalComercializadoDaPagina(competencia);
-  console.debug("[SIGESS] Valor declarado na página de comercialização:", valorDeclradoNaPagina);
+  const valorTotalComercializado = await extrairValorTotalComercializadoDaPagina(competencia);
 
-  const guiaExistente = await consultarGuiaExistenteViaApi(competencia);
+  console.debug("[SIGESS] Valor comercializado para decisao inicial:", {
+    valorTotalComercializado,
+  });
 
-  if (guiaExistente.paga) {
-    const existsMsg = esocialMessages.guideAlreadyExists(competencia);
-    logger.info("eSocial", existsMsg.title);
-    reportBatchStatus(existsMsg.status, existsMsg.title, existsMsg.description, { overlayState: null });
-    if (guiaExistente.emissaoUrl) {
-      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
-      showSuccessModal("Boleto Gerado!");
-    }
-    return;
-  }
+  if (valorTotalComercializado > 0) {
+    const guiaExistente = await consultarGuiaExistenteViaApi(competencia);
+    const guiaUrl =
+      guiaExistente.emissaoUrl ||
+      buildEsocialUrl(`/FolhaPagamento/EmitirGuia/EmitirGuiaMensal?competencia=${competencia}`);
 
-  // Se há valor declarado na página (não é 0), tenta baixar boleto existente
-  if (valorDeclradoNaPagina > 0) {
     const issuedMsg = esocialMessages.guideAlreadyIssued(competencia);
     logger.info("eSocial", issuedMsg.title);
     reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, { overlayState: null });
-    if (guiaExistente.emissaoUrl) {
-      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, valorDeclradoNaPagina, guiaExistente.valorPago);
-      showSuccessModal("Boleto Gerado!");
-    }
+    await baixarGuiaPdfDirecto(
+      guiaUrl,
+      competencia,
+      false,
+      guiaExistente.valorDeclarado,
+      guiaExistente.valorPago,
+    );
+    showSuccessModal("Boleto Gerado!");
     return;
   }
 
@@ -533,17 +516,6 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     await executarFluxoDiretoGps(settings, competencia);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-
-    // If payroll is closed, the guide already exists - try to download it
-    if (errorMessage.includes("já foi fechada") && guiaExistente.emissaoUrl) {
-      console.debug("[SIGESS] Payroll closed, downloading existing guide from:", guiaExistente.emissaoUrl);
-      const downloadMsg = esocialMessages.guideAlreadyIssued(competencia);
-      logger.info("eSocial", downloadMsg.title);
-      reportBatchStatus(downloadMsg.status, downloadMsg.title, downloadMsg.description, { overlayState: null });
-      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, valorDeclradoNaPagina, guiaExistente.valorPago);
-      showSuccessModal("Boleto Gerado!");
-      return;
-    }
 
     let statusMsg = esocialMessages.failedToGenerateGuide();
     if (errorMessage.includes("já foi fechada")) {
