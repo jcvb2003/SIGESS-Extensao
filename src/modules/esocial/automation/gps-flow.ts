@@ -122,6 +122,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
   });
 
   sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
+  sessionStorage.setItem("sigess_auto_download_competencia", competencia);
   await new Promise<void>((resolve) => setTimeout(resolve, 800));
   window.location.href = buildEsocialUrl(
     `/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competencia}`,

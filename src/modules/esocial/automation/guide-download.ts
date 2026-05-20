@@ -39,6 +39,8 @@ export function observarBotaoEmitirGuia() {
   sigessWindow[GUIDE_OBSERVER_ATTR] = true;
   console.log("[SIGESS] Observer de botoes Emitir Guia inicializado para:", window.location.href);
 
+  const autoDownloadCompetencia = sessionStorage.getItem("sigess_auto_download_competencia");
+
   let foundCount = 0;
   const observer = new MutationObserver(() => {
     const botoesEmitirGuia = Array.from(
@@ -52,47 +54,69 @@ export function observarBotaoEmitirGuia() {
 
       foundCount++;
       botaoEmitirGuia.setAttribute(HOOKED_BUTTON_ATTR, "true");
+
+      const competenciaDosBotao = extractCompetenciaFromAnchorHref(botaoEmitirGuia);
+      const deveAutoDownload = autoDownloadCompetencia && autoDownloadCompetencia === competenciaDosBotao;
+
+      if (deveAutoDownload) {
+        console.log("[SIGESS] Auto-download ativado para competência:", competenciaDosBotao);
+        sessionStorage.removeItem("sigess_auto_download_competencia");
+      }
+
       console.log("[SIGESS] Botao encontrado e listener registrado");
+
+      const handleClickOrAuto = async (isAutoClick: boolean = false) => {
+        if (!isAutoClick) {
+          console.log("[SIGESS] Clique detectado no botao");
+          markManualGuideDownloadInProgress();
+        } else {
+          console.log("[SIGESS] Auto-clique ativado");
+        }
+
+        const targetUrl = resolveGuiaDownloadUrlFromAnchor(botaoEmitirGuia);
+        const competencia =
+          extractCompetenciaFromUrl(targetUrl) ||
+          extractCompetenciaFromUrl(window.location.href) ||
+          extractCompetenciaFromDom();
+
+        console.log("[SIGESS] URL atual:", window.location.href);
+        console.log("[SIGESS] Competencia extraida:", competencia);
+
+        if (!targetUrl || !competencia) {
+          const resolveMsg = esocialMessages.failedToResolveGuideUrl();
+          logger.error("eSocial", resolveMsg.title);
+          reportBatchStatus(resolveMsg.status, resolveMsg.title, resolveMsg.description, {
+            lastError: "URL de emissão não resolvida."
+          });
+          return;
+        }
+
+        try {
+          await baixarGuiaPdf(targetUrl, competencia);
+        } catch (error) {
+          const downloadMsg = esocialMessages.failedToDownloadGuide();
+          logger.error("eSocial", downloadMsg.title, { error: error instanceof Error ? error.message : String(error) });
+          reportBatchStatus(downloadMsg.status, downloadMsg.title, downloadMsg.description, {
+            lastError: error instanceof Error ? error.message : String(error)
+          });
+          window.location.href = targetUrl;
+        } finally {
+          if (!isAutoClick) {
+            clearManualGuideDownloadInProgress();
+          }
+        }
+      };
+
+      if (deveAutoDownload) {
+        handleClickOrAuto(true);
+      }
 
       botaoEmitirGuia.addEventListener(
         "click",
         async (event) => {
-          console.log("[SIGESS] Clique detectado no botao");
-
           event.preventDefault();
           event.stopPropagation();
-          markManualGuideDownloadInProgress();
-
-          const targetUrl = resolveGuiaDownloadUrlFromAnchor(botaoEmitirGuia);
-          const competencia =
-            extractCompetenciaFromUrl(targetUrl) ||
-            extractCompetenciaFromUrl(window.location.href) ||
-            extractCompetenciaFromDom();
-
-          console.log("[SIGESS] URL atual:", window.location.href);
-          console.log("[SIGESS] Competencia extraida:", competencia);
-
-          if (!targetUrl || !competencia) {
-            const resolveMsg = esocialMessages.failedToResolveGuideUrl();
-            logger.error("eSocial", resolveMsg.title);
-            reportBatchStatus(resolveMsg.status, resolveMsg.title, resolveMsg.description, {
-              lastError: "URL de emissão não resolvida."
-            });
-            return;
-          }
-
-          try {
-            await baixarGuiaPdf(targetUrl, competencia);
-          } catch (error) {
-            const downloadMsg = esocialMessages.failedToDownloadGuide();
-            logger.error("eSocial", downloadMsg.title, { error: error instanceof Error ? error.message : String(error) });
-            reportBatchStatus(downloadMsg.status, downloadMsg.title, downloadMsg.description, {
-              lastError: error instanceof Error ? error.message : String(error)
-            });
-            window.location.href = targetUrl;
-          } finally {
-            clearManualGuideDownloadInProgress();
-          }
+          await handleClickOrAuto(false);
         },
         { capture: true },
       );
@@ -284,4 +308,10 @@ function isEmitirGuiaAnchor(anchor: HTMLAnchorElement): boolean {
       onclick.includes("EmitirGuiaMensal") ||
       anchor.id === "btn-emitir-guia")
   );
+}
+
+function extractCompetenciaFromAnchorHref(anchor: HTMLAnchorElement): string | null {
+  const href = anchor.getAttribute("href") || "";
+  const match = href.match(/competencia=(\d{6})/);
+  return match ? match[1] : null;
 }
