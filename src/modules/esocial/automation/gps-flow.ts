@@ -115,18 +115,13 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
       step: 3,
       total: 3,
       title: "Boleto gerado com sucesso",
-      description: `Navegando para download...`,
+      description: `Clique em 'Emitir Guia' para fazer download`,
       complete: true,
-      hideAt: Date.now() + 4000,
+      hideAt: Date.now() + 6000,
     },
   });
 
   sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
-  sessionStorage.setItem("sigess_auto_download_competencia", competencia);
-  await new Promise<void>((resolve) => setTimeout(resolve, 800));
-  window.location.href = buildEsocialUrl(
-    `/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competencia}`,
-  );
 }
 
 async function carregarDadosComercializacao(competencia: string) {
