@@ -183,10 +183,12 @@ async function baixarGuiaPdf(guiaUrl: string, competencia: string, boletoGerado 
         openBlobInNewTab(blob, contentType || "text/html");
         const tabMsg = esocialMessages.guideOpenedInNewTab(filename);
         logger.info("eSocial", tabMsg.title);
-        reportBatchStatus(tabMsg.status, tabMsg.title, tabMsg.description, {
+        reportBatchStatus("boleto_salvo", tabMsg.title, tabMsg.description, {
           loginConcluido: true,
           progressStep: 3,
           progressTotal: 3,
+          boletoGerado,
+          boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), valorDeclarado, valorPago },
           overlayState: {
             step: 3,
             total: 3,
