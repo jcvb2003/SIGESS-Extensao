@@ -495,6 +495,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
       guiaExistente.valorDeclarado,
       guiaExistente.valorPago,
     );
+    sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
     showSuccessModal("Boleto Gerado!");
     return;
   }

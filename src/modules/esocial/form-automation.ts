@@ -8,6 +8,9 @@ import {
 import { observarBotaoEmitirGuia } from "./automation/guide-download";
 import {
   executarFluxoDirectoFromHome,
+  buildCompetenciaFromSettings,
+  acquireGpsFlowLock,
+  releaseGpsFlowLock,
 } from "./automation/gps-flow";
 import { esocialMessages } from "./utils/status-messages";
 
@@ -27,6 +30,12 @@ async function executarFluxoGpsSeNecessario(settings: AppSettings) {
     return;
   }
 
+  const competencia = buildCompetenciaFromSettings(settings);
+  if (!competencia || !acquireGpsFlowLock(competencia)) {
+    clearEsocialProgressOverlay();
+    return;
+  }
+
   try {
     await executarFluxoDirectoFromHome(settings);
   } catch (error) {
@@ -36,6 +45,8 @@ async function executarFluxoGpsSeNecessario(settings: AppSettings) {
       lastError: error instanceof Error ? error.message : String(error),
       overlayState: null,
     });
+  } finally {
+    releaseGpsFlowLock();
   }
 }
 
