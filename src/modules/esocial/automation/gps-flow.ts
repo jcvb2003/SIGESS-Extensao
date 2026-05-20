@@ -213,7 +213,7 @@ function buildFechamentoFormData(doc: Document, competencia: string): URLSearchP
 
 function normalizeMoneyValue(value: string): string {
   const trimmed = String(value || "").trim();
-  return trimmed || "0";
+  return (trimmed || "0").replace(",", ".");
 }
 
 function safeParseJson<T>(value: string): T | null {
