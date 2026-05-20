@@ -9,7 +9,7 @@ import { parseHtml, resolveGuiaUrlFromDocument } from "../services/document-pars
 import { resolveGuiaDownloadUrlFromAnchor } from "../services/guide-url-resolver";
 import { postJson, getText, buildEsocialUrl } from "../services/esocial-api";
 import { buildComercializacaoPayload } from "../services/comercializacao";
-import { reportBatchStatus } from "./overlay-ui";
+import { reportBatchStatus, showSuccessModal } from "./overlay-ui";
 import { baixarGuiaPdfDirecto } from "./guide-download";
 import { esocialMessages } from "../utils/status-messages";
 
@@ -126,6 +126,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
   });
 
   sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
+  showSuccessModal("Boleto Gerado!");
 }
 
 async function carregarDadosComercializacao(competencia: string) {
@@ -185,26 +186,40 @@ async function verificarAcessoFechamento(competencia: string) {
 
 function buildFechamentoFormData(doc: Document, competencia: string): URLSearchParams {
   const params = new URLSearchParams();
+  const form = doc.querySelector("form");
+  console.debug("[SIGESS] Form encontrado:", !!form);
+
   const elements = Array.from(
     doc.querySelectorAll("form input[name], form select[name], form textarea[name]"),
   ) as Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>;
 
   console.debug("[SIGESS] buildFechamentoFormData - elementos encontrados:", elements.length);
 
+  if (elements.length === 0) {
+    console.debug("[SIGESS] Nenhum elemento encontrado, tentando alternativa");
+    const allInputs = Array.from(doc.querySelectorAll("input, select, textarea"));
+    console.debug("[SIGESS] Inputs sem querySelector de form:", allInputs.length);
+  }
+
   for (const element of elements) {
     const name = element.getAttribute("name");
-    if (!name) continue;
+    if (!name) {
+      console.debug("[SIGESS] Elemento sem atributo name:", element.tagName);
+      continue;
+    }
 
     if (
       element instanceof HTMLInputElement &&
       (element.type === "checkbox" || element.type === "radio")
     ) {
       if (element.checked) {
+        console.debug("[SIGESS] Adicionando checkbox/radio:", name, element.value || "true");
         params.append(name, element.value || "true");
       }
       continue;
     }
 
+    console.debug("[SIGESS] Adicionando campo:", name, "=", element.value ?? "");
     params.append(name, element.value ?? "");
   }
 
@@ -212,13 +227,31 @@ function buildFechamentoFormData(doc: Document, competencia: string): URLSearchP
   params.set("PeriodoApuracao", `${competencia.slice(0, 4)}-${competencia.slice(4, 6)}`);
   params.set("commandName", "confirmar");
 
-  console.debug("[SIGESS] Fechamento FormData:", Array.from(params.entries()));
+  console.debug("[SIGESS] Fechamento FormData final:", Array.from(params.entries()));
   return params;
 }
 
 function normalizeMoneyValue(value: string): string {
   const trimmed = String(value || "").trim();
-  return (trimmed || "0").replace(",", ".");
+  const normalized = (trimmed || "0").replace(",", ".");
+
+  // Convert reais to centavos (divide by 100) and return as integer string
+  // Example: "375.00" → "37500" (centavos)
+  const numValue = Number(normalized);
+  if (!Number.isFinite(numValue)) {
+    console.warn("[SIGESS] Invalid money value:", value);
+    return "0";
+  }
+
+  const centavos = Math.round(numValue * 100);
+  console.debug("[SIGESS] normalizeMoneyValue conversion:", {
+    input: value,
+    normalized,
+    numValue,
+    centavos,
+  });
+
+  return String(centavos);
 }
 
 function safeParseJson<T>(value: string): T | null {
@@ -401,6 +434,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     reportBatchStatus(existsMsg.status, existsMsg.title, existsMsg.description, { overlayState: null });
     if (guiaExistente.emissaoUrl) {
       await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+      showSuccessModal("Boleto Gerado!");
     }
     return;
   }
@@ -411,6 +445,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, { overlayState: null });
     if (guiaExistente.emissaoUrl) {
       await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+      showSuccessModal("Boleto Gerado!");
     }
     return;
   }
@@ -431,10 +466,27 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
 
     await executarFluxoDiretoGps(settings, competencia);
   } catch (error) {
-    const failMsg = esocialMessages.failedToGenerateGuide();
-    logger.error("eSocial", failMsg.title, { error: error instanceof Error ? error.message : String(error) });
-    reportBatchStatus(failMsg.status, failMsg.title, failMsg.description, {
-      lastError: error instanceof Error ? error.message : String(error),
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // If payroll is closed, the guide already exists - try to download it
+    if (errorMessage.includes("já foi fechada") && guiaExistente.emissaoUrl) {
+      console.debug("[SIGESS] Payroll closed, downloading existing guide from:", guiaExistente.emissaoUrl);
+      const downloadMsg = esocialMessages.guideAlreadyIssued(competencia);
+      logger.info("eSocial", downloadMsg.title);
+      reportBatchStatus(downloadMsg.status, downloadMsg.title, downloadMsg.description, { overlayState: null });
+      await baixarGuiaPdfDirecto(guiaExistente.emissaoUrl, competencia, false, guiaExistente.valorDeclarado, guiaExistente.valorPago);
+      showSuccessModal("Boleto Gerado!");
+      return;
+    }
+
+    let statusMsg = esocialMessages.failedToGenerateGuide();
+    if (errorMessage.includes("já foi fechada")) {
+      statusMsg = esocialMessages.payrollAlreadyClosed(competencia);
+    }
+
+    logger.error("eSocial", statusMsg.title, { error: errorMessage });
+    reportBatchStatus(statusMsg.status, statusMsg.title, statusMsg.description, {
+      lastError: errorMessage,
       overlayState: null,
     });
   }

@@ -140,3 +140,67 @@ export function reportBatchStatus(
     renderEsocialProgressOverlay(overlayState);
   }
 }
+
+export function showSuccessModal(title: string = "Boleto Gerado!", onClose?: () => void) {
+  if (!document.body) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => showSuccessModal(title, onClose),
+      { once: true },
+    );
+    return;
+  }
+
+  const modalId = "sigess-success-modal";
+  let modal = document.getElementById(modalId);
+
+  if (modal) {
+    modal.remove();
+  }
+
+  modal = document.createElement("div");
+  modal.id = modalId;
+  modal.style.cssText =
+    "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px);";
+
+  const content = document.createElement("div");
+  content.style.cssText =
+    "background: white; padding: 32px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: sans-serif; max-width: 400px;";
+
+  content.innerHTML = `
+    <div style="margin-bottom: 24px;">
+      <div style="font-size: 48px; margin-bottom: 16px;">✓</div>
+      <h2 style="margin: 0; color: #16a34a; font-size: 24px; font-weight: 600;">${escapeHtml(title)}</h2>
+    </div>
+    <button id="sigess-modal-ok" style="
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 32px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    ">OK</button>
+  `;
+
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+
+  const okButton = document.getElementById("sigess-modal-ok");
+  if (okButton) {
+    okButton.addEventListener("click", () => {
+      modal?.remove();
+      onClose?.();
+    });
+
+    okButton.addEventListener("mouseover", () => {
+      okButton.style.background = "#0056b3";
+    });
+
+    okButton.addEventListener("mouseout", () => {
+      okButton.style.background = "#007bff";
+    });
+  }
+}

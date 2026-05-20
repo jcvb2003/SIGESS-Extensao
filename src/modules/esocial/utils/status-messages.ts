@@ -118,4 +118,10 @@ export const esocialMessages = {
     title: "Baixando PDF do boleto",
     description: "Gerando arquivo...",
   }),
+
+  payrollAlreadyClosed: (competencia: string): StatusMessage => ({
+    status: "erro",
+    title: `Folha de ${competencia} já foi fechada`,
+    description: "Será necessário reabrir a folha no eSocial para fazer alterações.",
+  }),
 };
