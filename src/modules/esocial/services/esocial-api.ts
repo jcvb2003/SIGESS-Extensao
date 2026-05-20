@@ -10,21 +10,34 @@ export async function postJson(
   path: string,
   payload: unknown,
 ): Promise<string> {
-  const response = await fetch(buildPortalUrl(path), {
+  const url = buildPortalUrl(path);
+  const body = JSON.stringify(payload);
+  console.debug("[SIGESS] POST", path);
+  console.debug("[SIGESS] Payload:", body);
+
+  const response = await fetch(url, {
     method: "POST",
     credentials: "include",
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "X-Requested-With": "XMLHttpRequest",
     },
-    body: JSON.stringify(payload),
+    body: body,
   });
+
+  const text = await response.text();
+  console.debug("[SIGESS] Response status:", response.status);
+  console.debug("[SIGESS] Response headers:", {
+    contentType: response.headers.get("content-type"),
+    contentLength: response.headers.get("content-length"),
+  });
+  console.debug("[SIGESS] Response body:", text.slice(0, 1000));
 
   if (!response.ok) {
     throw new Error(`Falha ao chamar ${path}: HTTP ${response.status}`);
   }
 
-  return response.text();
+  return text;
 }
 
 export async function getJson<T = unknown>(path: string): Promise<T> {
@@ -41,16 +54,24 @@ export async function getJson<T = unknown>(path: string): Promise<T> {
 }
 
 export async function getText(path: string): Promise<string> {
-  const response = await fetch(buildPortalUrl(path), {
+  const url = buildPortalUrl(path);
+  console.debug("[SIGESS] GET", path);
+
+  const response = await fetch(url, {
     method: "GET",
     credentials: "include",
   });
+
+  const text = await response.text();
+  console.debug("[SIGESS] Response status:", response.status);
+  console.debug("[SIGESS] Response body length:", text.length, "bytes");
+  console.debug("[SIGESS] Response body:", text.slice(0, 500));
 
   if (!response.ok) {
     throw new Error(`Falha ao chamar ${path}: HTTP ${response.status}`);
   }
 
-  return response.text();
+  return text;
 }
 
 export async function getBlob(path: string): Promise<Blob> {

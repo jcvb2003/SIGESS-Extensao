@@ -189,6 +189,8 @@ function buildFechamentoFormData(doc: Document, competencia: string): URLSearchP
     doc.querySelectorAll("form input[name], form select[name], form textarea[name]"),
   ) as Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>;
 
+  console.debug("[SIGESS] buildFechamentoFormData - elementos encontrados:", elements.length);
+
   for (const element of elements) {
     const name = element.getAttribute("name");
     if (!name) continue;
@@ -210,6 +212,7 @@ function buildFechamentoFormData(doc: Document, competencia: string): URLSearchP
   params.set("PeriodoApuracao", `${competencia.slice(0, 4)}-${competencia.slice(4, 6)}`);
   params.set("commandName", "confirmar");
 
+  console.debug("[SIGESS] Fechamento FormData:", Array.from(params.entries()));
   return params;
 }
 
