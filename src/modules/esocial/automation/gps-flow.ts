@@ -31,19 +31,21 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     valorComercializado,
   );
 
-  await postJson(
+  const salvarResp = await postJson(
     "/FolhaPagamento/SeguradoEspecial/SalvarRascunhoComercializacaoProducao",
     comercializacaoPayload,
   );
+  console.debug("[SIGESS] SalvarRascunho response:", salvarResp.slice(0, 500));
 
   const savingMsg = esocialMessages.savingCommercializationDraft();
   logger.info("eSocial", savingMsg.title);
   reportBatchStatus(savingMsg.status, savingMsg.title, savingMsg.description);
 
-  await postJson(
+  const enviarResp = await postJson(
     "/FolhaPagamento/SeguradoEspecial/EnviarEventosComercializacaoProducao",
     comercializacaoPayload,
   );
+  console.debug("[SIGESS] EnviarEventos response:", enviarResp.slice(0, 500));
 
   const sendingMsg = esocialMessages.sendingCommercializationEvents();
   logger.info("eSocial", sendingMsg.title);
