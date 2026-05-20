@@ -56,6 +56,8 @@ export async function routeMessage(
         return await handleEnqueueGovBatchSessions(message, getTabManager);
       case "getGovBatchStatuses":
         return await handleGetGovBatchStatuses(message);
+      case "getESocialAutomationSettings":
+        return await handleGetESocialAutomationSettings();
       case "updateGovBatchStatus":
         return await handleUpdateGovBatchStatus(message, sender);
       case "turboFillReap":
@@ -75,6 +77,24 @@ export async function routeMessage(
     logger.error("Extension", "Erro ao processar requisição", { action, error: error.message });
     return { success: false, error: error.message };
   }
+}
+
+async function handleGetESocialAutomationSettings(): Promise<MessageResponse> {
+  const settings = await StorageService.getSettings();
+  const year = (settings.selectedYear || "").trim();
+  const month = (settings.selectedMonth || "").padStart(2, "0");
+  const competencia = year && month && /^\d{4}$/.test(year) && /^\d{2}$/.test(month)
+    ? `${year}-${month}`
+    : "";
+
+  return {
+    success: true,
+    data: {
+      competencia,
+      valorComercializado: settings.valorComercializado || "",
+      gerarGps: Boolean(settings.gerarGps),
+    },
+  };
 }
 
 async function handleUpdateSettings(message: MessageRequest) {

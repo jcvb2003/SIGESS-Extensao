@@ -7,6 +7,7 @@ window.addEventListener("message", function (event) {
   // Only process expected message types
   if (messageType !== "enqueueGovBatchSessions" &&
       messageType !== "getGovBatchStatuses" &&
+      messageType !== "getESocialAutomationSettings" &&
       messageType !== "abrirAbaContainer") {
     return;
   }
