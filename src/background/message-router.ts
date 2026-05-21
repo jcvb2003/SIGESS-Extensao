@@ -58,6 +58,8 @@ export async function routeMessage(
         return await handleGetGovBatchStatuses(message);
       case "getESocialAutomationSettings":
         return await handleGetESocialAutomationSettings();
+      case "getAutoRegistrationSnapshot":
+        return await handleGetAutoRegistrationSnapshot();
       case "updateGovBatchStatus":
         return await handleUpdateGovBatchStatus(message, sender);
       case "turboFillReap":
@@ -98,6 +100,20 @@ async function handleGetESocialAutomationSettings(): Promise<MessageResponse> {
   };
 }
 
+async function handleGetAutoRegistrationSnapshot(): Promise<MessageResponse> {
+  const settings = await StorageService.getSettings();
+  const pessoaData = settings.pessoaData || null;
+
+  return {
+    success: true,
+    data: {
+      enabled: Boolean(settings.autoRegistrationEnabled),
+      hasData: Boolean(pessoaData?.nome && pessoaData?.cpf),
+      data: pessoaData,
+    },
+  };
+}
+
 async function handleUpdateSettings(message: MessageRequest) {
   if (!message.settings) {
     logger.error("Configurações", "Configurações não fornecidas");
@@ -129,7 +145,6 @@ async function handleStartBatchLogin(
   message: MessageRequest,
   getTabManager: () => any,
 ) {
-  // Otimizado: Permite o uso de cache (8h) para abrir o lote
   const license = await LicenseService.checkLicense(false, false);
   if (!license.ok) {
     return {
@@ -168,7 +183,6 @@ async function handleAbrirAbaContainer(
   message: MessageRequest,
   getTabManager: () => any,
 ) {
-  // Otimizado: Permite o uso de cache (8h) para enfileirar/abrir abas
   const license = await LicenseService.checkLicense(false, false);
   if (!license.ok) {
     return {
@@ -177,10 +191,9 @@ async function handleAbrirAbaContainer(
     };
   }
   const { url, cpf, senha, nome } = message;
-  
-  // Whitelist de Segurança
+
   try {
-    if (!isUrlAllowed(url || '')) {
+    if (!isUrlAllowed(url || "")) {
       return { success: false, error: "Este host não está autorizado para login via container SIGESS." };
     }
   } catch (error) {
@@ -189,14 +202,12 @@ async function handleAbrirAbaContainer(
   }
 
   const settings = await StorageService.getSettings();
-  
-  // Se houver dados de auditoria (SDPA), salva no storage local associado a este sócio
+
   if (message.auditoriaData) {
     try {
-      // Garante que o CPF vindo da mensagem principal seja incluído nos dados de auditoria
-      const dataWithCpf = { 
-        ...message.auditoriaData, 
-        cpf: message.cpf || message.auditoriaData.cpf 
+      const dataWithCpf = {
+        ...message.auditoriaData,
+        cpf: message.cpf || message.auditoriaData.cpf,
       };
       await StorageService.mergePessoaData(dataWithCpf, "SIGESS_WEB");
       console.log("[SIGESS] Dados de auditoria (SDPA) persistidos com sucesso.");
@@ -205,38 +216,34 @@ async function handleAbrirAbaContainer(
     }
   }
 
-  // Se o login múltiplo estiver ATIVADO, enfileira
   if (settings.multiLoginEnabled) {
-    // Limpeza de itens expirados (30 minutos)
     const now = Date.now();
-    const queue = (settings.multiLoginQueue || []).filter(item => {
+    const queue = (settings.multiLoginQueue || []).filter((item) => {
       const age = now - item.timestamp;
       return age < 30 * 60 * 1000;
     });
-    
-    // Limite de 5 itens conforme solicitado
+
     if (queue.length >= 5) {
       return { success: false, error: "Fila de login múltiplo cheia (máx 5). Abra o lote ou remova itens." };
     }
 
     const newItem: MultiLoginItem = {
       id: Math.random().toString(36).substring(2, 11),
-      nome: nome || cpf, // Usa nome se existir, senão CPF
+      nome: nome || cpf,
       cpf,
       senha,
       url,
       type: url.includes("esocial") ? "esocial" : "pesqbrasil",
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     const newQueue = [...queue, newItem];
     await StorageService.saveSettings({ ...settings, multiLoginQueue: newQueue });
     BadgeManager.setQueueCount(newQueue.length);
-    
+
     return { success: true, queued: true, nome: newItem.nome };
   }
 
-  // Se estiver DESATIVADO, abre a aba imediatamente (comportamento original)
   const randIndex = Math.floor(Math.random() * 1000);
   await getTabManager().createSession(
     url,
@@ -257,7 +264,7 @@ async function handleEnqueueGovBatchSessions(
   if (!license.ok) {
     return {
       success: false,
-      error: `LicenÃ§a InvÃ¡lida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }
 
@@ -280,7 +287,7 @@ async function handleEnqueueGovBatchSessions(
   if (availableSlots === 0) {
     return {
       success: false,
-      error: "Fila da extensÃ£o cheia (mÃ¡x 5). Abra o lote atual antes de enviar novos itens.",
+      error: "Fila da extensão cheia (máx 5). Abra o lote atual antes de enviar novos itens.",
     };
   }
 
@@ -421,7 +428,17 @@ async function handleUpdateGovBatchStatus(
     boletoGerado?: boolean;
   };
 
-  const { status, statusTitle, statusDescription, lastError, loginConcluido, progressStep, progressTotal, boletoInfo, boletoGerado } = msg;
+  const {
+    status,
+    statusTitle,
+    statusDescription,
+    lastError,
+    loginConcluido,
+    progressStep,
+    progressTotal,
+    boletoInfo,
+    boletoGerado,
+  } = msg;
 
   if (!status || !statusTitle || !statusDescription) {
     return { success: false, error: "Payload de status incompleto." };
@@ -446,19 +463,18 @@ async function handleUpdateGovBatchStatus(
 }
 
 async function handleTurboFillReap(message: MessageRequest) {
-  // Lógica Decisória: Plano Pago usa cache (0ms). Plano Teste faz verificação live e consome cota.
   const current = await LicenseService.getStatus();
-  const isPaid = current.ok && current.plan === 'paid';
-  
+  const isPaid = current.ok && current.plan === "paid";
+
   const forceLive = !isPaid;
   const forceConsume = !isPaid;
 
-  const license = await LicenseService.checkLicense(forceLive, forceConsume, 'turbo');
-  
+  const license = await LicenseService.checkLicense(forceLive, forceConsume, "turbo");
+
   if (!license.ok) {
     return {
       success: false,
-      error: license.reason === 'limit_reached_turbo' 
+      error: license.reason === "limit_reached_turbo"
         ? `Limite de Preenchimento Turbo atingido (${license.usage_turbo}/${license.max_turbo}). Evolua para o Plano Pro para uso ilimitado.`
         : `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
@@ -473,11 +489,14 @@ async function handleTurboFillReap(message: MessageRequest) {
 
     const response = await browser.tabs.sendMessage(tabs[0].id, {
       action: "executeTurboFill",
-      config
+      config,
     });
     return response || { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message || "A aba atual do REAP não pôde receber a ação de Turbo. Certifique-se de estar na página correta do formulário e recarregue-a." };
+    return {
+      success: false,
+      error: error.message || "A aba atual do REAP não pôde receber a ação de Turbo. Certifique-se de estar na página correta do formulário e recarregue-a.",
+    };
   }
 }
 

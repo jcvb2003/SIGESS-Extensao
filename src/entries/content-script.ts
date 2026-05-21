@@ -1,16 +1,18 @@
 console.log("[SIGESS] Content Script active");
+
+const ALLOWED_MESSAGE_TYPES = new Set([
+  "enqueueGovBatchSessions",
+  "getGovBatchStatuses",
+  "getESocialAutomationSettings",
+  "getAutoRegistrationSnapshot",
+  "abrirAbaContainer",
+]);
+
 window.addEventListener("message", function (event) {
   if (event.source !== window) return;
 
   const messageType = event.data?.type;
-
-  // Only process expected message types
-  if (messageType !== "enqueueGovBatchSessions" &&
-      messageType !== "getGovBatchStatuses" &&
-      messageType !== "getESocialAutomationSettings" &&
-      messageType !== "abrirAbaContainer") {
-    return;
-  }
+  if (!ALLOWED_MESSAGE_TYPES.has(messageType)) return;
 
   console.log("[SIGESS] Content Script: Repassando mensagem para background", {
     type: messageType,
@@ -25,7 +27,6 @@ window.addEventListener("message", function (event) {
     return;
   }
 
-  // Envia para background e aguarda resposta
   browserAPI.runtime
     .sendMessage(event.data)
     .then((response: unknown) => {
@@ -35,7 +36,6 @@ window.addEventListener("message", function (event) {
         response,
       });
 
-      // Retorna resposta para a página Web
       if (event.data.requestId) {
         console.log("[SIGESS] Content Script: Enviando SIGESS_EXTENSION_RESPONSE de volta ao Web", {
           requestId: event.data.requestId,
