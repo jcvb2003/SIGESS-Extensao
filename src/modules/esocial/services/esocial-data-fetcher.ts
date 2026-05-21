@@ -14,11 +14,40 @@ export interface ComercializacaoData {
 }
 
 /**
+ * Trigger server-side synchronization by fetching ListarPagamentos page.
+ * This forces the eSocial server to sync internal state before we fetch actual data.
+ * eSocial has a known delay where Declarado value isn't available until server syncs.
+ */
+async function syncServerState(competencia: string): Promise<void> {
+  try {
+    const syncUrl = buildEsocialUrl(
+      `/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competencia}`
+    );
+
+    await fetch(syncUrl, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    // Small delay to allow server to complete internal sync
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    console.debug("[SIGESS] Server state synchronized via ListarPagamentos");
+  } catch (error) {
+    console.debug("[SIGESS] Falha ao sincronizar estado do servidor:", error);
+    // Continue anyway - the sync is a best-effort optimization
+  }
+}
+
+/**
  * Fetch boleto data (Declarado, Pago values) from Competências page
  * Using HTTP fetch instead of DOM parsing
  */
 export async function fetchBoletoData(competencia: string): Promise<BoletoData> {
   try {
+    // First, trigger server synchronization
+    await syncServerState(competencia);
+
     const url = buildEsocialUrl(
       `/FolhaPagamento/Listagem/Competencias?ano=${competencia.slice(0, 4)}`
     );
@@ -57,12 +86,6 @@ export async function fetchBoletoData(competencia: string): Promise<BoletoData> 
       const paidText = cells[4]?.textContent?.trim() || "-";
       const paidValues = extractMoneyValues(paidText);
       const valorPago = paidValues[0] ?? 0;
-
-      // Workaround: eSocial server caching bug - Declarado shows 0 until you navigate other pages
-      // If Declarado is 0 but Pago > 0, they should be equal (use Pago as fallback)
-      if (valorDeclarado === 0 && valorPago > 0) {
-        valorDeclarado = valorPago;
-      }
 
       // Try to find "Emitir Guia" link
       const emitirGuiaLink = Array.from(row.querySelectorAll("a")).find(
