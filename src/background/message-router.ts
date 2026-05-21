@@ -81,8 +81,9 @@ export async function routeMessage(
 
 async function handleGetESocialAutomationSettings(): Promise<MessageResponse> {
   const settings = await StorageService.getSettings();
-  const year = (settings.selectedYear || "").trim();
+  const rawYear = (settings.selectedYear || "").trim();
   const month = (settings.selectedMonth || "").padStart(2, "0");
+  const year = rawYear === "current" ? String(new Date().getFullYear()) : rawYear;
   const competencia = year && month && /^\d{4}$/.test(year) && /^\d{2}$/.test(month)
     ? `${year}-${month}`
     : "";
