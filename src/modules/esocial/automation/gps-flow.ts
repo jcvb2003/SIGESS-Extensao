@@ -12,6 +12,7 @@ import { buildComercializacaoPayload } from "../services/comercializacao";
 import { reportBatchStatus, showSuccessModal } from "./overlay-ui";
 import { baixarGuiaPdfDirecto } from "./guide-download";
 import { esocialMessages } from "../utils/status-messages";
+import { fetchBoletoData, fetchComercializacaoData } from "../services/esocial-data-fetcher";
 
 export async function executarFluxoDiretoGps(settings: AppSettings, competencia: string) {
   const valorComercializado = normalizeMoneyValue(settings.valorComercializado);
@@ -372,20 +373,23 @@ export function buildCompetenciaFromSettings(settings: AppSettings): string | nu
 
 export async function consultarGuiaExistenteViaApi(competencia: string): Promise<GuiaExistenteInfo> {
   try {
-    const targetUrl = buildEsocialUrl(
-      `/FolhaPagamento/Listagem/Competencias?competencia=${competencia}`,
-    );
+    const boletoData = await fetchBoletoData(competencia);
+    const hasPaidValue = (boletoData.valorPago ?? 0) > 0;
 
-    const response = await fetch(targetUrl, {
-      method: "GET",
-      credentials: "include",
+    console.debug("[SIGESS] Verificacao de guia existente via fetchBoletoData:", {
+      competencia,
+      valorDeclarado: boletoData.valorDeclarado,
+      valorPago: boletoData.valorPago,
+      hasPaidValue,
+      emissaoUrl: boletoData.emissaoUrl,
     });
 
-    if (!response.ok) {
-      return { paga: false, emissaoUrl: null };
-    }
-
-    return extractGuiaExistenteInfo(parseHtml(await response.text()), competencia);
+    return {
+      paga: hasPaidValue,
+      emissaoUrl: boletoData.emissaoUrl,
+      valorDeclarado: boletoData.valorDeclarado,
+      valorPago: boletoData.valorPago,
+    };
   } catch (error) {
     console.debug("[SIGESS] Falha ao verificar guia existente via API:", error);
     return { paga: false, emissaoUrl: null };
@@ -394,59 +398,9 @@ export async function consultarGuiaExistenteViaApi(competencia: string): Promise
 
 export async function extrairValorTotalComercializadoDaPagina(competencia: string): Promise<number> {
   try {
-    const response = await fetch(
-      buildEsocialUrl(
-        `/FolhaPagamento/SeguradoEspecial/ComercializacaoProducao?competencia=${competencia}`,
-      ),
-      {
-        method: "GET",
-        credentials: "include",
-      },
-    );
-
-    if (!response.ok) {
-      console.debug("[SIGESS] Falha ao carregar página de comercialização");
-      return 0;
-    }
-
-    const html = await response.text();
-    const doc = parseHtml(html);
-
-    // Procura por elementos que contêm "total" e extrai valores de dinheiro
-    const labels = Array.from(doc.querySelectorAll("*")).filter((el) => {
-      const text = (el.textContent || "").toLowerCase();
-      return text.includes("total") && text.includes("comercializado");
-    });
-
-    for (const label of labels) {
-      const text = label.textContent || "";
-      const values = extractMoneyValues(text);
-      if (values.length > 0) {
-        const valor = values[values.length - 1];
-        console.debug("[SIGESS] Valor total comercializado encontrado na página:", valor);
-        return valor;
-      }
-    }
-
-    // Procura por qualquer elemento com "total"
-    const totalLabels = Array.from(doc.querySelectorAll("*")).filter((el) => {
-      const text = (el.textContent || "").trim().toLowerCase();
-      return text === "total" || text.startsWith("total");
-    });
-
-    for (const label of totalLabels) {
-      const nextSibling = label.nextElementSibling;
-      if (nextSibling) {
-        const values = extractMoneyValues(nextSibling.textContent || "");
-        if (values.length > 0) {
-          console.debug("[SIGESS] Valor total encontrado:", values[0]);
-          return values[0];
-        }
-      }
-    }
-
-    console.debug("[SIGESS] Não foi possível extrair valor total da página de comercialização");
-    return 0;
+    const comercializacaoData = await fetchComercializacaoData(competencia);
+    console.debug("[SIGESS] Valor total comercializado extraído:", comercializacaoData.valorComercializado);
+    return comercializacaoData.valorComercializado;
   } catch (error) {
     console.debug("[SIGESS] Erro ao extrair valor total da comercialização:", error);
     return 0;

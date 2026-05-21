@@ -57,23 +57,14 @@ export async function getStoredCredentials(): Promise<{ cpf: string; nome: strin
 }
 
 export async function getBestCpf(): Promise<string> {
-  // Try to get CPF from eSocial session API first (most reliable)
+  // ONLY source of truth: eSocial session API
+  // Each tab has its own session → each gets correct CPF
   const sessionCpf = await getBestCpfFromSession();
   if (sessionCpf && sessionCpf !== "SEMCPF" && sessionCpf !== "SEM_CPF") {
     return sessionCpf;
   }
 
-  // Fallback to stored credentials
-  const { cpf: fromStorage } = await getStoredCredentials();
-  if (fromStorage && fromStorage !== "SEMCPF" && fromStorage !== "SEM_CPF") {
-    return fromStorage;
-  }
-
-  // Fallback to global variable
-  const globalCpf = String((window as { identidadeLocal?: unknown }).identidadeLocal || "")
-    .replace(/\D/g, "");
-  if (globalCpf) return globalCpf;
-
+  console.warn("[SIGESS] API DadosSessao retornou CPF vazio/nulo");
   return "SEM_CPF";
 }
 
@@ -103,30 +94,16 @@ async function fetchEsocialSessionData(): Promise<SessionData> {
 }
 
 export async function getBestNome(): Promise<string> {
-  // Try to get nome from eSocial session API first (most reliable)
+  // ONLY source of truth: eSocial session API
+  // Each tab has its own session → each gets correct nome
   const sessionData = await fetchEsocialSessionData();
   if (sessionData?.Nome) {
-    return extractCleanName(sessionData.Nome) || "SEM_NOME";
+    const cleaned = extractCleanName(sessionData.Nome);
+    if (cleaned) return cleaned;
   }
 
-  // Fallback to global variable
-  const globalNome = extractCleanName(
-    String((window as { nomeUsuario?: unknown }).nomeUsuario || "").trim(),
-  );
-  if (globalNome) return globalNome;
-
-  // Fallback to stored credentials
-  const { nome: fromStorage } = await getStoredCredentials();
-  const fromStorageClean = extractCleanName(fromStorage);
-  if (fromStorageClean) return fromStorageClean;
-
-  // Fallback to DOM
-  const domNome =
-    extractCleanName(document.querySelector(".nome-usuario")?.textContent?.trim() || "") ||
-    document.querySelector("#header")?.textContent?.trim() ||
-    "";
-
-  return extractCleanName(domNome) || "SEM_NOME";
+  console.warn("[SIGESS] API DadosSessao retornou nome vazio/nulo");
+  return "SEM_NOME";
 }
 
 export async function getBestCpfFromSession(): Promise<string> {
