@@ -22,3 +22,41 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+# Web Extension build artifacts
+web-ext-artifacts/
+*.xpi
+*.zip
+
+# AI Agent tooling (all IDEs)
+.agents/
+.claude/
+.kiro/
+.trae/
+.windsurf/
+.reversa/
+_reversa_sdd/
+skills-lock.json
+
+# AI Rules and configuration files
+.cursorrules
+.windsurfrules
+AGENTS.md
+
+# Temporary / generated files
+diff.txt
+SESSION.md
+Descrição.md
+implementation_plan.md
+implementation_plan*.md
+walkthrough*.md
+task.md
+analise*.md
+
+# Seed data (not for production version control)
+seed.sql
+
+# macOS
+.DS_Store
+*.swp
+*.swo
