@@ -51,12 +51,18 @@ export async function fetchBoletoData(competencia: string): Promise<BoletoData> 
       // Extract Declarado (column 3)
       const declaredText = cells[3]?.textContent?.trim() || "-";
       const declaredValues = extractMoneyValues(declaredText);
-      const valorDeclarado = declaredValues[0] ?? 0;
+      let valorDeclarado = declaredValues[0] ?? 0;
 
       // Extract Pago (column 4)
       const paidText = cells[4]?.textContent?.trim() || "-";
       const paidValues = extractMoneyValues(paidText);
       const valorPago = paidValues[0] ?? 0;
+
+      // Workaround: eSocial server caching bug - Declarado shows 0 until you navigate other pages
+      // If Declarado is 0 but Pago > 0, they should be equal (use Pago as fallback)
+      if (valorDeclarado === 0 && valorPago > 0) {
+        valorDeclarado = valorPago;
+      }
 
       // Try to find "Emitir Guia" link
       const emitirGuiaLink = Array.from(row.querySelectorAll("a")).find(
