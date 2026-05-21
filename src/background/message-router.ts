@@ -9,6 +9,13 @@ import {
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
 
+const UPDATE_ALLOWED_ACTIONS = new Set([
+  "checkLicense",
+  "getGovBatchStatuses",
+  "getESocialAutomationSettings",
+  "getAutoRegistrationSnapshot",
+]);
+
 function isUrlAllowed(url: string): boolean {
   try {
     const { protocol, hostname } = new URL(url);
@@ -34,6 +41,16 @@ export async function routeMessage(
   logger.info("Extension", `Requisição recebida: ${action}`);
 
   try {
+    const updateInfo = await getUpdateAvailable();
+    if (updateInfo && !UPDATE_ALLOWED_ACTIONS.has(action)) {
+      return {
+        success: false,
+        error: "Nova versão detectada. Atualize a extensão para continuar.",
+        updateRequired: true,
+        updateAvailable: updateInfo,
+      };
+    }
+
     switch (action) {
       case "checkLicense": {
         const lic = await LicenseService.checkLicense();
@@ -79,6 +96,11 @@ export async function routeMessage(
     logger.error("Extension", "Erro ao processar requisição", { action, error: error.message });
     return { success: false, error: error.message };
   }
+}
+
+async function getUpdateAvailable(): Promise<{ version?: string; url?: string } | null> {
+  const result = await StorageService.get<any>("updateAvailable");
+  return result?.updateAvailable || null;
 }
 
 async function handleGetESocialAutomationSettings(): Promise<MessageResponse> {
