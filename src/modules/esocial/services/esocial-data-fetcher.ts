@@ -64,16 +64,26 @@ export async function fetchBoletoData(competencia: string): Promise<BoletoData> 
           (a.textContent || "").toLowerCase().includes("emitir") &&
           (a.getAttribute("href") || "").includes("EmitirGuia")
       );
-      const emissaoUrl = emitirGuiaLink
-        ? (emitirGuiaLink.getAttribute("href") || "").split("javascript:")[1]?.match(/['"]([^'"]+)['"]/)?.[1] || null
-        : null;
+      let emissaoUrl: string | null = null;
+      if (emitirGuiaLink) {
+        const href = emitirGuiaLink.getAttribute("href") || "";
+        const extracted = href.split("javascript:")[1]?.match(/['"]([^'"]+)['"]/)?.[1];
+        if (extracted) {
+          emissaoUrl = buildEsocialUrl(extracted);
+        }
+      }
 
       console.debug("[SIGESS] Boleto data fetched:", {
         competencia,
         situacao,
+        declaredText: cells[3]?.textContent?.trim(),
+        declaredValues,
+        paidText: cells[4]?.textContent?.trim(),
+        paidValues,
         valorDeclarado,
         valorPago,
         hasEmissaoUrl: !!emissaoUrl,
+        emissaoUrl,
       });
 
       return { valorDeclarado, valorPago, situacao, emissaoUrl };
