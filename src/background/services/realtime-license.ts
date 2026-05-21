@@ -4,11 +4,22 @@ import { LicenseService } from "../../shared/services/license";
 export class RealtimeLicenseService {
   private static client: RealtimeClient | null = null;
   private static channel: RealtimeChannel | null = null;
+  private static startupTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+  private static readonly STARTUP_CONNECT_DELAY_MS = 5000;
 
   /**
    * Inicializa o cliente Realtime para ouvir notificações de desvinculação da licença.
    */
   static async init() {
+    if (this.startupTimer !== null) return;
+
+    this.startupTimer = globalThis.setTimeout(() => {
+      this.startupTimer = null;
+      void this.connect();
+    }, this.STARTUP_CONNECT_DELAY_MS);
+  }
+
+  private static async connect() {
     const key = await LicenseService.getSavedKey();
     if (!key) return;
 
@@ -50,6 +61,10 @@ export class RealtimeLicenseService {
   }
 
   static stop() {
+    if (this.startupTimer !== null) {
+      globalThis.clearTimeout(this.startupTimer);
+      this.startupTimer = null;
+    }
     if (this.channel) {
       this.channel.unsubscribe();
       this.channel = null;
