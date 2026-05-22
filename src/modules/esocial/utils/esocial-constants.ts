@@ -6,6 +6,7 @@ export const HOOKED_BUTTON_ATTR = "data-sigess-guide-hooked";
 export const GUIDE_OBSERVER_ATTR = "__sigessGuideObserverInitialized";
 export const GPS_FLOW_LOCK_KEY = "sigess_gps_flow_lock";
 export const GPS_FLOW_DONE_PREFIX = "sigess_gps_flow_done_";
+export const GPS_FLOW_PENDING_STATE_KEY = "sigess_gps_flow_pending_state";
 export const MANUAL_GUIDE_DOWNLOAD_KEY = "sigess_manual_guide_download_until";
 export const ESOCIAL_PROGRESS_OVERLAY_ID = "sigess-esocial-progress-overlay";
 export const ESOCIAL_PROGRESS_OVERLAY_STORAGE_KEY = "sigess_esocial_progress_overlay";

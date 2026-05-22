@@ -11,6 +11,7 @@ import {
   buildCompetenciaFromSettings,
   acquireGpsFlowLock,
   releaseGpsFlowLock,
+  resumePendingGpsFlow,
 } from "./automation/gps-flow";
 import { esocialMessages } from "./utils/status-messages";
 
@@ -25,6 +26,10 @@ function isHomePage(): boolean {
 }
 
 async function executarFluxoGpsSeNecessario(settings: AppSettings) {
+  if (await resumePendingGpsFlow()) {
+    return;
+  }
+
   if (!settings.gerarGps || !isHomePage()) {
     clearEsocialProgressOverlay();
     return;
