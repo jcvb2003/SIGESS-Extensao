@@ -21,6 +21,7 @@ export interface UserCredentials {
 export type GovBatchItemStatus =
   | "enfileirado"
   | "abrindo_em_lote"
+  | "aguardando_pagina"
   | "fazendo_login"
   | "acessando_esocial"
   | "consultando"

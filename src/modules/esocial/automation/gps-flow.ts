@@ -974,10 +974,10 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
   const checkMsg = esocialMessages.verifyingBoletoStatus();
   logger.info("eSocial", checkMsg.title);
   reportBatchStatus(checkMsg.status, checkMsg.title, checkMsg.description, {
-    progressStep: 1,
+    progressStep: 2,
     progressTotal: 3,
     overlayState: {
-      step: 1,
+      step: 2,
       total: 3,
       title: "Verificando boleto",
       description: `Consultando status do boleto de ${competencia}...`,

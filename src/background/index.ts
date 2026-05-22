@@ -82,6 +82,14 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+browser.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    await getTabManager().handleTabActivated(activeInfo.tabId);
+  } catch (e) {
+    console.error("TabManager onActivated error:", e);
+  }
+});
+
 browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   try {
     await getTabManager().handleTabRemoval(tabId, removeInfo);
@@ -89,6 +97,12 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
     console.error("TabManager onRemoved error:", e);
   }
 });
+
+setInterval(() => {
+  void getTabManager().recheckPendingTabs().catch((error) => {
+    console.error("TabManager watchdog error:", error);
+  });
+}, 10000);
 
 const downloadsApi = (browser as any).downloads;
 

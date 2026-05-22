@@ -34,8 +34,11 @@ export function renderEsocialProgressOverlay(state: EsocialOverlayState) {
     document.body.appendChild(overlay);
   }
 
-  const overlayTotal = 2;
-  const overlayStep = state.complete ? 2 : 1;
+  const overlayTotal = Math.max(1, state.total || 1);
+  const overlayStep = Math.min(
+    overlayTotal,
+    Math.max(1, state.complete ? overlayTotal : state.step || 1),
+  );
 
   const segments = Array.from({ length: overlayTotal })
     .map((_, index) => {

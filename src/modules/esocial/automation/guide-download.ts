@@ -138,10 +138,10 @@ async function baixarGuiaPdf(
   const downloadingMsg = esocialMessages.manualEmitGuideDetected();
   logger.info("eSocial", downloadingMsg.title);
   reportBatchStatus(downloadingMsg.status, downloadingMsg.title, downloadingMsg.description, {
-    progressStep: 2,
+    progressStep: 3,
     progressTotal: 3,
     overlayState: {
-      step: 2,
+      step: 3,
       total: 3,
       title: "Executando script no eSocial",
       description: `Preparando download do boleto de ${formatCompetencia(competencia)}...`,
