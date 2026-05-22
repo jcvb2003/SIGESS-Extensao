@@ -20,6 +20,39 @@ const UPDATE_ALLOWED_MESSAGE_TYPES = new Set([
   "getESocialAutomationSettings",
   "getAutoRegistrationSnapshot",
 ]);
+const EXTENSION_EVENT_TYPE = "SIGESS_EXTENSION_EVENT";
+const ESOCIAL_SETTINGS_EVENT_NAME = "esocialAutomationSettingsChanged";
+
+type ESocialAutomationSettingsSnapshot = {
+  competencia: string;
+  gerarGps: boolean;
+};
+
+function buildESocialAutomationSnapshot(settings: Record<string, unknown>): ESocialAutomationSettingsSnapshot {
+  const rawYear = String(settings.selectedYear || "").trim();
+  const month = String(settings.selectedMonth || "").padStart(2, "0");
+  const year = rawYear === "current" ? String(new Date().getFullYear()) : rawYear;
+  const competencia =
+    year && month && /^\d{4}$/.test(year) && /^\d{2}$/.test(month)
+      ? `${year}-${month}`
+      : "";
+
+  return {
+    competencia,
+    gerarGps: Boolean(settings.gerarGps),
+  };
+}
+
+function emitESocialAutomationSettingsChanged(settings: Record<string, unknown>) {
+  window.postMessage(
+    {
+      type: EXTENSION_EVENT_TYPE,
+      eventName: ESOCIAL_SETTINGS_EVENT_NAME,
+      data: buildESocialAutomationSnapshot(settings),
+    },
+    window.location.origin,
+  );
+}
 
 window.addEventListener("message", function (event) {
   if (event.source !== window) return;
@@ -108,3 +141,16 @@ window.addEventListener("message", function (event) {
       });
   });
 });
+
+const browserAPI =
+  typeof browser !== "undefined" ? browser : (window as any).chrome;
+
+if (browserAPI?.storage?.onChanged) {
+  browserAPI.storage.onChanged.addListener((changes: Record<string, { newValue?: unknown }>, areaName: string) => {
+    if (areaName !== "local" || !changes.sigessSettings?.newValue) {
+      return;
+    }
+
+    emitESocialAutomationSettingsChanged(changes.sigessSettings.newValue as Record<string, unknown>);
+  });
+}
