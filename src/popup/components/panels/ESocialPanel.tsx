@@ -21,17 +21,6 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ settings, onUpdate }) => {
     { value: "11", label: "Novembro" },
     { value: "12", label: "Dezembro" },
   ];
-  const handleCurrencyInput = (val: string) => {
-    let nums = val.replace(/\D/g, "");
-    if (!nums) return onUpdate({ valorComercializado: "" });
-    const centavos = parseInt(nums);
-    const reais = centavos / 100;
-    const formatted = reais.toLocaleString("pt-BR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    onUpdate({ valorComercializado: formatted });
-  };
   const handleToggleConsultar = (enabled: boolean) => {
     onUpdate({
       consultarGuias: enabled,
@@ -117,21 +106,9 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ settings, onUpdate }) => {
                   ))}
                 </select>
               </div>
-
-              <div className="gps-control-group">
-                <label className="gps-label">Valor (R$):</label>
-                <input
-                  type="text"
-                  className="gps-input"
-                  placeholder="Ex: 1.400,00"
-                  maxLength={15}
-                  value={settings.valorComercializado}
-                  onChange={(e) => handleCurrencyInput(e.target.value)}
-                />
-              </div>
             </div>
             <p className="gps-note">
-              Redireciona para GPS com competência específica
+              Define apenas a competência da automação do eSocial
             </p>
           </div>
         )}

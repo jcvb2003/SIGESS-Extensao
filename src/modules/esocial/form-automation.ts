@@ -18,6 +18,14 @@ import { esocialMessages } from "./utils/status-messages";
 const browserAPI =
   typeof browser !== "undefined" ? browser : (window as any).chrome;
 
+type ESocialAutomationContext = {
+  gerarGps?: boolean;
+  selectedYear?: string;
+  selectedMonth?: string;
+  competencia?: string;
+  valorComercializado?: string;
+};
+
 function isHomePage(): boolean {
   return (
     window.location.href.includes("Home/Inicial") ||
@@ -35,14 +43,16 @@ async function executarFluxoGpsSeNecessario(settings: AppSettings) {
     return;
   }
 
-  const competencia = buildCompetenciaFromSettings(settings);
+  const effectiveSettings = await resolveESocialSettingsForCurrentTab(settings);
+
+  const competencia = buildCompetenciaFromSettings(effectiveSettings);
   if (!competencia || !acquireGpsFlowLock(competencia)) {
     clearEsocialProgressOverlay();
     return;
   }
 
   try {
-    await executarFluxoDirectoFromHome(settings);
+    await executarFluxoDirectoFromHome(effectiveSettings);
   } catch (error) {
     const failMsg = esocialMessages.failedToGenerateGuide();
     logger.error("eSocial", failMsg.title, { error: error instanceof Error ? error.message : String(error) });
@@ -52,6 +62,30 @@ async function executarFluxoGpsSeNecessario(settings: AppSettings) {
     });
   } finally {
     releaseGpsFlowLock();
+  }
+}
+
+async function resolveESocialSettingsForCurrentTab(settings: AppSettings): Promise<AppSettings> {
+  try {
+    const response = await browserAPI.runtime.sendMessage({
+      action: "getESocialAutomationContext",
+    });
+
+    if (!response?.success || !response.data) {
+      return settings;
+    }
+
+    const context = response.data as ESocialAutomationContext;
+    return {
+      ...settings,
+      gerarGps: context.gerarGps ?? settings.gerarGps,
+      selectedYear: context.selectedYear || settings.selectedYear,
+      selectedMonth: context.selectedMonth || settings.selectedMonth,
+      valorComercializado: context.valorComercializado ?? settings.valorComercializado,
+    };
+  } catch (error) {
+    console.debug("[SIGESS] Falha ao obter contexto da automacao do eSocial para a aba atual:", error);
+    return settings;
   }
 }
 

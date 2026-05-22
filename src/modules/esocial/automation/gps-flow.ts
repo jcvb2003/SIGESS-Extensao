@@ -22,12 +22,13 @@ import { fetchBoletoData, fetchComercializacaoData } from "../services/esocial-d
 type PendingGpsClosureState = {
   competencia: string;
   valorComercializado?: string;
-  step: "awaiting_closure_page" | "awaiting_closure_result";
+  enviaRemuneracoesBody?: string;
+  step: "awaiting_remuneracoes_page" | "awaiting_closure_page" | "awaiting_closure_result";
 };
 
 export async function executarFluxoDiretoGps(settings: AppSettings, competencia: string) {
   const valorComercializado = normalizeMoneyValue(settings.valorComercializado);
-  console.debug("[SIGESS] valorComercializado from settings:", settings.valorComercializado);
+  console.debug("[SIGESS] valorComercializado from tab context:", settings.valorComercializado);
   console.debug("[SIGESS] valorComercializado normalized:", valorComercializado);
   const { comercializacaoHtml, autonomosHtml } = await carregarDadosComercializacao(competencia);
   const comercializacaoDoc = parseHtml(comercializacaoHtml);
@@ -62,7 +63,23 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     parseHtml(enviarResp),
     parseHtml(autonomosHtml),
   );
-  submitNativeEnviaRemuneracoes(enviaRemuneracoesParams, competencia, valorComercializado);
+  if (window.location.href.includes("/FolhaPagamento/Listagem/ListarPagamentos")) {
+    submitNativeEnviaRemuneracoes(enviaRemuneracoesParams, competencia, valorComercializado);
+    return;
+  }
+
+  const listagemUrl = buildEsocialUrl(`/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competencia}`);
+  setPendingGpsClosureState({
+    competencia,
+    valorComercializado,
+    enviaRemuneracoesBody: enviaRemuneracoesParams.toString(),
+    step: "awaiting_remuneracoes_page",
+  });
+  console.debug("[SIGESS] Navegando para ListarPagamentos antes do EnviaRemuneracoes:", {
+    listagemUrl,
+    competencia,
+  });
+  window.location.href = listagemUrl;
   return;
 }
 /*
@@ -485,6 +502,7 @@ function submitNativeFechamentoForm(doc: Document, competencia: string) {
   setPendingGpsClosureState({
     competencia,
     valorComercializado: currentState?.valorComercializado,
+    enviaRemuneracoesBody: currentState?.enviaRemuneracoesBody,
     step: "awaiting_closure_result",
   });
 
@@ -516,6 +534,7 @@ function submitNativeEnviaRemuneracoes(
   setPendingGpsClosureState({
     competencia,
     valorComercializado,
+    enviaRemuneracoesBody: params.toString(),
     step: "awaiting_closure_page",
   });
 
@@ -680,6 +699,27 @@ export async function resumePendingGpsFlow(): Promise<boolean> {
     extractCompetenciaFromUrl(window.location.href) || extractCompetenciaFromDom();
   if (!currentCompetencia || currentCompetencia !== pending.competencia) {
     return false;
+  }
+
+  if (pending.step === "awaiting_remuneracoes_page") {
+    if (!window.location.href.includes("/FolhaPagamento/Listagem/ListarPagamentos")) {
+      return false;
+    }
+
+    const body = pending.enviaRemuneracoesBody || "";
+    if (!body) {
+      clearPendingGpsClosureState();
+      releaseGpsFlowLock();
+      throw new Error("Nao foi possivel retomar o EnviaRemuneracoes: corpo pendente ausente.");
+    }
+
+    console.debug("[SIGESS] Retomando EnviaRemuneracoes a partir da tela real de ListarPagamentos");
+    submitNativeEnviaRemuneracoes(
+      new URLSearchParams(body),
+      pending.competencia,
+      pending.valorComercializado || "0",
+    );
+    return true;
   }
 
   if (!window.location.href.includes("FechamentoFolha")) {
