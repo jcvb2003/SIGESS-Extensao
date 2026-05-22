@@ -69,6 +69,7 @@ export const StartBatchLoginRequestSchema = z.object({
       cpf: z.string(),
       senha: z.string(),
       nome: z.string().optional(),
+      valorComercializado: z.string().optional(),
     })
   ),
 });
@@ -91,6 +92,7 @@ export const AbrirAbaContainerRequestSchema = z.object({
   senha: z.string(),
   nome: z.string().optional(),
   auditoriaData: z.any().optional(),
+  valorComercializado: z.string().optional(),
 });
 
 export const AbrirAbaContainerResponseSchema = BaseResponseSchema.merge(

@@ -2,6 +2,7 @@ export interface UserCredentials {
   cpf: string;
   senha: string;
   nome?: string;
+  valorComercializado?: string;
   portalType?: "pesqbrasil" | "esocial";
   progressStep?: number;
   progressTotal?: number;
@@ -46,6 +47,7 @@ export interface MultiLoginItem {
   cpf: string;
   senha: string;
   url: string;
+  valorComercializado?: string;
   type: 'pesqbrasil' | 'esocial';
   timestamp: number;
 }
@@ -55,6 +57,7 @@ export interface GovBatchQueueItem {
   senha: string;
   nome?: string;
   url: string;
+  valorComercializado?: string;
 }
 
 export interface AppSettings {

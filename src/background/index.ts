@@ -65,6 +65,7 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
           cpf,
           senha,
           nome: existingCreds?.nome,
+          valorComercializado: existingCreds?.valorComercializado,
           portalType: existingCreds?.portalType,
           loginConcluido: existingCreds?.loginConcluido,
           govBrCpfSubmitted: existingCreds?.govBrCpfSubmitted,

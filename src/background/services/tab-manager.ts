@@ -58,6 +58,7 @@ export class TabManager {
     index: number,
     nome?: string,
     portalType?: "pesqbrasil" | "esocial",
+    valorComercializado?: string,
   ): Promise<void> {
     try {
       const resolvedPortalType =
@@ -94,6 +95,7 @@ export class TabManager {
           cpf,
           senha,
           nome,
+          valorComercializado,
           portalType: resolvedPortalType,
           loginConcluido: false,
           govBrCpfSubmitted: false,

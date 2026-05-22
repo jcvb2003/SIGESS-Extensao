@@ -75,6 +75,8 @@ export async function routeMessage(
         return await handleGetGovBatchStatuses(message);
       case "getESocialAutomationSettings":
         return await handleGetESocialAutomationSettings();
+      case "getESocialAutomationContext":
+        return await handleGetESocialAutomationContext(sender);
       case "getAutoRegistrationSnapshot":
         return await handleGetAutoRegistrationSnapshot();
       case "updateGovBatchStatus":
@@ -116,8 +118,34 @@ async function handleGetESocialAutomationSettings(): Promise<MessageResponse> {
     success: true,
     data: {
       competencia,
-      valorComercializado: settings.valorComercializado || "",
       gerarGps: Boolean(settings.gerarGps),
+    },
+  };
+}
+
+async function handleGetESocialAutomationContext(
+  sender?: browser.runtime.MessageSender,
+): Promise<MessageResponse> {
+  const settings = await StorageService.getSettings();
+  const rawYear = (settings.selectedYear || "").trim();
+  const month = (settings.selectedMonth || "").padStart(2, "0");
+  const year = rawYear === "current" ? String(new Date().getFullYear()) : rawYear;
+  const competencia = year && month && /^\d{4}$/.test(year) && /^\d{2}$/.test(month)
+    ? `${year}${month}`
+    : "";
+  const tabId = sender?.tab?.id;
+  const credentials = typeof tabId === "number"
+    ? await StorageService.getCredentials(tabId)
+    : null;
+
+  return {
+    success: true,
+    data: {
+      gerarGps: Boolean(settings.gerarGps),
+      selectedYear: settings.selectedYear || "current",
+      selectedMonth: month,
+      competencia,
+      valorComercializado: credentials?.valorComercializado || "",
     },
   };
 }
@@ -193,6 +221,7 @@ async function handleStartBatchLogin(
         index + 1,
         cred.nome,
         type as "pesqbrasil" | "esocial",
+        cred.valorComercializado,
       ),
     ),
   );
@@ -212,7 +241,7 @@ async function handleAbrirAbaContainer(
       error: `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }
-  const { url, cpf, senha, nome } = message;
+  const { url, cpf, senha, nome, valorComercializado } = message;
 
   try {
     if (!isUrlAllowed(url || "")) {
@@ -255,6 +284,7 @@ async function handleAbrirAbaContainer(
       cpf,
       senha,
       url,
+      valorComercializado,
       type: url.includes("esocial") ? "esocial" : "pesqbrasil",
       timestamp: Date.now(),
     };
@@ -274,6 +304,7 @@ async function handleAbrirAbaContainer(
     randIndex,
     nome,
     url.includes("esocial") ? "esocial" : "pesqbrasil",
+    valorComercializado,
   );
   return { success: true };
 }
@@ -336,6 +367,7 @@ async function handleEnqueueGovBatchSessions(
       cpf: item.cpf,
       senha: item.senha,
       url: item.url,
+      valorComercializado: item.valorComercializado,
       type: "esocial",
       timestamp: Date.now(),
     });
@@ -356,6 +388,7 @@ async function handleEnqueueGovBatchSessions(
     cpf: item.cpf,
     senha: item.senha,
     nome: item.nome,
+    valorComercializado: item.valorComercializado,
   }));
 
   const openResult = await handleStartBatchLogin(
