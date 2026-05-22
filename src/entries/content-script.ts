@@ -1,11 +1,6 @@
-import {
-  ensureUpdateRequiredOverlay,
-  getUpdateAvailableInfo,
-  watchUpdateRequiredOverlay,
-} from "../shared/services/update-block";
+import { getUpdateAvailableInfo } from "../shared/services/update-block";
 
 console.log("[SIGESS] Content Script active");
-watchUpdateRequiredOverlay();
 
 const ALLOWED_MESSAGE_TYPES = new Set([
   "enqueueGovBatchSessions",
@@ -75,8 +70,6 @@ window.addEventListener("message", function (event) {
 
   void getUpdateAvailableInfo().then((updateInfo) => {
     if (updateInfo && !UPDATE_ALLOWED_MESSAGE_TYPES.has(messageType)) {
-      void ensureUpdateRequiredOverlay(updateInfo);
-
       if (event.data.requestId) {
         window.postMessage(
           {

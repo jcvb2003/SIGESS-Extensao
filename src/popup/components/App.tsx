@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { UserCredentials } from "../../shared/types";
 import ESocialPanel from "./panels/ESocialPanel";
 import { LoginSection } from "./panels/LoginSection";
@@ -15,8 +15,74 @@ import { ChevronIcon } from "./ui/icons";
 import { useLicense } from "../hooks/useLicense";
 import { useSettings } from "../hooks/useSettings";
 import { ShieldCheck, Info, UserPlus } from "lucide-react";
+import { UpdateAvailableInfo } from "../../shared/services/update-block";
+
+function useUpdateAvailable(): UpdateAvailableInfo | null {
+  const [info, setInfo] = useState<UpdateAvailableInfo | null>(null);
+
+  useEffect(() => {
+    const storage = (globalThis as any).browser?.storage?.local ?? (globalThis as any).chrome?.storage?.local;
+    if (!storage) return;
+
+    storage.get("updateAvailable").then((result: Record<string, unknown>) => {
+      setInfo((result?.updateAvailable as UpdateAvailableInfo) || null);
+    });
+
+    const onChange = (changes: Record<string, { newValue?: unknown }>) => {
+      if (!changes.updateAvailable) return;
+      setInfo((changes.updateAvailable.newValue as UpdateAvailableInfo) || null);
+    };
+    storage.onChanged?.addListener?.(onChange);
+    return () => storage.onChanged?.removeListener?.(onChange);
+  }, []);
+
+  return info;
+}
+
+const UpdateBlockScreen: React.FC<{ info: UpdateAvailableInfo }> = ({ info }) => (
+  <div style={{
+    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+    padding: "32px 24px", textAlign: "center", minHeight: "260px", gap: "16px",
+  }}>
+    <div style={{
+      display: "inline-flex", padding: "6px 14px", borderRadius: "999px",
+      background: "#fef3c7", color: "#92400e", fontSize: "11px", fontWeight: 800,
+      letterSpacing: "0.05em", textTransform: "uppercase",
+    }}>
+      Atualização obrigatória
+    </div>
+    <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 900, color: "#991b1b", lineHeight: 1.2 }}>
+      Nova versão disponível!
+    </h2>
+    <p style={{ margin: 0, fontSize: "13px", color: "#334155", lineHeight: 1.6 }}>
+      Atualize a extensão para continuar usando as funções do SIGESS.
+    </p>
+    {info.version && (
+      <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#0f766e" }}>
+        Versão disponível: v{info.version}
+      </p>
+    )}
+    {(
+      <a
+        href="https://github.com/jcvb2003/SIGESS-Extensao/releases/latest/download/sigess.xpi"
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          minHeight: "40px", padding: "0 20px", borderRadius: "12px", marginTop: "8px",
+          background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
+          color: "#fff", textDecoration: "none", fontSize: "13px", fontWeight: 800,
+          boxShadow: "0 8px 20px rgba(185,28,28,0.25)",
+        }}
+      >
+        Atualizar extensão
+      </a>
+    )}
+  </div>
+);
 
 const AppContent: React.FC = () => {
+  const updateInfo = useUpdateAvailable();
   const [loading, setLoading] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState<
     "pesqbrasil" | "esocial" | null
@@ -110,6 +176,10 @@ const AppContent: React.FC = () => {
       return newState;
     });
   };
+
+  if (updateInfo) {
+    return <UpdateBlockScreen info={updateInfo} />;
+  }
 
   if (licenseLoading || settingsLoading) {
     return <LoadingState />;
