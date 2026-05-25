@@ -81,6 +81,10 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
   ): Promise<void> {
     await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Preenchendo credenciais no Gov.BR...");
 
+    const storedCreds = (await StorageService.getCredentials(tabId)) || creds;
+    const cpfSubmitted = !!storedCreds.govBrCpfSubmitted;
+    const passwordSubmitted = !!storedCreds.govBrPasswordSubmitted;
+
     const isCpfScreen = await DOMInjector.execute(
       tabId,
       () => !!document.querySelector("#accountId"),
@@ -92,25 +96,52 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
 
     if (isCpfScreen) {
       try {
-        await DOMInjector.waitForElement(tabId, "#accountId", 5000);
-        await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
-        await DOMInjector.clickElement(tabId, "#enter-account-id");
-        await new Promise(r => setTimeout(r, 2000));
+        await DOMInjector.waitForElement(tabId, "#accountId", 2500);
+
+        if (!cpfSubmitted) {
+          await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
+          await DOMInjector.clickElement(tabId, "#enter-account-id");
+          await StorageService.updateCredentials(tabId, {
+            govBrCpfSubmitted: true,
+            govBrPasswordSubmitted: false,
+          });
+        }
+
+        const nextElement = await DOMInjector.waitForAnyElement(
+          tabId,
+          ["#password", "#accountId"],
+          8000,
+        );
+
+        if (nextElement === "#password") {
+          await this.submitGovBrPassword(tabId, creds.senha);
+        }
       } catch (e) {
         console.log(`[Auth] Erro ao preencher CPF:`, e);
         throw e;
       }
     } else if (isPassScreen) {
       try {
-        await DOMInjector.waitForElement(tabId, "#password", 5000);
-        await DOMInjector.setInputValue(tabId, "#password", creds.senha);
-        await DOMInjector.clickElement(tabId, "#submit-button");
-        await this.markLoginComplete(tabId);
+        if (!passwordSubmitted) {
+          await this.submitGovBrPassword(tabId, creds.senha);
+        } else {
+          await this.markLoginComplete(tabId);
+        }
       } catch (e) {
         console.log(`[Auth] Erro ao preencher senha:`, e);
         throw e;
       }
     }
+  }
+
+  private async submitGovBrPassword(tabId: number, senha: string): Promise<void> {
+    await DOMInjector.waitForElement(tabId, "#password", 1200);
+    await DOMInjector.setInputValue(tabId, "#password", senha);
+    await DOMInjector.clickElement(tabId, "#submit-button");
+    await StorageService.updateCredentials(tabId, {
+      govBrPasswordSubmitted: true,
+    });
+    await this.markLoginComplete(tabId);
   }
 }
 

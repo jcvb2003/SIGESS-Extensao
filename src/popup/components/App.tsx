@@ -21,7 +21,9 @@ function useUpdateAvailable(): UpdateAvailableInfo | null {
   const [info, setInfo] = useState<UpdateAvailableInfo | null>(null);
 
   useEffect(() => {
-    const storage = (globalThis as any).browser?.storage?.local ?? (globalThis as any).chrome?.storage?.local;
+    const storage =
+      (globalThis as any).browser?.storage?.local ??
+      (globalThis as any).chrome?.storage?.local;
     if (!storage) return;
 
     storage.get("updateAvailable").then((result: Record<string, unknown>) => {
@@ -40,44 +42,118 @@ function useUpdateAvailable(): UpdateAvailableInfo | null {
 }
 
 const UpdateBlockScreen: React.FC<{ info: UpdateAvailableInfo }> = ({ info }) => (
-  <div style={{
-    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-    padding: "32px 24px", textAlign: "center", minHeight: "260px", gap: "16px",
-  }}>
-    <div style={{
-      display: "inline-flex", padding: "6px 14px", borderRadius: "999px",
-      background: "#fef3c7", color: "#92400e", fontSize: "11px", fontWeight: 800,
-      letterSpacing: "0.05em", textTransform: "uppercase",
-    }}>
-      Atualização obrigatória
-    </div>
-    <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 900, color: "#991b1b", lineHeight: 1.2 }}>
-      Nova versão disponível!
-    </h2>
-    <p style={{ margin: 0, fontSize: "13px", color: "#334155", lineHeight: 1.6 }}>
-      Atualize a extensão para continuar usando as funções do SIGESS.
-    </p>
-    {info.version && (
-      <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#0f766e" }}>
-        Versão disponível: v{info.version}
-      </p>
-    )}
-    {(
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+      minHeight: "260px",
+      padding: "18px",
+      background: "linear-gradient(180deg, #fff 0%, #fff8f8 100%)",
+    }}
+  >
+    <div
+      style={{
+        border: "1px solid rgba(248, 113, 113, 0.2)",
+        borderRadius: "18px",
+        background: "#ffffff",
+        boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
+        padding: "18px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "14px",
+      }}
+    >
+      <div
+        style={{
+          display: "inline-flex",
+          alignSelf: "flex-start",
+          padding: "6px 12px",
+          borderRadius: "999px",
+          background: "#fff1f2",
+          color: "#be123c",
+          fontSize: "10px",
+          fontWeight: 800,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
+        Atualização obrigatória
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: "20px",
+            fontWeight: 900,
+            color: "#881337",
+            lineHeight: 1.15,
+          }}
+        >
+          Nova versão disponível
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            fontSize: "13px",
+            color: "#475569",
+            lineHeight: 1.55,
+          }}
+        >
+          Atualize a extensão para continuar usando as funções do SIGESS.
+        </p>
+      </div>
+
+      {info.version && (
+        <div
+          style={{
+            borderRadius: "14px",
+            border: "1px solid rgba(148, 163, 184, 0.2)",
+            background: "#f8fafc",
+            padding: "10px 12px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "10px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "#64748b",
+              marginBottom: "4px",
+            }}
+          >
+            Versão disponível
+          </div>
+          <div style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
+            v{info.version}
+          </div>
+        </div>
+      )}
+
       <a
         href="https://github.com/jcvb2003/SIGESS-Extensao/releases/latest/download/sigess.xpi"
         target="_blank"
         rel="noreferrer"
         style={{
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          minHeight: "40px", padding: "0 20px", borderRadius: "12px", marginTop: "8px",
-          background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
-          color: "#fff", textDecoration: "none", fontSize: "13px", fontWeight: 800,
-          boxShadow: "0 8px 20px rgba(185,28,28,0.25)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "44px",
+          padding: "0 18px",
+          borderRadius: "12px",
+          background: "linear-gradient(135deg, #dc2626 0%, #be123c 100%)",
+          color: "#fff",
+          textDecoration: "none",
+          fontSize: "13px",
+          fontWeight: 800,
+          boxShadow: "0 10px 24px rgba(190, 24, 93, 0.22)",
         }}
       >
         Atualizar extensão
       </a>
-    )}
+    </div>
   </div>
 );
 
@@ -114,7 +190,7 @@ const AppContent: React.FC = () => {
     if (!showBatchModal) return;
     setLoading(true);
     try {
-      if (typeof browser !== 'undefined' && browser.runtime) {
+      if (typeof browser !== "undefined" && browser.runtime) {
         await browser.runtime.sendMessage({
           action: "startBatchLogin",
           type: showBatchModal,
@@ -132,7 +208,7 @@ const AppContent: React.FC = () => {
 
   const handleMultiLoginBatch = async (type: "pesqbrasil" | "esocial") => {
     const queue = settings.multiLoginQueue || [];
-    const itemsToOpen = queue.filter(item => item.type === type);
+    const itemsToOpen = queue.filter((item) => item.type === type);
 
     if (itemsToOpen.length === 0) {
       showToast(`Nenhum login do ${type} na fila.`, "info");
@@ -141,16 +217,14 @@ const AppContent: React.FC = () => {
 
     setLoading(true);
     try {
-      if (typeof browser !== 'undefined' && browser.runtime) {
-        // Abre em lote
+      if (typeof browser !== "undefined" && browser.runtime) {
         await browser.runtime.sendMessage({
           action: "startBatchLogin",
           type,
           credentials: itemsToOpen,
         });
 
-        // Limpa APENAS os itens abertos da fila
-        const remaining = queue.filter(item => item.type !== type);
+        const remaining = queue.filter((item) => item.type !== type);
         await updateSettings({ multiLoginQueue: remaining });
         showToast(`${itemsToOpen.length} abas abertas.`, "success");
       }
@@ -185,7 +259,7 @@ const AppContent: React.FC = () => {
     return <LoadingState />;
   }
 
-  if (!(license?.ok)) {
+  if (!license?.ok) {
     return (
       <ActivationScreen
         license={license}
@@ -228,7 +302,10 @@ const AppContent: React.FC = () => {
                 Coleta de dados de sites governamentais
               </p>
             </div>
-            <UserPlus size={18} className={`accordion-icon ${openSections.autoRegistration ? "open" : ""}`} />
+            <UserPlus
+              size={18}
+              className={`accordion-icon ${openSections.autoRegistration ? "open" : ""}`}
+            />
           </button>
           <div
             className={`accordion-content ${openSections.autoRegistration ? "open" : "collapsed"
@@ -278,7 +355,10 @@ const AppContent: React.FC = () => {
                 Automação para o portal de Seguro-Desemprego
               </p>
             </div>
-            <ShieldCheck size={18} className={`accordion-icon ${openSections.sdpa ? "open" : ""}`} />
+            <ShieldCheck
+              size={18}
+              className={`accordion-icon ${openSections.sdpa ? "open" : ""}`}
+            />
           </button>
           <div
             className={`accordion-content ${openSections.sdpa ? "open" : "collapsed"
@@ -290,8 +370,6 @@ const AppContent: React.FC = () => {
           </div>
         </section>
 
-
-
         <ReapMpaPanel
           settings={settings}
           onUpdate={updateSettings}
@@ -300,46 +378,55 @@ const AppContent: React.FC = () => {
         />
       </main>
 
-      <footer style={{
-        padding: '12px 16px',
-        background: 'rgba(255, 255, 255, 0.7)',
-        backdropFilter: 'blur(8px)',
-        borderTop: '1px solid var(--color-border)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        position: 'sticky',
-        bottom: 0,
-        zIndex: 100,
-        width: '100%'
-      }}>
+      <footer
+        style={{
+          padding: "12px 16px",
+          background: "rgba(255, 255, 255, 0.7)",
+          backdropFilter: "blur(8px)",
+          borderTop: "1px solid var(--color-border)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          position: "sticky",
+          bottom: 0,
+          zIndex: 100,
+          width: "100%",
+        }}
+      >
         <button
           onClick={() => setShowLicenseModal(true)}
           title="Ver detalhes da licença"
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 16px',
-            borderRadius: '20px',
-            fontSize: '10px',
-            fontWeight: '800',
-            letterSpacing: '0.5px',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            border: license?.plan === "paid" ? 'none' : '1px solid var(--color-border-strong)',
-            background: license?.plan === "paid" ? 'linear-gradient(135deg, #0f766e 0%, #0b5f59 100%)' : 'var(--color-surface-alt)',
-            color: license?.plan === "paid" ? 'white' : 'var(--color-muted)',
-            boxShadow: license?.plan === "paid" ? '0 4px 15px rgba(15, 118, 110, 0.25)' : '0 4px 12px rgba(0, 0, 0, 0.05)'
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "8px 16px",
+            borderRadius: "20px",
+            fontSize: "10px",
+            fontWeight: "800",
+            letterSpacing: "0.5px",
+            textTransform: "uppercase",
+            cursor: "pointer",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            border:
+              license?.plan === "paid"
+                ? "none"
+                : "1px solid var(--color-border-strong)",
+            background:
+              license?.plan === "paid"
+                ? "linear-gradient(135deg, #0f766e 0%, #0b5f59 100%)"
+                : "var(--color-surface-alt)",
+            color: license?.plan === "paid" ? "white" : "var(--color-muted)",
+            boxShadow:
+              license?.plan === "paid"
+                ? "0 4px 15px rgba(15, 118, 110, 0.25)"
+                : "0 4px 12px rgba(0, 0, 0, 0.05)",
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
             {license?.plan === "paid" ? <ShieldCheck size={14} /> : <Info size={14} />}
           </div>
-          <span>
-            {license?.plan === "paid" ? "Licença Ativa : PRO" : "Licença : Teste"}
-          </span>
+          <span>{license?.plan === "paid" ? "Licença Ativa : PRO" : "Licença : Teste"}</span>
         </button>
       </footer>
 
@@ -351,9 +438,7 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {showLicenseModal && (
-        <LicenseInfo onClose={() => setShowLicenseModal(false)} />
-      )}
+      {showLicenseModal && <LicenseInfo onClose={() => setShowLicenseModal(false)} />}
     </div>
   );
 };
