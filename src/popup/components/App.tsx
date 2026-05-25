@@ -172,7 +172,13 @@ const AppContent: React.FC = () => {
     sdpa: false,
   });
 
-  const { license, loading: licenseLoading, activating, activate } = useLicense();
+  const {
+    license,
+    loading: licenseLoading,
+    activating,
+    verified: licenseVerified,
+    activate,
+  } = useLicense();
   const { settings, loading: settingsLoading, updateSettings } = useSettings();
   const { showToast } = useToast();
 
@@ -259,7 +265,10 @@ const AppContent: React.FC = () => {
     return <LoadingState />;
   }
 
-  if (!license?.ok) {
+  const shouldShowActivation =
+    !license?.ok && (license?.reason === "no_key" || licenseVerified);
+
+  if (shouldShowActivation) {
     return (
       <ActivationScreen
         license={license}
@@ -268,6 +277,8 @@ const AppContent: React.FC = () => {
       />
     );
   }
+
+  const isPaidLicense = license?.plan === "paid";
 
   return (
     <div className="container">
@@ -409,22 +420,22 @@ const AppContent: React.FC = () => {
             cursor: "pointer",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             border:
-              license?.plan === "paid"
+              isPaidLicense
                 ? "none"
                 : "1px solid var(--color-border-strong)",
             background:
-              license?.plan === "paid"
+              isPaidLicense
                 ? "linear-gradient(135deg, #0f766e 0%, #0b5f59 100%)"
                 : "var(--color-surface-alt)",
-            color: license?.plan === "paid" ? "white" : "var(--color-muted)",
+            color: isPaidLicense ? "white" : "var(--color-muted)",
             boxShadow:
-              license?.plan === "paid"
+              isPaidLicense
                 ? "0 4px 15px rgba(15, 118, 110, 0.25)"
                 : "0 4px 12px rgba(0, 0, 0, 0.05)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {license?.plan === "paid" ? <ShieldCheck size={14} /> : <Info size={14} />}
+            {isPaidLicense ? <ShieldCheck size={14} /> : <Info size={14} />}
           </div>
           <span>{license?.plan === "paid" ? "Licença Ativa : PRO" : "Licença : Teste"}</span>
         </button>

@@ -63,7 +63,7 @@ export class VersionChecker {
     });
 
     // Adia a verificação para não competir com o startup
-    globalThis.setTimeout(() => void this.checkVersion(), 5000);
+    globalThis.setTimeout(() => void this.checkVersion(), 1000);
 
     // Cria um alarme para checar a cada 4 horas
     if (typeof browser !== 'undefined' && browser.alarms) {
