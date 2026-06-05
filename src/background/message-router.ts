@@ -538,6 +538,25 @@ async function handleTurboFillReap(message: MessageRequest) {
   const { config } = message;
   if (!config) return { success: false, error: "Configuração do Turbo não fornecida" };
 
+  if (config.documentoMode === "url") {
+    try {
+      const IBAMA_PDF_URL = "https://www.ibama.gov.br/sophia/cnia/legislacao/IBAMA/PT0048-051107.PDF";
+      const pdfResp = await fetch(IBAMA_PDF_URL);
+      if (!pdfResp.ok) throw new Error(`HTTP ${pdfResp.status}`);
+      const buffer = await pdfResp.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let b64 = "";
+      const chunkSize = 8192;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        b64 += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      config.documentoPdfB64 = btoa(b64);
+      config.documentoPdfFilename = "PT0048-051107.PDF";
+    } catch (e: any) {
+      return { success: false, error: `Falha ao baixar PDF do IBAMA: ${e.message}` };
+    }
+  }
+
   try {
     const tabs = await browser.tabs.query({ active: true, currentWindow: true });
     if (!tabs[0]?.id) return { success: false, error: "Nenhuma aba ativa encontrada" };

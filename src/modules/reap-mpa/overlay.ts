@@ -142,9 +142,10 @@ async function executeTurboApi() {
     const oBtn = document.getElementById("sigess-reap-turbo-btn");
     if (oBtn) { oBtn.innerHTML = "⏳ Aguarde..."; oBtn.style.background = "#5a32a3"; }
     
-    const settingsResult = await browser.storage.local.get("sigessSettings");
-    const settings = settingsResult.sigessSettings || {};
-    
+    const storageResult = await browser.storage.local.get(["sigessSettings", "sigessReapPdfCache"]);
+    const settings = storageResult.sigessSettings || {};
+    const pdfCache = storageResult.sigessReapPdfCache || null;
+
     const errorMsg = validateReapSettings(settings, State.gender);
     if (errorMsg) {
       alert(errorMsg);
@@ -152,7 +153,7 @@ async function executeTurboApi() {
       return;
     }
 
-    const config = buildTurboConfig(settings);
+    const config = buildTurboConfig(settings, pdfCache);
     const response = await browser.runtime.sendMessage({ action: "turboFillReap", config });
     
     if (response?.success) {
@@ -167,17 +168,18 @@ async function executeTurboApi() {
   }
 }
 
-function buildTurboConfig(settings: any) {
+function buildTurboConfig(settings: any, pdfCache?: { b64: string; filename: string } | null) {
   const config: any = {
     startMonth: State.currentMonthIndex + 1,
     areaRealizacao: {
       localPesca: settings.mpaLocalPesca || 6,
       uf: settings.mpaUF || 5,
-      municipio: settings.mpaMunicipio, 
+      municipio: settings.mpaMunicipio,
       petrechosPesca: [settings.mpaPetrecho || 4],
       ambientePesca: settings.mpaAmbiente || 1
     },
-    meses: []
+    meses: [],
+    documentoMode: settings.mpaDocumentoMode || "manual",
   };
   
   for (let i = 0; i < 12; i++) {
@@ -192,6 +194,12 @@ function buildTurboConfig(settings: any) {
       config.meses.push({ mes: i + 1, houvePesca: true, diasTrabalhados: State.daysMap[i] || 16, especies });
     }
   }
+
+  if (config.documentoMode === "local" && pdfCache?.b64) {
+    config.documentoPdfB64 = pdfCache.b64;
+    config.documentoPdfFilename = pdfCache.filename;
+  }
+
   return config;
 }
 

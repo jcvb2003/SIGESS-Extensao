@@ -104,6 +104,8 @@ export interface AppSettings {
   sdpaEnabled?: boolean;
   sdpaDefaultEmail?: string;
   sdpaFallbackPhone?: string;
+
+  mpaDocumentoMode?: "manual" | "local" | "url";
 }
 
 export interface PessoaData {
@@ -189,6 +191,9 @@ export interface TurboReapConfig {
   startMonth?: number;
   meses: TurboMesConfig[];
   areaRealizacao: TurboAreaConfig;
+  documentoMode?: "manual" | "local" | "url";
+  documentoPdfB64?: string;
+  documentoPdfFilename?: string;
 }
 
 export interface TurboMesConfig {

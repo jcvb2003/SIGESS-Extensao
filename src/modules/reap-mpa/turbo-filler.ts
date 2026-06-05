@@ -205,6 +205,107 @@ class ReapTurbo {
         return newState;
     }
 
+    private async uploadDocument(pdfB64: string, filename: string): Promise<any | null> {
+        try {
+            const bytes = Uint8Array.from(atob(pdfB64), c => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: "application/pdf" });
+            const formData = new FormData();
+            formData.append("1_tipoDocumentoPessoal", "22");
+            formData.append("1_nome", filename);
+            formData.append("1_arquivo", blob, filename);
+
+            const resp = await fetch(globalThis.location.href, {
+                method: "POST",
+                headers: {
+                    "next-action": "ee4120ba1ef508ab9c7b100f438c4a9bf9b7b2bf",
+                    "accept": "text/x-component",
+                    "next-router-state-tree": this.getNextRouterStateTree()
+                },
+                body: formData
+            });
+            const text = await resp.text();
+            for (const line of text.split("\n")) {
+                if (!line.startsWith("1:")) continue;
+                try { return JSON.parse(line.slice(2)); } catch { /* continua */ }
+            }
+            console.warn("[SIGESS TURBO] Upload documento: resposta inesperada:", text.substring(0, 200));
+            return null;
+        } catch (e: any) {
+            this.debugLogger.log(`Erro no upload do documento: ${e.message}`, "error");
+            return null;
+        }
+    }
+
+    private async applyDocumentToNonFishingMonths(config: any, pdfB64: string, filename: string): Promise<void> {
+        const nonFishingMonths = config.meses
+            .filter((m: any) => !m.houvePesca)
+            .map((m: any) => m.mes as number);
+
+        if (nonFishingMonths.length === 0) {
+            this.debugLogger.log("Nenhum mês sem pesca para anexar documento.");
+            return;
+        }
+
+        this.debugLogger.log(`Fazendo upload do documento para ${nonFishingMonths.length} mês(es) sem pesca...`);
+
+        // Tenta upload único e reutiliza o objeto em todos os meses
+        const docObj = await this.uploadDocument(pdfB64, filename);
+        if (!docObj?.id) {
+            this.debugLogger.log("Upload do documento falhou — meses sem pesca ficam pendentes.", "error");
+            return;
+        }
+        this.debugLogger.log(`Documento enviado: id=${docObj.id} — re-salvando meses ${nonFishingMonths.join(", ")}...`);
+
+        let currentState = await this.getReapState();
+        if (!currentState) {
+            this.debugLogger.log("Falha ao obter estado fresco para aplicar documentos.", "error");
+            return;
+        }
+
+        for (const mesNum of nonFishingMonths) {
+            if (State.stopRequested) break;
+
+            currentState = this.updateStateWithMonth(currentState, mesNum, config);
+            // Injeta o documento no mês alvo dentro do estado
+            const mesRef = currentState.informesMensais.find((m: any) => m.mes === mesNum);
+            if (mesRef) mesRef.documentoJustificativaNaoDeclaracao = docObj;
+
+            const payload = [String(currentState.id), { informesMensais: currentState.informesMensais, concordaComDeclaracaoResponsabilidade: true }, 3];
+            const updatedState = await this.submitMonth(mesNum, payload);
+            if (!updatedState) {
+                this.debugLogger.log(`Falha ao re-salvar mês ${mesNum} com documento.`, "error");
+                continue;
+            }
+
+            const persisted = this.getMonthState(updatedState, mesNum);
+            if (persisted?.preenchido) {
+                this.debugLogger.log(`✅ Mês ${mesNum} concluído com documento.`, "success");
+                State.monthlyProgress[mesNum - 1] = "done";
+            } else {
+                // Fallback: tenta upload individual para este mês
+                this.debugLogger.log(`Mês ${mesNum}: upload único não funcionou, tentando upload individual...`, "warn");
+                const docObjIndividual = await this.uploadDocument(pdfB64, filename);
+                if (docObjIndividual?.id) {
+                    const mesRef2 = updatedState.informesMensais.find((m: any) => m.mes === mesNum);
+                    if (mesRef2) mesRef2.documentoJustificativaNaoDeclaracao = docObjIndividual;
+                    const payload2 = [String(updatedState.id), { informesMensais: updatedState.informesMensais, concordaComDeclaracaoResponsabilidade: true }, 3];
+                    const updatedState2 = await this.submitMonth(mesNum, payload2);
+                    const persisted2 = updatedState2 ? this.getMonthState(updatedState2, mesNum) : null;
+                    if (persisted2?.preenchido) {
+                        this.debugLogger.log(`✅ Mês ${mesNum} concluído com upload individual.`, "success");
+                        State.monthlyProgress[mesNum - 1] = "done";
+                        currentState = updatedState2;
+                        continue;
+                    }
+                }
+                this.debugLogger.log(`Mês ${mesNum}: documento não persistiu após fallback.`, "error");
+            }
+
+            currentState = updatedState;
+            if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+        }
+    }
+
     private async submitMonth(monthNum: number, payload: any): Promise<any | null> {
         this.debugLogger.log(`Enviando Mês ${monthNum}...`);
 
@@ -314,6 +415,10 @@ class ReapTurbo {
             const completed = await this.processMonths(startMonth, config, initialState);
 
             if (!State.stopRequested && completed) {
+                if (config.documentoMode !== "manual" && config.documentoPdfB64) {
+                    this.debugLogger.log("Aplicando documentos comprobatórios...");
+                    await this.applyDocumentToNonFishingMonths(config, config.documentoPdfB64, config.documentoPdfFilename || "documento.pdf");
+                }
                 alert("Turbo Fill Concluído!");
                 globalThis.location.reload();
             } else if (!State.stopRequested && !completed) {

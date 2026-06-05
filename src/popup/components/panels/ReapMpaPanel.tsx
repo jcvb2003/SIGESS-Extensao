@@ -3,6 +3,8 @@ import { AppSettings } from "../../../shared/types";
 import { FULL_PORTAL_SPECIES } from "../../../shared/data/species";
 import { MUNICIPIOS_LIST } from "../../../shared/data/municipios";
 
+const IBAMA_PDF_FILENAME = "PT0048-051107.PDF";
+
 interface ReapMpaPanelProps {
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void;
@@ -173,6 +175,29 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
   isOpen,
   onToggle,
 }) => {
+  const [cachedPdfFilename, setCachedPdfFilename] = useState<string | null>(null);
+
+  useEffect(() => {
+    browser.storage.local.get("sigessReapPdfCache").then((result: any) => {
+      if (result.sigessReapPdfCache?.filename) {
+        setCachedPdfFilename(result.sigessReapPdfCache.filename);
+      }
+    });
+  }, []);
+
+  const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const b64 = dataUrl.split(",")[1];
+      browser.storage.local.set({ sigessReapPdfCache: { b64, filename: file.name } });
+      setCachedPdfFilename(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const updateSpecie = (index: number, data: any) => {
     const current = settings.mpaSpecies || [];
     const next = [...current];
@@ -356,6 +381,53 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
             <p style={{ fontSize: '10px', color: 'var(--color-muted)', marginTop: '4px', textAlign: 'center' }}>
               * Os parâmetros acima definem os intervalos de geração para o robô.
             </p>
+
+            {/* DOCUMENTO COMPROBATÓRIO */}
+            <div className="config-group" style={{ background: 'var(--color-surface-alt)', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+              <h3 style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--color-text)', borderBottom: '1px solid var(--color-border)', paddingBottom: '4px' }}>
+                DOCUMENTO COMPROBATÓRIO (meses sem pesca)
+              </h3>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                {(["manual", "local", "url"] as const).map(mode => (
+                  <label key={mode} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', cursor: 'pointer', flex: 1, justifyContent: 'center' }}>
+                    <input
+                      type="radio"
+                      name="mpaDocumentoMode"
+                      value={mode}
+                      checked={(settings.mpaDocumentoMode || "manual") === mode}
+                      onChange={() => onUpdate({ mpaDocumentoMode: mode })}
+                    />
+                    {mode === "manual" ? "Manual" : mode === "local" ? "Local" : "Internet"}
+                  </label>
+                ))}
+              </div>
+
+              {(settings.mpaDocumentoMode || "manual") === "local" && (
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer', padding: '6px 8px', border: '1px dashed var(--color-border)', borderRadius: '4px', background: 'var(--color-surface)' }}>
+                    <span>📄</span>
+                    <span style={{ color: 'var(--color-accent)' }}>Selecionar PDF</span>
+                    <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={handlePdfFileChange} />
+                  </label>
+                  {cachedPdfFilename && (
+                    <p style={{ fontSize: '10px', color: '#28a745', marginTop: '4px' }}>✅ {cachedPdfFilename}</p>
+                  )}
+                </div>
+              )}
+
+              {(settings.mpaDocumentoMode || "manual") === "url" && (
+                <p style={{ fontSize: '10px', color: 'var(--color-muted)', margin: 0 }}>
+                  📡 {IBAMA_PDF_FILENAME} — baixado automaticamente pelo Turbo.
+                </p>
+              )}
+
+              {(settings.mpaDocumentoMode || "manual") === "manual" && (
+                <p style={{ fontSize: '10px', color: 'var(--color-muted)', margin: 0 }}>
+                  Anexe o PDF manualmente no portal após rodar o Turbo.
+                </p>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
