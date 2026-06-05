@@ -36,7 +36,7 @@ const Draggable = {
 
 const isReapPage = () => {
   const h = globalThis.location.href;
-  return /mpa\.gov\.br\/manutencao\/[^/]+\/cadastro/.test(h);
+  return /mpa\.gov\.br\/manutencao\/[^/]+\/v2\/cadastro/.test(h);
 };
 
 const UIComponents = {

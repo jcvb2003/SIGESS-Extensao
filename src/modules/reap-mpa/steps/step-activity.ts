@@ -1,5 +1,32 @@
 import { Utils } from '../utils/dom-utils';
 import { IWorkflowManager } from "../types";
+
+function normalizeText(value: string | null | undefined) {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+function toggleCheckboxByText(groupName: string, expectedText: string) {
+  const inputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>(`input[name="${groupName}"]`),
+  );
+  const target = inputs.find((input) => {
+    const container = input.closest(".br-checkbox");
+    const text = container?.textContent || "";
+    return normalizeText(text).includes(normalizeText(expectedText));
+  });
+
+  if (target && !target.checked) {
+    document
+      .querySelector(`label[for="${target.id}"]`)
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+}
+
 export const Page2 = {
   isCurrentPage: () =>
     !!document.querySelector('input[name="prestacaoServico"]'),
@@ -27,20 +54,8 @@ export const Page2 = {
       .querySelector('input[name="estadosComercializacao"]')
       ?.closest<HTMLElement>(".br-select");
     if (divEstados) await Utils.selectOption(divEstados, "PARA");
-    const checkPeixes = document.querySelector<HTMLInputElement>(
-      'input[name="gruposAlvo"][value="5"]',
-    );
-    if (checkPeixes && !checkPeixes.checked)
-      document
-        .querySelector(`label[for="${checkPeixes.id}"]`)
-        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const checkVenda = document.querySelector<HTMLInputElement>(
-      'input[name="compradoresPescado"][value="6"]',
-    );
-    if (checkVenda && !checkVenda.checked)
-      document
-        .querySelector(`label[for="${checkVenda.id}"]`)
-        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    toggleCheckboxByText("gruposAlvo", "Peixes");
+    toggleCheckboxByText("compradoresPescado", "Venda direta ao consumidor");
     await Utils.sleep(1000);
     (
       document.querySelector<HTMLElement>('button[data-action="avancar"]')

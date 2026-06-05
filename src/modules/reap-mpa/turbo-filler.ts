@@ -76,7 +76,8 @@ class ReapTurbo {
     private getNextRouterStateTree(): string {
         const pathParts = globalThis.location.pathname.split('/').filter(Boolean);
         const id = pathParts[1] || "";
-        const tipoVisualizacao = pathParts[2] || "cadastro";
+        const versao = pathParts[2] || "v2";
+        const tipoVisualizacao = pathParts[3] || "cadastro";
         const tree = [
             "",
             {
@@ -87,16 +88,21 @@ class ReapTurbo {
                             ["id", id, "d"],
                             {
                                 "children": [
-                                    ["tipoVisualizacao", tipoVisualizacao, "d"],
+                                    ["versao", versao, "d"],
                                     {
                                         "children": [
-                                            "informe-mensal",
+                                            ["tipoVisualizacao", tipoVisualizacao, "d"],
                                             {
                                                 "children": [
-                                                    "__PAGE__",
-                                                    {},
-                                                    globalThis.location.pathname,
-                                                    "refresh"
+                                                    "informe-mensal",
+                                                    {
+                                                        "children": [
+                                                            "__PAGE__",
+                                                            {},
+                                                            globalThis.location.pathname,
+                                                            "refresh"
+                                                        ]
+                                                    }
                                                 ]
                                             }
                                         ]
