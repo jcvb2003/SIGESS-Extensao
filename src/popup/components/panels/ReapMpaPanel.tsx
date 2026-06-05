@@ -183,17 +183,25 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
         setCachedPdfFilename(result.sigessReapPdfCache.filename);
       }
     });
+
+    const handleStorageChange = (changes: Record<string, any>) => {
+      if ("sigessReapPdfCache" in changes) {
+        setCachedPdfFilename(changes.sigessReapPdfCache.newValue?.filename ?? null);
+      }
+    };
+    browser.storage.onChanged.addListener(handleStorageChange);
+    return () => browser.storage.onChanged.removeListener(handleStorageChange);
   }, []);
 
   const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCachedPdfFilename(file.name);
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
       const b64 = dataUrl.split(",")[1];
       browser.storage.local.set({ sigessReapPdfCache: { b64, filename: file.name } });
-      setCachedPdfFilename(file.name);
     };
     reader.readAsDataURL(file);
   };
