@@ -2,12 +2,27 @@
   if ((window as any).__sigessReapPageHooksInstalled) return;
   (window as any).__sigessReapPageHooksInstalled = true;
 
-  const emit = (payload: Record<string, unknown>) => {
+  const logFormData = (fd: FormData) => {
+    console.log("%c--- FormData fields ---", "color: #ff8c00; font-weight: bold;");
+    for (const [key, val] of (fd as FormData).entries()) {
+      if (val instanceof File) {
+        console.log(`  [File] ${key}: name="${val.name}" size=${val.size} type="${val.type}"`);
+      } else {
+        const str = String(val);
+        console.log(`  [Field] ${key}: "${str.length > 300 ? str.substring(0, 300) + '…' : str}"`);
+      }
+    }
+    console.log("%c-----------------------", "color: #ff8c00;");
+  };
+
+  const emit = (payload: Record<string, unknown>, rawBody?: any) => {
     console.log("%c=== [SIGESS PAGE DIAGNOSTICS] POST CAPTURED ===", "color: #00a86b; font-weight: bold; font-size: 14px;");
     console.log("Transport:", payload.transport);
     console.log("URL:", payload.url);
     console.log("Headers:", JSON.stringify(payload.headers ?? {}, null, 2));
-    if (typeof payload.body === "string") {
+    if (rawBody instanceof FormData) {
+      logFormData(rawBody);
+    } else if (typeof payload.body === "string") {
       try {
         console.log("Body JSON:", JSON.stringify(JSON.parse(payload.body), null, 2));
       } catch {
@@ -32,12 +47,13 @@
     const method = String(init?.method || "GET").toUpperCase();
 
     if (method === "POST" && url.includes("informe-mensal")) {
+      const rawBody = init?.body;
       emit({
         transport: "fetch",
         url,
         headers: init?.headers || {},
-        body: typeof init?.body === "string" ? init.body : null,
-      });
+        body: typeof rawBody === "string" ? rawBody : null,
+      }, rawBody instanceof FormData ? rawBody : undefined);
     }
 
     return originalFetch.apply(window, args);
@@ -72,7 +88,7 @@
         url,
         headers: (this as any).__sigessHeaders || {},
         body: typeof body === "string" ? body : null,
-      });
+      }, body instanceof FormData ? body : undefined);
     }
 
     return xhrSend.apply(this, arguments as any);

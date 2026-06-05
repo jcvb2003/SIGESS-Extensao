@@ -81,11 +81,17 @@ class ReapTurbo {
         const response = await fetch(url.toString(), { cache: 'no-store' });
         const html = await response.text();
         const freshHashes = this.extractActionHashCandidates(html);
+        console.log("[SIGESS TURBO] Hashes encontrados na página:", freshHashes);
         if (freshHashes.length > 0) {
             this.lastActionHash = freshHashes[freshHashes.length - 1];
-            // Se houver um segundo hash distinto, ele é o de upload
             const otherHash = freshHashes.find(h => h !== this.lastActionHash);
-            if (otherHash) this.uploadActionHash = otherHash;
+            if (otherHash) {
+                this.uploadActionHash = otherHash;
+            } else {
+                console.warn("[SIGESS TURBO] Apenas um hash encontrado — uploadActionHash não atualizado. Usando:", this.uploadActionHash);
+            }
+        } else {
+            console.warn("[SIGESS TURBO] Nenhum hash de ação encontrado na página — usando fallbacks hardcoded.");
         }
         const regex = /self\.__next_f\.push\((\[[\s\S]*?\])\)/g;
         let match;
@@ -160,7 +166,14 @@ class ReapTurbo {
         )?.documentoJustificativaNaoDeclaracao ?? null;
 
         newState.informesMensais = newState.informesMensais.map((oldMes: any) => {
-            if (oldMes.mes !== mesNumber) return { ...oldMes };
+            if (oldMes.mes !== mesNumber) {
+                // Propaga documento existente para outros meses sem pesca que ainda não têm doc.
+                // O servidor valida o estado completo e rejeita se qualquer mês sem pesca estiver sem doc.
+                if (!oldMes.houvePesca && !oldMes.documentoJustificativaNaoDeclaracao && existingDoc) {
+                    return { ...oldMes, documentoJustificativaNaoDeclaracao: existingDoc };
+                }
+                return { ...oldMes };
+            }
 
             const m = { ...oldMes };
             m.observacao = m.observacao || "";
@@ -208,62 +221,111 @@ class ReapTurbo {
         newState.concordaComDeclaracaoResponsabilidade = true;
         delete newState.errosValidacao;
         if (newState.configuracoes) newState.configuracoes.podeEnviar = "true";
+
+        const docSummary = newState.informesMensais.map((m: any) => `m${m.mes}:${m.houvePesca ? 'pesca' : m.documentoJustificativaNaoDeclaracao ? '✅doc' : '❌sem-doc'}`).join(' ');
+        console.log(`[SIGESS TURBO] Payload docs ao salvar mês ${mesNumber}: ${docSummary}`);
+
         return newState;
     }
 
-    private async uploadDocument(pdfB64: string, filename: string): Promise<any | null> {
-        try {
-            const bytes = Uint8Array.from(atob(pdfB64), c => c.charCodeAt(0));
-            const blob = new Blob([bytes], { type: "application/pdf" });
-            const formData = new FormData();
-            formData.append("1_tipoDocumentoPessoal", "22");
-            formData.append("1_nome", filename);
-            formData.append("1_arquivo", blob, filename);
-
-            const resp = await fetch(globalThis.location.href, {
-                method: "POST",
-                headers: {
-                    "next-action": this.uploadActionHash,
-                    "accept": "text/x-component",
-                    "next-router-state-tree": this.getNextRouterStateTree()
-                },
-                body: formData
-            });
-            const text = await resp.text();
-            console.log(`[SIGESS TURBO] Upload hash usado: ${this.uploadActionHash} | Resposta:`, text.substring(0, 300));
-            for (const line of text.split("\n")) {
-                if (!line.startsWith("1:")) continue;
-                if (line.startsWith("1:E")) { console.warn("[SIGESS TURBO] Upload: erro do servidor:", line); break; }
-                try { return JSON.parse(line.slice(2)); } catch { /* continua */ }
-            }
-            return null;
-        } catch (e: any) {
-            this.debugLogger.log(`Erro no upload do documento: ${e.message}`, "error");
+    private async uploadDocument(pdfB64: string, filename: string, mesNumber?: number, informeMensalId?: number): Promise<any | null> {
+        console.log(`[SIGESS TURBO] Upload: b64.length=${pdfB64?.length ?? 0}, filename=${filename}, mes=${mesNumber ?? '?'}, informeMensalId=${informeMensalId ?? '?'}`);
+        if (!pdfB64 || pdfB64.length < 100) {
+            console.warn("[SIGESS TURBO] Upload cancelado: pdfB64 vazio ou inválido.");
             return null;
         }
+
+        const hash = this.uploadActionHash;
+
+        return new Promise<any | null>((resolve) => {
+            const eid = `__sigessUpload_${Date.now()}`;
+            const tree = this.getNextRouterStateTree();
+
+            const handler = (e: Event) => {
+                const text: string = (e as CustomEvent).detail ?? "";
+                console.log(`[SIGESS TURBO] Upload resposta:`, text.substring(0, 300));
+                for (const line of text.split("\n")) {
+                    if (!line.startsWith("1:")) continue;
+                    if (line.startsWith("1:E")) { console.warn("[SIGESS TURBO] Upload: erro do servidor:", line); break; }
+                    try { resolve(JSON.parse(line.slice(2))); return; } catch { /* continua */ }
+                }
+                resolve(null);
+            };
+            window.addEventListener(eid, handler, { once: true });
+
+            const script = document.createElement("script");
+            script.textContent = `(function(){
+  try {
+    const b64=${JSON.stringify(pdfB64)};
+    const fn=${JSON.stringify(filename)};
+    const imId=${JSON.stringify(informeMensalId != null ? String(informeMensalId) : null)};
+    const reapId=(location.pathname.match(/\\/manutencao\\/(\\d+)\\//)||[])[1]||'';
+    const bytes=new Uint8Array(atob(b64).split('').map(c=>c.charCodeAt(0)));
+    const blob=new Blob([bytes],{type:'application/pdf'});
+    const fd=new FormData();
+    fd.append('1_tipoDocumentoPessoal','22');
+    fd.append('1_nome',fn);
+    fd.append('1_arquivo',blob,fn);
+    if(imId) fd.append('1_informeMensal',imId);
+    fd.append('0',JSON.stringify(['$K1',reapId]));
+    const xhr=new XMLHttpRequest();
+    xhr.open('POST',location.href,true);
+    xhr.setRequestHeader('next-action',${JSON.stringify(hash)});
+    xhr.setRequestHeader('accept','text/x-component');
+    xhr.setRequestHeader('next-router-state-tree',${JSON.stringify(tree)});
+    xhr.withCredentials=true;
+    xhr.onload=function(){window.dispatchEvent(new CustomEvent(${JSON.stringify(eid)},{detail:xhr.responseText}));};
+    xhr.onerror=function(){window.dispatchEvent(new CustomEvent(${JSON.stringify(eid)},{detail:'ERROR:xhr network error'}));};
+    xhr.send(fd);
+  } catch(e){
+    window.dispatchEvent(new CustomEvent(${JSON.stringify(eid)},{detail:'ERROR:'+e.message}));
+  }
+})();`;
+            document.head.appendChild(script);
+
+            setTimeout(() => { window.removeEventListener(eid, handler); resolve(null); }, 30000);
+        });
     }
 
     private async applyDocumentToNonFishingMonths(config: any, pdfB64: string, filename: string): Promise<void> {
-        const nonFishingMonths = config.meses
+        const activeMeses = config.mesesFiltro
+            ? config.meses.filter((m: any) => config.mesesFiltro.includes(m.mes))
+            : config.meses;
+        const nonFishingFromConfig = activeMeses
             .filter((m: any) => !m.houvePesca)
             .map((m: any) => m.mes as number);
 
-        if (nonFishingMonths.length === 0) {
+        if (nonFishingFromConfig.length === 0) {
             this.debugLogger.log("Nenhum mês sem pesca para anexar documento.");
             return;
         }
 
-        this.debugLogger.log(`Fazendo upload do documento para ${nonFishingMonths.length} mês(es) sem pesca...`);
+        // Verifica estado atual do servidor para pular meses já preenchidos
+        this.debugLogger.log("Verificando estado atual antes de aplicar documentos...");
+        const freshState = await this.getReapState();
+        const nonFishingMonths = nonFishingFromConfig.filter((mesNum: number) => {
+            const serverMonth = freshState?.informesMensais?.find((m: any) => m.mes === mesNum);
+            return !serverMonth?.preenchido;
+        });
 
-        // Tenta upload único e reutiliza o objeto em todos os meses
-        const docObj = await this.uploadDocument(pdfB64, filename);
+        if (nonFishingMonths.length === 0) {
+            this.debugLogger.log("Todos os meses sem pesca já estão preenchidos! Nada a fazer.");
+            return;
+        }
+
+        this.debugLogger.log(`Upload do documento para ${nonFishingMonths.length} mês(es) pendente(s): [${nonFishingMonths.join(", ")}] (${nonFishingFromConfig.length - nonFishingMonths.length} já preenchidos)`);
+
+        // Tenta upload único (usando o ID do primeiro mês pendente) e reutiliza o objeto nos demais
+        const firstMesNum = nonFishingMonths[0];
+        const firstInformeMensalId = freshState?.informesMensais?.find((m: any) => m.mes === firstMesNum)?.id;
+        const docObj = await this.uploadDocument(pdfB64, filename, firstMesNum, firstInformeMensalId);
         if (!docObj?.id) {
             this.debugLogger.log("Upload do documento falhou — meses sem pesca ficam pendentes.", "error");
             return;
         }
         this.debugLogger.log(`Documento enviado: id=${docObj.id} — re-salvando meses ${nonFishingMonths.join(", ")}...`);
 
-        let currentState = await this.getReapState();
+        let currentState = freshState;
         if (!currentState) {
             this.debugLogger.log("Falha ao obter estado fresco para aplicar documentos.", "error");
             return;
@@ -291,7 +353,8 @@ class ReapTurbo {
             } else {
                 // Fallback: tenta upload individual para este mês
                 this.debugLogger.log(`Mês ${mesNum}: upload único não funcionou, tentando upload individual...`, "warn");
-                const docObjIndividual = await this.uploadDocument(pdfB64, filename);
+                const individualInformeMensalId = freshState?.informesMensais?.find((m: any) => m.mes === mesNum)?.id;
+                const docObjIndividual = await this.uploadDocument(pdfB64, filename, mesNum, individualInformeMensalId);
                 if (docObjIndividual?.id) {
                     const mesRef2 = updatedState.informesMensais.find((m: any) => m.mes === mesNum);
                     if (mesRef2) mesRef2.documentoJustificativaNaoDeclaracao = docObjIndividual;
@@ -506,6 +569,6 @@ if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded)
     
     if (!(globalThis as any).__sigessTurboLogSilencedOnce) {
         (globalThis as any).__sigessTurboLogSilencedOnce = true;
-        console.log('[SIGESS Turbo] Ready v2.7.2-FLEX');
+        console.log('[SIGESS Turbo] Ready v2.8.0');
     }
 }
