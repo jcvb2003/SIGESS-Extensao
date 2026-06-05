@@ -1,9 +1,13 @@
 (function () {
+  // Bridge de diagnóstico — inativo por padrão.
+  // Para ativar: window.__SIGESS_DIAGNOSTICS = true (antes da injeção deste script)
+  if (!(window as any).__SIGESS_DIAGNOSTICS) return;
+
   if ((window as any).__sigessReapPageHooksInstalled) return;
   (window as any).__sigessReapPageHooksInstalled = true;
 
   const logFormData = (fd: FormData) => {
-    console.log("%c--- FormData fields ---", "color: #ff8c00; font-weight: bold;");
+    console.log("%c--- FormData fields ---", "color: #a78bfa; font-weight: bold;");
     for (const [key, val] of (fd as FormData).entries()) {
       if (val instanceof File) {
         console.log(`  [File] ${key}: name="${val.name}" size=${val.size} type="${val.type}"`);
@@ -12,13 +16,12 @@
         console.log(`  [Field] ${key}: "${str.length > 300 ? str.substring(0, 300) + '…' : str}"`);
       }
     }
-    console.log("%c-----------------------", "color: #ff8c00;");
+    console.log("%c-----------------------", "color: #a78bfa;");
   };
 
   const emit = (payload: Record<string, unknown>, rawBody?: any) => {
-    console.log("%c=== [SIGESS PAGE DIAGNOSTICS] POST CAPTURED ===", "color: #00a86b; font-weight: bold; font-size: 14px;");
-    console.log("Transport:", payload.transport);
-    console.log("URL:", payload.url);
+    console.log("%c=== [SIGESS DIAG] PAGE POST CAPTURED ===", "color: #a78bfa; font-weight: bold;");
+    console.log("Transport:", payload.transport, "| URL:", payload.url);
     console.log("Headers:", JSON.stringify(payload.headers ?? {}, null, 2));
     if (rawBody instanceof FormData) {
       logFormData(rawBody);
@@ -31,7 +34,6 @@
     } else {
       console.log("Body Raw:", payload.body);
     }
-    console.log("%c=====================================================", "color: #00a86b; font-weight: bold;");
     window.postMessage({ type: "SIGESS_REAP_PAGE_POST_CAPTURED", payload }, window.location.origin);
   };
 
@@ -67,7 +69,6 @@
     (this as any).__sigessMethod = method;
     (this as any).__sigessUrl = url;
     (this as any).__sigessHeaders = {};
-    console.log("[SIGESS REAP BRIDGE] XHR.open", String(method).toUpperCase(), String(url));
     return xhrOpen.apply(this, arguments as any);
   };
 
@@ -80,7 +81,6 @@
   XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
     const method = String((this as any).__sigessMethod || "GET").toUpperCase();
     const url = String((this as any).__sigessUrl || "");
-    console.log("[SIGESS REAP BRIDGE] XHR.send", method, url);
 
     if (method === "POST" && url.includes("informe-mensal")) {
       emit({
@@ -94,5 +94,5 @@
     return xhrSend.apply(this, arguments as any);
   };
 
-  console.log("SIGESS: REAP Page Bridge Active");
+  console.log("%c[SIGESS DIAG] REAP Page Bridge ativo", "color: #a78bfa; font-weight: bold;");
 })();

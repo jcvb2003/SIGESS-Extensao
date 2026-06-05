@@ -36,10 +36,6 @@ class ReapTurbo {
         };
     }
 
-    private logMonthDiagnostics(label: string, monthNum: number, monthState: any) {
-        console.log(`[SIGESS TURBO DIAGNOSTICS] ${label} Mês ${monthNum}:`, this.buildMonthDiagnostics(monthState));
-    }
-
     private extractActionHashCandidates(html: string): string[] {
         const candidates = new Set<string>();
         const actionRegex = /\$ACTION_ID_\w*([a-f0-9]{40})/g;
@@ -81,17 +77,17 @@ class ReapTurbo {
         const response = await fetch(url.toString(), { cache: 'no-store' });
         const html = await response.text();
         const freshHashes = this.extractActionHashCandidates(html);
-        console.log("[SIGESS TURBO] Hashes encontrados na página:", freshHashes);
+        this.debugLogger.diag("Hashes encontrados na página:", freshHashes);
         if (freshHashes.length > 0) {
             this.lastActionHash = freshHashes[freshHashes.length - 1];
             const otherHash = freshHashes.find(h => h !== this.lastActionHash);
             if (otherHash) {
                 this.uploadActionHash = otherHash;
             } else {
-                console.warn("[SIGESS TURBO] Apenas um hash encontrado — uploadActionHash não atualizado. Usando:", this.uploadActionHash);
+                this.debugLogger.diag("Apenas um hash encontrado — uploadActionHash não atualizado. Usando: " + this.uploadActionHash);
             }
         } else {
-            console.warn("[SIGESS TURBO] Nenhum hash de ação encontrado na página — usando fallbacks hardcoded.");
+            this.debugLogger.diag("Nenhum hash de ação encontrado na página — usando fallbacks hardcoded.");
         }
         const regex = /self\.__next_f\.push\((\[[\s\S]*?\])\)/g;
         let match;
@@ -223,15 +219,15 @@ class ReapTurbo {
         if (newState.configuracoes) newState.configuracoes.podeEnviar = "true";
 
         const docSummary = newState.informesMensais.map((m: any) => `m${m.mes}:${m.houvePesca ? 'pesca' : m.documentoJustificativaNaoDeclaracao ? '✅doc' : '❌sem-doc'}`).join(' ');
-        console.log(`[SIGESS TURBO] Payload docs ao salvar mês ${mesNumber}: ${docSummary}`);
+        this.debugLogger.diag(`Payload docs ao salvar mês ${mesNumber}: ${docSummary}`);
 
         return newState;
     }
 
     private async uploadDocument(pdfB64: string, filename: string, mesNumber?: number, informeMensalId?: number): Promise<any | null> {
-        console.log(`[SIGESS TURBO] Upload: b64.length=${pdfB64?.length ?? 0}, filename=${filename}, mes=${mesNumber ?? '?'}, informeMensalId=${informeMensalId ?? '?'}`);
+        this.debugLogger.diag(`Upload: b64.length=${pdfB64?.length ?? 0}, filename=${filename}, mes=${mesNumber ?? '?'}, informeMensalId=${informeMensalId ?? '?'}`);
         if (!pdfB64 || pdfB64.length < 100) {
-            console.warn("[SIGESS TURBO] Upload cancelado: pdfB64 vazio ou inválido.");
+            this.debugLogger.diag("Upload cancelado: pdfB64 vazio ou inválido.");
             return null;
         }
 
@@ -243,10 +239,10 @@ class ReapTurbo {
 
             const handler = (e: Event) => {
                 const text: string = (e as CustomEvent).detail ?? "";
-                console.log(`[SIGESS TURBO] Upload resposta:`, text.substring(0, 300));
+                this.debugLogger.diag(`Upload resposta: ${text.substring(0, 300)}`);
                 for (const line of text.split("\n")) {
                     if (!line.startsWith("1:")) continue;
-                    if (line.startsWith("1:E")) { console.warn("[SIGESS TURBO] Upload: erro do servidor:", line); break; }
+                    if (line.startsWith("1:E")) { this.debugLogger.diag("Upload: erro do servidor: " + line); break; }
                     try { resolve(JSON.parse(line.slice(2))); return; } catch { /* continua */ }
                 }
                 resolve(null);
@@ -379,7 +375,7 @@ class ReapTurbo {
     private async submitMonth(monthNum: number, payload: any): Promise<any | null> {
         this.debugLogger.log(`Enviando Mês ${monthNum}...`);
 
-        this.logMonthDiagnostics("Payload", monthNum, payload?.[1]?.informesMensais?.find((mes: any) => mes.mes === monthNum));
+        this.debugLogger.diag(`Payload mês ${monthNum}:`, this.buildMonthDiagnostics(payload?.[1]?.informesMensais?.find((mes: any) => mes.mes === monthNum)));
         try {
             const resp = await fetch(globalThis.location.href, {
                 method: 'POST',
@@ -397,10 +393,10 @@ class ReapTurbo {
                 throw new Error(`HTTP ${resp.status}. Body: ${responseText}`);
             }
 
-            console.log(`[SIGESS TURBO] Resposta raw mês ${monthNum}:`, responseText.substring(0, 500));
+            this.debugLogger.diag(`Resposta raw mês ${monthNum}: ${responseText.substring(0, 500)}`);
             this.debugLogger.log(`Mês ${monthNum} enviado com sucesso.`, 'success');
             const refreshedState = await this.getReapState();
-            this.logMonthDiagnostics("Retorno", monthNum, this.getMonthState(refreshedState, monthNum));
+            this.debugLogger.diag(`Retorno mês ${monthNum}:`, this.buildMonthDiagnostics(this.getMonthState(refreshedState, monthNum)));
             return refreshedState;
         } catch (e: any) {
             this.debugLogger.log(`Erro Mês ${monthNum}: ${e.message}`, 'error');
@@ -449,7 +445,7 @@ class ReapTurbo {
             if (!updatedState) return false;
             const persistedMonth = this.getMonthState(updatedState, m);
             if (!persistedMonth?.preenchido) {
-                console.warn(`[SIGESS TURBO DIAGNOSTICS] Mês ${m} voltou do servidor sem persistir como preenchido.`, this.buildMonthDiagnostics(persistedMonth));
+                this.debugLogger.diag(`Mês ${m} voltou do servidor sem persistir como preenchido.`, this.buildMonthDiagnostics(persistedMonth));
                 State.monthlyProgress[m-1] = "skipped";
             } else {
                 State.monthlyProgress[m-1] = "done";
@@ -479,13 +475,8 @@ class ReapTurbo {
             const initialState = await this.getReapState();
             if (!initialState) throw new Error("Não foi possível carregar o estado atual do SIGESS.");
 
-            // Diagnóstico para confirmar o nome do campo de mês
-            if ((globalThis as any).__SIGESS_DEBUG && initialState.informesMensais?.[0]) {
-                const first = initialState.informesMensais[0];
-                this.debugLogger.log(`[DEBUG] Estrutura do mês detectada: ${JSON.stringify(first)}`);
-                if (first.mes === undefined) {
-                    this.debugLogger.log("[AVISO] Campo 'mes' não encontrado no objeto. Verifique o console.", 'error');
-                }
+            if (initialState.informesMensais?.[0]) {
+                this.debugLogger.diag("Estrutura do primeiro mês:", initialState.informesMensais[0]);
             }
 
             const completed = await this.processMonths(startMonth, config, initialState);
@@ -516,16 +507,14 @@ if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded)
     const turbo = new ReapTurbo();
     (globalThis as any).__sigessTurboLoaded = true;
 
-    // --- DIAGNOSTIC INTERCEPTOR ---
+    // Interceptor de diagnóstico de fetch — ativo apenas quando __SIGESS_DIAGNOSTICS=true
     if (!(globalThis as any).__sigessTurboFetchIntercepted) {
         (globalThis as any).__sigessTurboFetchIntercepted = true;
         const origFetch = globalThis.fetch;
         globalThis.fetch = async function(...args) {
             const [url, options] = args;
             const urlText = typeof url === 'string' ? url : url instanceof URL ? url.toString() : String(url);
-            if (options?.method === 'POST' && urlText.includes('informe-mensal')) {
-                console.log("%c=== [SIGESS TURBO DIAGNOSTICS] POST CAPTURED ===", "color: #ff00ff; font-weight: bold; font-size: 14px;");
-                
+            if ((globalThis as any).__SIGESS_DIAGNOSTICS && options?.method === 'POST' && urlText.includes('informe-mensal')) {
                 const headersList: any = {};
                 const headers = options.headers;
                 if (headers instanceof Headers) {
@@ -533,19 +522,13 @@ if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded)
                 } else {
                     Object.assign(headersList, headers || {});
                 }
-                
-                console.log("URL:", urlText);
-                console.log("Headers:", JSON.stringify(headersList, null, 2));
+                console.log("%c=== [SIGESS DIAG] POST CAPTURED ===", "color: #a78bfa; font-weight: bold;");
+                console.log("URL:", urlText, "| Headers:", headersList);
                 if (typeof options.body === 'string') {
-                    try {
-                        console.log("Body JSON:", JSON.stringify(JSON.parse(options.body), null, 2));
-                    } catch {
-                        console.log("Body Raw:", options.body);
-                    }
+                    try { console.log("Body:", JSON.parse(options.body)); } catch { console.log("Body:", options.body); }
                 } else {
-                    console.log("Body (Raw):", options.body);
+                    console.log("Body:", options.body);
                 }
-                console.log("%c=====================================================", "color: #ff00ff; font-weight: bold;");
             }
             return origFetch.apply(this, args);
         };

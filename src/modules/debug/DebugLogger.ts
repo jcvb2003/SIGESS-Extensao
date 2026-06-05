@@ -1,8 +1,16 @@
 /**
  * Responsável por logs coloridos no console do desenvolvedor.
  * Substitui o antigo TurboLogger e padroniza o prefixo [SIGESS].
+ *
+ * Para ativar logs de diagnóstico detalhados no console do portal:
+ *   window.__SIGESS_DIAGNOSTICS = true
+ * ou, para persistir entre recargas:
+ *   DebugLogger.diagnostics = true
  */
 export class DebugLogger {
+  /** Liga/desliga logs de diagnóstico detalhados em tempo de execução. */
+  static diagnostics: boolean = false;
+
   private category: string;
 
   constructor(category: string = "GENERAL") {
@@ -27,5 +35,15 @@ export class DebugLogger {
 
   warn(msg: string) {
     console.warn(`[SIGESS DEBUG][${this.category}] WARN: ${msg}`);
+  }
+
+  /** Loga apenas quando diagnostics está ativado. Aceita dados extras opcionais. */
+  diag(msg: string, data?: any) {
+    if (!DebugLogger.diagnostics && !(globalThis as any).__SIGESS_DIAGNOSTICS) return;
+    if (data !== undefined) {
+      console.log(`%c[SIGESS DIAG][${this.category}] ${msg}`, "color: #a78bfa; font-weight: bold;", data);
+    } else {
+      console.log(`%c[SIGESS DIAG][${this.category}] ${msg}`, "color: #a78bfa; font-weight: bold;");
+    }
   }
 }
