@@ -409,9 +409,10 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
                     <span style={{ color: 'var(--color-accent)' }}>Selecionar PDF</span>
                     <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={handlePdfFileChange} />
                   </label>
-                  {cachedPdfFilename && (
-                    <p style={{ fontSize: '10px', color: '#28a745', marginTop: '4px' }}>✅ {cachedPdfFilename}</p>
-                  )}
+                  {cachedPdfFilename
+                    ? <p style={{ fontSize: '10px', color: '#28a745', marginTop: '4px' }}>✅ {cachedPdfFilename}</p>
+                    : <p style={{ fontSize: '10px', color: '#999', marginTop: '4px' }}>Nenhum PDF selecionado</p>
+                  }
                 </div>
               )}
 

@@ -169,8 +169,12 @@ async function executeTurboApi() {
 }
 
 function buildTurboConfig(settings: any, pdfCache?: { b64: string; filename: string } | null) {
+  const isParcial = State.turboFillMode === "parcial";
   const config: any = {
-    startMonth: State.currentMonthIndex + 1,
+    startMonth: isParcial ? 1 : State.currentMonthIndex + 1,
+    ...(isParcial && State.turboSelectedMonths.size > 0 && {
+      mesesFiltro: Array.from(State.turboSelectedMonths).sort((a, b) => a - b).map(i => i + 1)
+    }),
     areaRealizacao: {
       localPesca: settings.mpaLocalPesca || 6,
       uf: settings.mpaUF || 5,
@@ -246,14 +250,20 @@ const injectButton = async () => {
   const segmentContainer = document.createElement("div");
   segmentContainer.style.cssText = "display: flex; background: #f0f0f0; border-radius: 6px; padding: 2px; border: 1px solid #ddd;";
 
+  let modeSeqUpdate = () => {};
+  let modeParcialUpdate = () => {};
+
   const refreshUI = () => {
     updateGrid();
     male.update();
     female.update();
+    modeSeqUpdate();
+    modeParcialUpdate();
     UIComponents.updateMainButton();
     UIComponents.updateTurboButton();
-    segmentContainer.style.opacity = (State.isRunning || State.isPaused) ? "0.6" : "1";
-    segmentContainer.style.pointerEvents = (State.isRunning || State.isPaused) ? "none" : "auto";
+    const busy = State.isRunning || State.isPaused;
+    segmentContainer.style.opacity = busy ? "0.6" : "1";
+    segmentContainer.style.pointerEvents = busy ? "none" : "auto";
   };
   (globalThis as any).refreshSigessUI = refreshUI;
 
@@ -288,6 +298,46 @@ const injectButton = async () => {
   row.appendChild(segmentContainer);
   container.appendChild(row);
 
+  // Seletor Sequência / Parcial
+  const modeRow = document.createElement("div");
+  modeRow.style.cssText = "display: flex; flex-direction: column; gap: 4px; margin-top: 4px;";
+  const modeLbl = document.createElement("label");
+  modeLbl.innerText = "Meses:";
+  modeLbl.style.cssText = "font-size: 11px; color: #666;";
+  const modeSegContainer = document.createElement("div");
+  modeSegContainer.style.cssText = "display: flex; background: #f0f0f0; border-radius: 6px; padding: 2px; border: 1px solid #ddd;";
+
+  const createModeBtn = (label: string, value: "sequencia" | "parcial") => {
+    const b = document.createElement("div");
+    b.innerText = label;
+    b.style.cssText = "flex: 1; text-align: center; font-size: 11px; padding: 5px 0; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-weight: bold;";
+    const update = () => {
+      if (State.turboFillMode === value) {
+        b.style.background = "#6f42c1"; b.style.color = "white";
+      } else {
+        b.style.background = "transparent"; b.style.color = "#666";
+      }
+    };
+    b.onclick = () => {
+      if (!State.isRunning && State.turboFillMode !== value) {
+        State.turboFillMode = value;
+        if (value === "parcial") State.turboSelectedMonths = new Set();
+        refreshUI();
+      }
+    };
+    return { btn: b, update };
+  };
+
+  const modeSeq = createModeBtn("Sequência", "sequencia");
+  const modeParcial = createModeBtn("Parcial", "parcial");
+  modeSeqUpdate = modeSeq.update;
+  modeParcialUpdate = modeParcial.update;
+  modeSegContainer.appendChild(modeSeq.btn);
+  modeSegContainer.appendChild(modeParcial.btn);
+  modeRow.appendChild(modeLbl);
+  modeRow.appendChild(modeSegContainer);
+  container.appendChild(modeRow);
+
   const grid = document.createElement("div");
   grid.id = "sigess-month-grid";
   grid.style.cssText = "display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 5px; padding-top: 5px; border-top: 1px solid #eee;";
@@ -302,27 +352,36 @@ const injectButton = async () => {
   function createMonthItem(i: number, refresh: () => void) {
     const mBtn = document.createElement("div");
     mBtn.innerText = String(i + 1);
-    let bgColor = "#f0f0f0";
-    let textColor = "#666";
-    let border = "1px solid #ccc";
-    let opacity = "1";
+
+    let bgColor = "#f0f0f0", textColor = "#666", border = "1px solid #ccc", opacity = "1";
 
     if (State.monthlyProgress[i] === "done") {
       bgColor = "#28a745"; textColor = "white"; border = "1px solid #1e7e34";
     } else if (State.monthlyProgress[i] === "skipped") {
       bgColor = "#6c757d"; textColor = "white"; border = "1px solid #545b62"; opacity = "0.5";
+    } else if (State.turboFillMode === "parcial") {
+      const isSelected = State.turboSelectedMonths.has(i);
+      bgColor = isSelected ? "#e8f4fd" : "#f0f0f0";
+      textColor = isSelected ? "#0056b3" : "#bbb";
+      border = isSelected ? "1px solid #007bff" : "1px dashed #ccc";
+      opacity = isSelected ? "1" : "0.45";
     }
 
     mBtn.style.cssText = `cursor: pointer; text-align: center; font-size: 10px; padding: 4px 0; border-radius: 4px; background: ${bgColor}; color: ${textColor}; border: ${border}; font-weight: bold; transition: all 0.2s; opacity: ${opacity};`;
-    
-    if (State.currentMonthIndex === i) {
-       mBtn.style.boxShadow = "0 0 8px #007bff";
-       if (State.monthlyProgress[i] !== "done") mBtn.style.border = "2px solid #007bff";
+
+    if (State.turboFillMode === "sequencia" && State.currentMonthIndex === i && State.monthlyProgress[i] !== "done") {
+      mBtn.style.boxShadow = "0 0 8px #007bff";
+      mBtn.style.border = "2px solid #007bff";
     }
 
     mBtn.onclick = () => {
       if (!State.isRunning) {
-        State.currentMonthIndex = i;
+        if (State.turboFillMode === "parcial") {
+          if (State.turboSelectedMonths.has(i)) State.turboSelectedMonths.delete(i);
+          else State.turboSelectedMonths.add(i);
+        } else {
+          State.currentMonthIndex = i;
+        }
         refresh();
       }
     };

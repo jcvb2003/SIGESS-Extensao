@@ -10,6 +10,7 @@ if (!(globalThis as any).__sigessTurboLogSilenced) {
 class ReapTurbo {
     private readonly debugLogger: DebugLogger;
     private lastActionHash: string = "1de3f791ab9ce1ca497934828395f2c7cc2291e8";
+    private uploadActionHash: string = "ee4120ba1ef508ab9c7b100f438c4a9bf9b7b2bf";
 
     constructor() { 
         this.debugLogger = new DebugLogger("REAP-TURBO"); 
@@ -80,7 +81,12 @@ class ReapTurbo {
         const response = await fetch(url.toString(), { cache: 'no-store' });
         const html = await response.text();
         const freshHashes = this.extractActionHashCandidates(html);
-        if (freshHashes.length > 0) this.lastActionHash = freshHashes[freshHashes.length - 1];
+        if (freshHashes.length > 0) {
+            this.lastActionHash = freshHashes[freshHashes.length - 1];
+            // Se houver um segundo hash distinto, ele é o de upload
+            const otherHash = freshHashes.find(h => h !== this.lastActionHash);
+            if (otherHash) this.uploadActionHash = otherHash;
+        }
         const regex = /self\.__next_f\.push\((\[[\s\S]*?\])\)/g;
         let match;
         while ((match = regex.exec(html)) !== null) {
@@ -217,18 +223,19 @@ class ReapTurbo {
             const resp = await fetch(globalThis.location.href, {
                 method: "POST",
                 headers: {
-                    "next-action": "ee4120ba1ef508ab9c7b100f438c4a9bf9b7b2bf",
+                    "next-action": this.uploadActionHash,
                     "accept": "text/x-component",
                     "next-router-state-tree": this.getNextRouterStateTree()
                 },
                 body: formData
             });
             const text = await resp.text();
+            console.log(`[SIGESS TURBO] Upload hash usado: ${this.uploadActionHash} | Resposta:`, text.substring(0, 300));
             for (const line of text.split("\n")) {
                 if (!line.startsWith("1:")) continue;
+                if (line.startsWith("1:E")) { console.warn("[SIGESS TURBO] Upload: erro do servidor:", line); break; }
                 try { return JSON.parse(line.slice(2)); } catch { /* continua */ }
             }
-            console.warn("[SIGESS TURBO] Upload documento: resposta inesperada:", text.substring(0, 200));
             return null;
         } catch (e: any) {
             this.debugLogger.log(`Erro no upload do documento: ${e.message}`, "error");
@@ -340,12 +347,18 @@ class ReapTurbo {
 
     private async processMonths(startMonth: number, config: any, initialState: any): Promise<boolean> {
         let currentState = structuredClone(initialState);
-        
+        const mesesFiltro: number[] | undefined = config.mesesFiltro;
+        if (mesesFiltro?.length) {
+            this.debugLogger.log(`Filtro de meses ativo: [${mesesFiltro.join(", ")}]`);
+        }
+
         for (let m = startMonth; m <= 12; m++) {
             if (State.stopRequested) {
                 this.debugLogger.log("Interrupção solicitada pelo usuário.", "warn");
                 return false;
             }
+
+            if (mesesFiltro && !mesesFiltro.includes(m)) continue;
 
             // Pula meses que o servidor não retornou (não disponíveis para preenchimento)
             const exists = currentState.informesMensais.some((mesObj: any) => mesObj.mes === m);
@@ -415,9 +428,13 @@ class ReapTurbo {
             const completed = await this.processMonths(startMonth, config, initialState);
 
             if (!State.stopRequested && completed) {
-                if (config.documentoMode !== "manual" && config.documentoPdfB64) {
-                    this.debugLogger.log("Aplicando documentos comprobatórios...");
-                    await this.applyDocumentToNonFishingMonths(config, config.documentoPdfB64, config.documentoPdfFilename || "documento.pdf");
+                if (config.documentoMode !== "manual") {
+                    if (config.documentoPdfB64) {
+                        this.debugLogger.log("Aplicando documentos comprobatórios...");
+                        await this.applyDocumentToNonFishingMonths(config, config.documentoPdfB64, config.documentoPdfFilename || "documento.pdf");
+                    } else {
+                        this.debugLogger.log(`Modo documento '${config.documentoMode}' ativo mas documentoPdfB64 está vazio — segundo pass pulado.`, "warn");
+                    }
                 }
                 alert("Turbo Fill Concluído!");
                 globalThis.location.reload();

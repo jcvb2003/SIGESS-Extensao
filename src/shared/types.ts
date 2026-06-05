@@ -189,6 +189,7 @@ export interface MessageResponse {
 
 export interface TurboReapConfig {
   startMonth?: number;
+  mesesFiltro?: number[];
   meses: TurboMesConfig[];
   areaRealizacao: TurboAreaConfig;
   documentoMode?: "manual" | "local" | "url";

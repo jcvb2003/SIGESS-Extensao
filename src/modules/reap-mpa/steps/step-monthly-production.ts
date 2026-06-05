@@ -32,6 +32,10 @@ export const Page3 = {
       State.currentMonthIndex = realMonthIndex;
       await Page3.refreshUI();
 
+      if (State.turboFillMode === "parcial" && !State.turboSelectedMonths.has(realMonthIndex)) {
+        continue;
+      }
+
       if (Page3.isMonthUnavailable(monthAccordion)) {
         State.monthlyProgress[realMonthIndex || i] = "skipped";
         continue;
@@ -64,6 +68,7 @@ export const Page3 = {
   },
 
   getStartIndex: (months: NodeListOf<Element>) => {
+    if (State.turboFillMode === "parcial") return 0;
     if (State.currentMonthIndex === undefined || State.currentMonthIndex <= 0) return 0;
 
     for (let idx = 0; idx < months.length; idx++) {

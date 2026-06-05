@@ -14,6 +14,8 @@ class StateManager {
     number,
     "pending" | "active" | "done" | "skipped"
   > = {};
+  public turboFillMode: "sequencia" | "parcial" = "sequencia";
+  public turboSelectedMonths: Set<number> = new Set();
   reset() {
     this.isRunning = false;
     this.isPaused = false;
