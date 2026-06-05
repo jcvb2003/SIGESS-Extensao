@@ -25,6 +25,7 @@ const targets = [
   "content_script",
   "content_auto_registration",
   "pesqbrasil_bridge",
+  "reap_page_bridge",
   "caepf_bridge",
   "cadunico_bridge",
   "tse_bridge",

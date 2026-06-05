@@ -17,6 +17,7 @@ const entries = {
     content_script: resolve(__dirname, 'src/entries/content-script.ts'),
     content_auto_registration: resolve(__dirname, 'src/entries/auto-registration.ts'),
     pesqbrasil_bridge: resolve(__dirname, 'src/modules/automation/pesqbrasil/bridge.ts'),
+    reap_page_bridge: resolve(__dirname, 'src/modules/reap-mpa/reap-page-bridge.ts'),
     caepf_bridge: resolve(__dirname, 'src/modules/automation/caepf/bridge.ts'),
     cadunico_bridge: resolve(__dirname, 'src/modules/automation/cadunico/bridge.ts'),
     tse_bridge: resolve(__dirname, 'src/modules/automation/tse/bridge.ts'),

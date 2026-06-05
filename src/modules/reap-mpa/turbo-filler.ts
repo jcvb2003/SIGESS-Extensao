@@ -9,10 +9,34 @@ if (!(globalThis as any).__sigessTurboLogSilenced) {
 
 class ReapTurbo {
     private readonly debugLogger: DebugLogger;
-    private lastActionHash: string = "0e19fa9cd1721c7395e62a3a725505d58b5b5630";
+    private lastActionHash: string = "1de3f791ab9ce1ca497934828395f2c7cc2291e8";
 
     constructor() { 
         this.debugLogger = new DebugLogger("REAP-TURBO"); 
+    }
+
+    private getMonthState(state: any, monthNum: number): any {
+        return state?.informesMensais?.find((mes: any) => mes.mes === monthNum) ?? null;
+    }
+
+    private buildMonthDiagnostics(monthState: any): any {
+        if (!monthState) return null;
+        return {
+            mes: monthState.mes,
+            houvePesca: monthState.houvePesca,
+            diasTrabalhados: monthState.diasTrabalhados ?? null,
+            justificativasNaoDeclaracao: monthState.justificativasNaoDeclaracao ?? [],
+            areasRealizacaoPesca: monthState.areasRealizacaoPesca ?? [],
+            resultadosOperacaoPesca: monthState.resultadosOperacaoPesca ?? [],
+            preenchido: monthState.preenchido,
+            enviado: monthState.enviado,
+            invalido: monthState.invalido,
+            observacao: monthState.observacao ?? ""
+        };
+    }
+
+    private logMonthDiagnostics(label: string, monthNum: number, monthState: any) {
+        console.log(`[SIGESS TURBO DIAGNOSTICS] ${label} Mês ${monthNum}:`, this.buildMonthDiagnostics(monthState));
     }
 
     private extractActionHashCandidates(html: string): string[] {
@@ -56,7 +80,7 @@ class ReapTurbo {
         const response = await fetch(url.toString(), { cache: 'no-store' });
         const html = await response.text();
         const freshHashes = this.extractActionHashCandidates(html);
-        if (freshHashes.length > 0) this.lastActionHash = freshHashes[0];
+        if (freshHashes.length > 0) this.lastActionHash = freshHashes[freshHashes.length - 1];
         const regex = /self\.__next_f\.push\((\[[\s\S]*?\])\)/g;
         let match;
         while ((match = regex.exec(html)) !== null) {
@@ -134,46 +158,66 @@ class ReapTurbo {
                 m.areasRealizacaoPesca = m.areasRealizacaoPesca.map((a: any) => {
                     const cloned = { ...a };
                     delete cloned.id;
-                    cloned.ambientePesca = cloned.ambientePesca === undefined ? cloned.ambientePesca : String(cloned.ambientePesca);
+                    if (cloned.ambientePesca !== undefined && !Array.isArray(cloned.ambientePesca)) {
+                        cloned.ambientePesca = [Number(cloned.ambientePesca)];
+                    }
                     return cloned;
                 });
             }
 
-            const houvePesca = mesConfig ? Boolean(mesConfig.houvePesca) : false;
+            const houvePesca = Boolean(mesConfig?.houvePesca);
             
             m.houvePesca = houvePesca;
             m.preenchido = true;
+            m.invalido = false;
             
             if (houvePesca) {
-                m.diasTrabalhados = mesConfig?.diasTrabalhados || 15;
+                m.diasTrabalhados = Number(mesConfig?.diasTrabalhados ?? 15);
                 m.justificativasNaoDeclaracao = [];
                 m.areasRealizacaoPesca = [{
                     ...userConfig.areaRealizacao,
-                    ambientePesca: String(userConfig.areaRealizacao.ambientePesca)
+                    ambientePesca: [Number(userConfig.areaRealizacao.ambientePesca)]
                 }];
-                m.resultadosOperacaoPesca = mesConfig?.especies?.map((esp, i) => {
-                    const existingId = oldMes.resultadosOperacaoPesca?.[i]?.id;
+                const existingRows = Array.isArray(oldMes.resultadosOperacaoPesca) ? oldMes.resultadosOperacaoPesca : [];
+                const speciesToSend = (mesConfig?.especies || [])
+                    .filter(Boolean)
+                    .slice(0, existingRows.length > 0 ? existingRows.length : 2);
+                m.resultadosOperacaoPesca = speciesToSend.map((esp, i) => {
+                    const existingRow = existingRows[i];
+                    const preserveId = existingRow?.id && existingRow?.especiePescado === esp.especiePescado;
                     return {
                         ...esp,
-                        ...(existingId ? { id: existingId } : {})
+                        ...(preserveId ? { id: existingRow.id } : {})
                     };
-                }) || [];
+                });
             } else {
+                m.houvePesca = false;
                 delete m.diasTrabalhados;
-                m.justificativasNaoDeclaracao = [mesConfig?.justificativa || 1];
+                m.justificativasNaoDeclaracao = [Number(mesConfig?.justificativa ?? 1)];
                 m.areasRealizacaoPesca = [];
                 m.resultadosOperacaoPesca = [];
             }
             return m;
         });
 
+        newState.informesMensais = newState.informesMensais.map((mes: any) => {
+            const normalizedMonth = { ...mes };
+            if (!normalizedMonth.preenchido && (normalizedMonth.houvePesca === undefined || normalizedMonth.houvePesca === null)) {
+                normalizedMonth.invalido = true;
+            }
+            return normalizedMonth;
+        });
+
+        newState.concordaComDeclaracaoResponsabilidade = true;
+        delete newState.errosValidacao;
         if (newState.configuracoes) newState.configuracoes.podeEnviar = "true";
         return newState;
     }
 
-    private async submitMonth(monthNum: number, payload: any): Promise<boolean> {
+    private async submitMonth(monthNum: number, payload: any): Promise<any | null> {
         this.debugLogger.log(`Enviando Mês ${monthNum}...`);
 
+        this.logMonthDiagnostics("Payload", monthNum, payload?.[1]?.informesMensais?.find((mes: any) => mes.mes === monthNum));
         try {
             const resp = await fetch(globalThis.location.href, {
                 method: 'POST',
@@ -186,26 +230,29 @@ class ReapTurbo {
                 body: JSON.stringify(payload)
             });
             
+            const responseText = await resp.text();
             if (!resp.ok) {
-                const errorBody = await resp.text();
+                const errorBody = responseText;
                 throw new Error(`HTTP ${resp.status}. Body: ${errorBody}`);
             }
             
             this.debugLogger.log(`Mês ${monthNum} enviado com sucesso.`, 'success');
-            return true;
+            const refreshedState = await this.getReapState();
+            this.logMonthDiagnostics("Retorno", monthNum, this.getMonthState(refreshedState, monthNum));
+            return refreshedState;
         } catch (e: any) {
             this.debugLogger.log(`Erro Mês ${monthNum}: ${e.message}`, 'error');
-            return false;
+            return null;
         }
     }
 
-    private async processMonths(startMonth: number, config: any, initialState: any) {
+    private async processMonths(startMonth: number, config: any, initialState: any): Promise<boolean> {
         let currentState = structuredClone(initialState);
         
         for (let m = startMonth; m <= 12; m++) {
             if (State.stopRequested) {
                 this.debugLogger.log("Interrupção solicitada pelo usuário.", "warn");
-                break;
+                return false;
             }
 
             // Pula meses que o servidor não retornou (não disponíveis para preenchimento)
@@ -223,15 +270,23 @@ class ReapTurbo {
             currentState = this.updateStateWithMonth(currentState, m, config);
             
             // 2. Construir payload final com o estado completo
-            const payload = [String(currentState.id), currentState, 3];
+            const payload = [String(currentState.id), { informesMensais: currentState.informesMensais }, 3];
 
             // 3. Enviar
-            if (!(await this.submitMonth(m, payload))) break;
+            const updatedState = await this.submitMonth(m, payload);
+            if (!updatedState) return false;
+            const persistedMonth = this.getMonthState(updatedState, m);
+            if (!persistedMonth?.preenchido) {
+                console.warn(`[SIGESS TURBO DIAGNOSTICS] Mês ${m} voltou do servidor sem persistir como preenchido.`, this.buildMonthDiagnostics(persistedMonth));
+            }
+            currentState = updatedState;
             
             State.monthlyProgress[m-1] = "done";
             if (m < 12) State.currentMonthIndex = m;
             if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
         }
+
+        return true;
     }
 
     public async run(config: any) {
@@ -259,11 +314,13 @@ class ReapTurbo {
                 }
             }
 
-            await this.processMonths(startMonth, config, initialState);
+            const completed = await this.processMonths(startMonth, config, initialState);
 
-            if (!State.stopRequested) {
+            if (!State.stopRequested && completed) {
                 alert("Turbo Fill Concluído!");
                 globalThis.location.reload();
+            } else if (!State.stopRequested && !completed) {
+                throw new Error("O preenchimento Turbo falhou durante o envio.");
             }
         } finally { 
             (globalThis as any).__sigessTurboRunning = false;
@@ -278,12 +335,14 @@ if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded)
     (globalThis as any).__sigessTurboLoaded = true;
 
     // --- DIAGNOSTIC INTERCEPTOR ---
-    if ((globalThis as any).__SIGESS_DEBUG) {
+    if (!(globalThis as any).__sigessTurboFetchIntercepted) {
+        (globalThis as any).__sigessTurboFetchIntercepted = true;
         const origFetch = globalThis.fetch;
         globalThis.fetch = async function(...args) {
             const [url, options] = args;
-            if (options?.method === 'POST' && typeof url === 'string' && url.includes('informe-mensal')) {
-                console.log("%c=== [SIGESS TURBO DIAGNOSTICS] NATIVE POST CAPTURED ===", "color: #ff00ff; font-weight: bold; font-size: 14px;");
+            const urlText = typeof url === 'string' ? url : url instanceof URL ? url.toString() : String(url);
+            if (options?.method === 'POST' && urlText.includes('informe-mensal')) {
+                console.log("%c=== [SIGESS TURBO DIAGNOSTICS] POST CAPTURED ===", "color: #ff00ff; font-weight: bold; font-size: 14px;");
                 
                 const headersList: any = {};
                 const headers = options.headers;
@@ -293,9 +352,14 @@ if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded)
                     Object.assign(headersList, headers || {});
                 }
                 
+                console.log("URL:", urlText);
                 console.log("Headers:", JSON.stringify(headersList, null, 2));
                 if (typeof options.body === 'string') {
-                    console.log("Body JSON:", JSON.stringify(JSON.parse(options.body), null, 2));
+                    try {
+                        console.log("Body JSON:", JSON.stringify(JSON.parse(options.body), null, 2));
+                    } catch {
+                        console.log("Body Raw:", options.body);
+                    }
                 } else {
                     console.log("Body (Raw):", options.body);
                 }
