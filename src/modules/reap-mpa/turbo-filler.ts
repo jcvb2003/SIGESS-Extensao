@@ -9,8 +9,8 @@ if (!(globalThis as any).__sigessTurboLogSilenced) {
 
 class ReapTurbo {
     private readonly debugLogger: DebugLogger;
-    private lastActionHash: string = "";
-    private uploadActionHash: string = "";
+    private lastActionHash: string = "1de3f791ab9ce1ca497934828395f2c7cc2291e8";
+    private uploadActionHash: string = "ee4120ba1ef508ab9c7b100f438c4a9bf9b7b2bf";
 
     constructor() { 
         this.debugLogger = new DebugLogger("REAP-TURBO"); 
