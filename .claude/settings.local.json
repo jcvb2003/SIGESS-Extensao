@@ -2,8 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(powershell *)",
+      "Bash(cmd *)"
     ]
   },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
   "spinnerTipsEnabled": true
 }

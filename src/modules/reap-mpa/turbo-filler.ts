@@ -147,33 +147,28 @@ class ReapTurbo {
     private updateStateWithMonth(state: any, mesNumber: number, userConfig: TurboReapConfig): any {
         const newState = structuredClone(state);
         const mesConfig = userConfig.meses.find(m => m.mes === mesNumber);
-        
+
+        // Localiza um documento de justificativa já existente em qualquer mês (para reutilizar em meses sem documento)
+        const existingDoc = newState.informesMensais.find(
+            (mes: any) => mes.documentoJustificativaNaoDeclaracao
+        )?.documentoJustificativaNaoDeclaracao ?? null;
+
         newState.informesMensais = newState.informesMensais.map((oldMes: any) => {
             if (oldMes.mes !== mesNumber) return { ...oldMes };
 
             const m = { ...oldMes };
             m.observacao = m.observacao || "";
 
-            if (m.areasRealizacaoPesca && Array.isArray(m.areasRealizacaoPesca)) {
-                m.areasRealizacaoPesca = m.areasRealizacaoPesca.map((a: any) => {
-                    const cloned = { ...a };
-                    delete cloned.id;
-                    if (cloned.ambientePesca !== undefined && !Array.isArray(cloned.ambientePesca)) {
-                        cloned.ambientePesca = [Number(cloned.ambientePesca)];
-                    }
-                    return cloned;
-                });
-            }
-
             const houvePesca = Boolean(mesConfig?.houvePesca);
-            
+
             m.houvePesca = houvePesca;
             m.preenchido = true;
             m.invalido = false;
-            
+
             if (houvePesca) {
                 m.diasTrabalhados = Number(mesConfig?.diasTrabalhados ?? 15);
                 m.justificativasNaoDeclaracao = [];
+                delete m.documentoJustificativaNaoDeclaracao;
                 m.areasRealizacaoPesca = [{
                     ...userConfig.areaRealizacao,
                     ambientePesca: [Number(userConfig.areaRealizacao.ambientePesca)]
@@ -181,8 +176,8 @@ class ReapTurbo {
                 const existingRows = Array.isArray(oldMes.resultadosOperacaoPesca) ? oldMes.resultadosOperacaoPesca : [];
                 const speciesToSend = (mesConfig?.especies || [])
                     .filter(Boolean)
-                    .slice(0, existingRows.length > 0 ? existingRows.length : 2);
-                m.resultadosOperacaoPesca = speciesToSend.map((esp, i) => {
+                    .slice(0, existingRows.length > 0 ? existingRows.length : (mesConfig?.especies?.length ?? 2));
+                m.resultadosOperacaoPesca = speciesToSend.map((esp: any, i: number) => {
                     const existingRow = existingRows[i];
                     const preserveId = existingRow?.id && existingRow?.especiePescado === esp.especiePescado;
                     return {
@@ -196,16 +191,12 @@ class ReapTurbo {
                 m.justificativasNaoDeclaracao = [Number(mesConfig?.justificativa ?? 1)];
                 m.areasRealizacaoPesca = [];
                 m.resultadosOperacaoPesca = [];
+                // Reutiliza documento de justificativa de outro mês se este não tiver um
+                if (!m.documentoJustificativaNaoDeclaracao && existingDoc) {
+                    m.documentoJustificativaNaoDeclaracao = existingDoc;
+                }
             }
             return m;
-        });
-
-        newState.informesMensais = newState.informesMensais.map((mes: any) => {
-            const normalizedMonth = { ...mes };
-            if (!normalizedMonth.preenchido && (normalizedMonth.houvePesca === undefined || normalizedMonth.houvePesca === null)) {
-                normalizedMonth.invalido = true;
-            }
-            return normalizedMonth;
         });
 
         newState.concordaComDeclaracaoResponsabilidade = true;
@@ -232,10 +223,10 @@ class ReapTurbo {
             
             const responseText = await resp.text();
             if (!resp.ok) {
-                const errorBody = responseText;
-                throw new Error(`HTTP ${resp.status}. Body: ${errorBody}`);
+                throw new Error(`HTTP ${resp.status}. Body: ${responseText}`);
             }
-            
+
+            console.log(`[SIGESS TURBO] Resposta raw mês ${monthNum}:`, responseText.substring(0, 500));
             this.debugLogger.log(`Mês ${monthNum} enviado com sucesso.`, 'success');
             const refreshedState = await this.getReapState();
             this.logMonthDiagnostics("Retorno", monthNum, this.getMonthState(refreshedState, monthNum));
@@ -268,9 +259,13 @@ class ReapTurbo {
             
             // 1. Atualizar o estado CUMULATIVO local (passando o número do mês, não o índice)
             currentState = this.updateStateWithMonth(currentState, m, config);
-            
+
+            // Salvaguarda: garantir invalido=false para o mês atual (o servidor ignora dados de meses invalido:true)
+            const curMesRef = currentState.informesMensais.find((mes: any) => mes.mes === m);
+            if (curMesRef) curMesRef.invalido = false;
+
             // 2. Construir payload final com o estado completo
-            const payload = [String(currentState.id), { informesMensais: currentState.informesMensais }, 3];
+            const payload = [String(currentState.id), { informesMensais: currentState.informesMensais, concordaComDeclaracaoResponsabilidade: true }, 3];
 
             // 3. Enviar
             const updatedState = await this.submitMonth(m, payload);
@@ -278,10 +273,12 @@ class ReapTurbo {
             const persistedMonth = this.getMonthState(updatedState, m);
             if (!persistedMonth?.preenchido) {
                 console.warn(`[SIGESS TURBO DIAGNOSTICS] Mês ${m} voltou do servidor sem persistir como preenchido.`, this.buildMonthDiagnostics(persistedMonth));
+                State.monthlyProgress[m-1] = "skipped";
+            } else {
+                State.monthlyProgress[m-1] = "done";
             }
             currentState = updatedState;
-            
-            State.monthlyProgress[m-1] = "done";
+
             if (m < 12) State.currentMonthIndex = m;
             if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
         }
