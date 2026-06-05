@@ -46,6 +46,8 @@ try {
   const popupDest = path.join(outputDir, "popup.html");
   const inspectorSource = path.join(outputDir, "src/popup/data_inspector.html");
   const inspectorDest = path.join(outputDir, "data_inspector.html");
+  const filePickerSource = path.join(outputDir, "src/popup/file-picker.html");
+  const filePickerDest = path.join(outputDir, "file_picker.html");
 
   const fixHtmlPaths = (filePath) => {
     if (!fs.existsSync(filePath)) return;
@@ -68,6 +70,12 @@ try {
     fs.copyFileSync(inspectorSource, inspectorDest);
     fixHtmlPaths(inspectorDest);
     console.log("Moved data_inspector.html to root");
+  }
+
+  if (fs.existsSync(filePickerSource)) {
+    fs.copyFileSync(filePickerSource, filePickerDest);
+    fixHtmlPaths(filePickerDest);
+    console.log("Moved file_picker.html to root");
   }
 
   const possibleIconSources = [

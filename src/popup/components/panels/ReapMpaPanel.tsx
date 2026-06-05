@@ -193,20 +193,7 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
     return () => browser.storage.onChanged.removeListener(handleStorageChange);
   }, []);
 
-  const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCachedPdfFilename(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const b64 = dataUrl.split(",")[1];
-      browser.storage.local.set({ sigessReapPdfCache: { b64, filename: file.name } });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const updateSpecie = (index: number, data: any) => {
+const updateSpecie = (index: number, data: any) => {
     const current = settings.mpaSpecies || [];
     const next = [...current];
     for (let i = 0; i < 10; i++) {
@@ -412,11 +399,13 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
 
               {(settings.mpaDocumentoMode || "manual") === "local" && (
                 <div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer', padding: '6px 8px', border: '1px dashed var(--color-border)', borderRadius: '4px', background: 'var(--color-surface)' }}>
+                  <button
+                    onClick={() => browser.tabs.create({ url: browser.runtime.getURL('file_picker.html') })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer', padding: '6px 8px', border: '1px dashed var(--color-border)', borderRadius: '4px', background: 'var(--color-surface)', width: '100%' }}
+                  >
                     <span>📄</span>
                     <span style={{ color: 'var(--color-accent)' }}>Selecionar PDF</span>
-                    <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={handlePdfFileChange} />
-                  </label>
+                  </button>
                   {cachedPdfFilename
                     ? <p style={{ fontSize: '10px', color: '#28a745', marginTop: '4px' }}>✅ {cachedPdfFilename}</p>
                     : <p style={{ fontSize: '10px', color: '#999', marginTop: '4px' }}>Nenhum PDF selecionado</p>

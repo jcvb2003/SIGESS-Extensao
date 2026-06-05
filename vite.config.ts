@@ -38,7 +38,8 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 popup: 'src/popup/index.html',
-                data_inspector: 'src/popup/data_inspector.html'
+                data_inspector: 'src/popup/data_inspector.html',
+                file_picker: 'src/popup/file-picker.html',
             },
             output: {
                 entryFileNames: 'assets/[name].js',
