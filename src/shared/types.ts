@@ -69,10 +69,17 @@ export interface AppSettings {
   valorComercializado: string;
   reapData: Record<string, string>;
   reapTurboConfig?: string;
+  mpaReferenceYear?: string;
+  mpaResidenceUF?: number;
+  mpaResidenceMunicipio?: number;
+  mpaWorkRelation?: string;
+  mpaCommercializationStates?: number[];
+  mpaDefesoMonths?: number[];
   mpaEspeciePescado?: number;
   mpaMunicipio?: number;
   mpaUF?: number;
   mpaLocalPesca?: number;
+  mpaMetodoPesca?: number;
   mpaPetrecho?: number;
   mpaAmbiente?: number;
   multiLoginEnabled?: boolean;

@@ -48,6 +48,8 @@ try {
   const inspectorDest = path.join(outputDir, "data_inspector.html");
   const filePickerSource = path.join(outputDir, "src/popup/file-picker.html");
   const filePickerDest = path.join(outputDir, "file_picker.html");
+  const reapSettingsSource = path.join(outputDir, "src/popup/reap-mpa-settings.html");
+  const reapSettingsDest = path.join(outputDir, "reap_mpa_settings.html");
 
   const fixHtmlPaths = (filePath) => {
     if (!fs.existsSync(filePath)) return;
@@ -76,6 +78,12 @@ try {
     fs.copyFileSync(filePickerSource, filePickerDest);
     fixHtmlPaths(filePickerDest);
     console.log("Moved file_picker.html to root");
+  }
+
+  if (fs.existsSync(reapSettingsSource)) {
+    fs.copyFileSync(reapSettingsSource, reapSettingsDest);
+    fixHtmlPaths(reapSettingsDest);
+    console.log("Moved reap_mpa_settings.html to root");
   }
 
   const possibleIconSources = [

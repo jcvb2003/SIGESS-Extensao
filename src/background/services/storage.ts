@@ -41,6 +41,16 @@ export class StorageService {
       reapData: {
         2021: "", 2022: "", 2023: "", 2024: "",
       },
+      mpaReferenceYear: "2025",
+      mpaResidenceUF: 5,
+      mpaWorkRelation: "Economia Familiar",
+      mpaCommercializationStates: [5],
+      mpaDefesoMonths: [1, 2, 3, 4],
+      mpaUF: 5,
+      mpaLocalPesca: 6,
+      mpaMetodoPesca: 4,
+      mpaPetrecho: 4,
+      mpaAmbiente: 1,
       mpaSpecies: [
         { id: 12, kgMin: "60", kgMax: "70", priceMin: "8.00", priceMax: "11.00" },
         { id: 21, kgMin: "55", kgMax: "60", priceMin: "8.00", priceMax: "12.00" },
