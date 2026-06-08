@@ -116,9 +116,6 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
               <button type="button" className="btn btn-primary btn-full" onClick={openSettingsPage}>
                 Abrir configurações do REAP
               </button>
-              <p style={{ fontSize: "11px", color: "var(--color-muted)", textAlign: "center", margin: 0 }}>
-                As opções do REAP MPA foram movidas para uma página dedicada da extensão.
-              </p>
             </div>
           </div>
         </div>

@@ -46,9 +46,6 @@ const ReapMpaSettingsPage: React.FC = () => {
           <div>
             <div className="page-eyebrow">SIGESS</div>
             <h1>Configurações do REAP MPA</h1>
-            <p>
-              Ajuste os parâmetros do REAP sem tocar no overlay do portal. Esta página preserva as configurações atuais dos clientes.
-            </p>
           </div>
           <button type="button" className="back-link" onClick={() => window.close()}>
             Fechar
@@ -56,9 +53,11 @@ const ReapMpaSettingsPage: React.FC = () => {
         </header>
 
         <div className="status-row">
-          <span className={`status-pill ${saving ? "saving" : "saved"}`}>
-            {status || "Pronto para editar"}
-          </span>
+          {status ? (
+            <span className={`status-pill ${saving ? "saving" : "saved"}`}>
+              {status}
+            </span>
+          ) : null}
         </div>
 
         <ReapMpaSettingsForm
