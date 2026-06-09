@@ -64,12 +64,9 @@ export const Page3 = {
   },
 
   ensureInitialData: async (settings: any) => {
-    if (!State.daysMap || Object.keys(State.daysMap).length === 0) {
-      State.daysMap = DaysGenerator.generate(State.gender, settings);
-    }
-    if (!State.production || State.production.length === 0) {
-      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
-    }
+    // Always regenerate for legacy — avoids inheriting a stale daysMap from a prior v2 run
+    State.daysMap = DaysGenerator.generate(State.gender, settings);
+    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
   },
 
   getStartIndex: (months: NodeListOf<Element>) => {
@@ -129,7 +126,7 @@ export const Page3 = {
     const activeContent = monthAccordion.querySelector(".content") as HTMLElement;
     if (!activeContent) return;
 
-    if (isDefesoMonth(settings, realMonthIndex + 1)) {
+    if (isDefesoMonth(settings, realMonthIndex + 1) || State.daysMap[realMonthIndex] === 0) {
       await Page3.fillDefeso(activeContent);
     } else {
       await Page3.fillNormalMonth(activeContent, realMonthIndex, settings);

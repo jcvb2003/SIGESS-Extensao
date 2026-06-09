@@ -1,4 +1,4 @@
-import { Utils } from '../utils/dom-utils';
+import { Utils, setReactInput } from '../utils/dom-utils';
 import { IWorkflowManager } from "../types";
 import { getReapStateLabel, normalizeReapSettings } from '../reap-settings';
 
@@ -16,23 +16,19 @@ export const Page2 = {
     const inputRelacao = document.querySelector<HTMLInputElement>('input[name="prestacaoServico"]');
     const inputEstados = document.querySelector<HTMLInputElement>('input[name="estadosComercializacao"]');
 
-    const isAlreadyFilled = (inputRelacao?.value?.trim() !== "") || (inputEstados?.value?.trim() !== "");
+    // Skip only when BOTH fields already hold the exact configured values
+    const isAlreadyFilled =
+      inputRelacao?.value?.trim() === workRelation &&
+      inputEstados?.value?.trim() === commState;
     if (isAlreadyFilled) {
-      console.log('REAP: Página 2 já preenchida. Avançando para Página 3.');
-      const btn = document.querySelector<HTMLElement>('button[data-action="avancar"]');
-      if (btn) btn.click();
+      console.log('REAP Legacy: Página 2 já preenchida com os valores configurados. Avançando.');
+      (document.querySelector<HTMLElement>('button[data-action="avancar"]'))?.click();
       return;
     }
 
-    const divRelacao = document
-      .querySelector('input[name="prestacaoServico"]')
-      ?.closest<HTMLElement>(".br-select");
-    if (divRelacao) await Utils.selectOption(divRelacao, workRelation);
-
-    const divEstados = document
-      .querySelector('input[name="estadosComercializacao"]')
-      ?.closest<HTMLElement>(".br-select");
-    if (divEstados) await Utils.selectOption(divEstados, commState);
+    // v1: set the underlying input value directly to avoid opening the dropdown visually
+    if (inputRelacao) setReactInput(inputRelacao, workRelation);
+    if (inputEstados) setReactInput(inputEstados, commState);
 
     const checkPeixes = document.querySelector<HTMLInputElement>('input[name="gruposAlvo"][value="5"]');
     if (checkPeixes && !checkPeixes.checked)

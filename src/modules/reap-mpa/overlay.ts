@@ -311,9 +311,10 @@ const injectButton = async () => {
     if (!lic.ok) { alert(`Erro de licença: ${lic.reason}`); refreshUI(); btnTurbo.disabled = false; return; }
 
     try {
-      if (!State.daysMap || Object.keys(State.daysMap).length === 0)
+      // v1 always regenerates — no mid-run resume, and stale maps from prior v2 runs must not leak in
+      if (isV1Portal() || !State.daysMap || Object.keys(State.daysMap).length === 0)
         State.daysMap = DaysGenerator.generate(State.gender, settings);
-      if (!State.production || State.production.length === 0)
+      if (isV1Portal() || !State.production || State.production.length === 0)
         State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
     } catch (err: any) {
       alert(err.message);
