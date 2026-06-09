@@ -113,6 +113,10 @@ export const ProductionGenerator: any = {
   },
 
   distributeMonthlyKg(productions: FishProduction[], daysMap: Record<number, number>, fishingMonths: number[], totalDays: number) {
+    if (totalDays === 0) {
+      throw new Error("SIGESS: totalDays é 0 — escala de dias inválida para distribuição de produção.");
+    }
+
     for (const prod of productions) {
       let remaining = prod.totalKg;
       const monthlyRaw: Record<number, number> = {};
@@ -120,17 +124,17 @@ export const ProductionGenerator: any = {
       for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
         monthlyRaw[monthIndex] = 0;
       }
-      
+
       for (const m of fishingMonths) {
-        const daysProportion = totalDays > 0 ? (daysMap[m] || 0) / totalDays : 0;
+        const daysProportion = (daysMap[m] || 0) / totalDays;
         const kgForMonth = Math.round(prod.totalKg * daysProportion);
         monthlyRaw[m] = kgForMonth;
         remaining -= kgForMonth;
       }
-      
+
       const lastMonth = fishingMonths.at(-1);
       if (lastMonth !== undefined) {
-          monthlyRaw[lastMonth] += remaining;
+        monthlyRaw[lastMonth] += remaining;
       }
       prod.monthlyKg = monthlyRaw;
     }

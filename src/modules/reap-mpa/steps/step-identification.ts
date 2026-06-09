@@ -1,4 +1,4 @@
-import { Utils } from "../utils/dom-utils";
+import { Utils, clickAvancar } from "../utils/dom-utils";
 import { IWorkflowManager } from "../types";
 import { MUNICIPIOS_LIST } from "../../../shared/data/municipios";
 import { getReapStateLabel, normalizeReapSettings } from "../reap-settings";
@@ -55,7 +55,7 @@ export const Page1 = {
     Array.from(document.querySelectorAll("h4")).some((heading) =>
       normalizeText(heading.textContent).includes("SITUACAO DO(A) PESCADOR(A)"),
     ) &&
-    getFieldValueByLabel("NÂº do RGP") !== "",
+    getFieldValueByLabel("Nº do RGP") !== "",
   execute: async (manager: IWorkflowManager) => {
     console.log("REAP: Validando Pagina 1...");
 
@@ -66,11 +66,30 @@ export const Page1 = {
     const estadoResidencia = getReapStateLabel(settings.mpaResidenceUF);
 
     const validations: Array<[string, string]> = [
-      ["Estado de residÃªncia", estadoResidencia],
-      ["MunicÃ­pio de residÃªncia", municipioName],
+      ["Estado de residência", estadoResidencia],
+      ["Município de residência", municipioName],
       ["Categoria", "Artesanal"],
-      ["Forma de atuaÃ§Ã£o", "Desembarcado"],
+      ["Forma de atuação", "Desembarcado"],
     ];
+
+    // Valida ano de referência (obrigatório)
+    const anoEsperado = settings.mpaReferenceYear || "";
+    if (!anoEsperado) {
+      alert("PAUSADO: Configure o Ano de Referência do REAP no painel de configurações.");
+      manager.stop();
+      return;
+    }
+    const anoFeedback = Array.from(document.querySelectorAll("div.feedback.info")).find((el) =>
+      normalizeText(el.textContent).includes("ANO DE REFERENCIA DO REAP"),
+    );
+    const anoMatch = normalizeText(anoFeedback?.textContent).match(/\d{4}/);
+    const anoReferencia = anoMatch ? anoMatch[0] : null;
+    if (anoReferencia && anoReferencia !== anoEsperado) {
+      anoFeedback && Utils.highlightError(anoFeedback as HTMLElement);
+      alert(`PAUSADO: Ano de referência do REAP é ${anoReferencia}, esperado ${anoEsperado}. Verifique e avance manualmente.`);
+      manager.stop();
+      return;
+    }
 
     const hasMismatch = validations.some(([label, expected]) => {
       if (!expected) return false;
@@ -90,6 +109,6 @@ export const Page1 = {
       return;
     }
 
-    (document.querySelector('button[data-action="avancar"]') as HTMLElement)?.click();
+    clickAvancar();
   },
 };

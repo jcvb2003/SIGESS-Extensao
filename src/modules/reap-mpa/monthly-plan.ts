@@ -36,6 +36,19 @@ export function getFishingMonthNumbers(settings: Partial<AppSettings>) {
   return getFishingMonthIndexes(settings).map((monthIndex) => monthIndex + 1);
 }
 
+export function getPeakMonthIndexes(defesoMonths: number[]): Set<number> {
+  const peaks = new Set<number>();
+  const defesoSet = new Set(defesoMonths);
+  for (const defMonth of defesoMonths) {
+    const defIndex = defMonth - 1;
+    const before = defIndex - 1;
+    if (before >= 0 && !defesoSet.has(before + 1)) peaks.add(before);
+    const after = (defIndex + 1) % 12;
+    if (!defesoSet.has(after + 1)) peaks.add(after);
+  }
+  return peaks;
+}
+
 function buildSpeciesForMonth(monthIndex: number, production: FishProduction[]): TurboEspecieConfig[] {
   return production
     .map((fish) => {

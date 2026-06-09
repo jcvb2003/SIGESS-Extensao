@@ -124,59 +124,74 @@ export function ReapSpeciesSection({
           </p>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-          <div className="config-group" style={{ background: "var(--color-surface-alt)", padding: "10px", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
-            <h3 style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "8px", color: "var(--color-text)", textAlign: "center", borderBottom: "1px solid var(--color-border)", paddingBottom: "4px" }}>
-              MASCULINO
-            </h3>
-            <div className="stack" style={{ gap: "8px" }}>
-              <div>
-                <label htmlFor="mpaMascProdMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
-                  Produção (R$)
-                </label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                  <CurrencyInput id="mpaMascProdMin" placeholder="Mín R$" value={settings.mpaMascProdMin || ""} onChange={(v) => onUpdate({ mpaMascProdMin: v })} />
-                  <CurrencyInput ariaLabel="Produção Máxima Masculina" placeholder="Máx R$" value={settings.mpaMascProdMax || ""} onChange={(v) => onUpdate({ mpaMascProdMax: v })} />
+        {(() => {
+          const fishingCount = 12 - (settings.mpaDefesoMonths || []).length;
+          const mascMin = Number(settings.mpaMascDaysMin) || 0;
+          const mascMax = Number(settings.mpaMascDaysMax) || 0;
+          const femMin = Number(settings.mpaFemDaysMin) || 0;
+          const femMax = Number(settings.mpaFemDaysMax) || 0;
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div className="config-group" style={{ background: "var(--color-surface-alt)", padding: "10px", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
+                <h3 style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "8px", color: "var(--color-text)", textAlign: "center", borderBottom: "1px solid var(--color-border)", paddingBottom: "4px" }}>
+                  MASCULINO
+                </h3>
+                <div className="stack" style={{ gap: "8px" }}>
+                  <div>
+                    <label htmlFor="mpaMascProdMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
+                      Produção (R$)
+                    </label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+                      <CurrencyInput id="mpaMascProdMin" placeholder="Mín R$" value={settings.mpaMascProdMin || ""} onChange={(v) => onUpdate({ mpaMascProdMin: v })} />
+                      <CurrencyInput ariaLabel="Produção Máxima Masculina" placeholder="Máx R$" value={settings.mpaMascProdMax || ""} onChange={(v) => onUpdate({ mpaMascProdMax: v })} />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="mpaMascDaysMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
+                      Dias/Mês
+                    </label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+                      <input id="mpaMascDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" min={7} max={27} value={settings.mpaMascDaysMin || ""} onChange={(e) => onUpdate({ mpaMascDaysMin: e.target.value })} />
+                      <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Masculinos" placeholder="Máx" min={7} max={27} value={settings.mpaMascDaysMax || ""} onChange={(e) => onUpdate({ mpaMascDaysMax: e.target.value })} />
+                    </div>
+                    <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>
+                      {mascMin && mascMax ? `Total/ano: ${fishingCount * mascMin}–${fishingCount * mascMax} dias` : "—"}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div>
-                <label htmlFor="mpaMascDaysMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
-                  Dias Trab.
-                </label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                  <input id="mpaMascDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" value={settings.mpaMascDaysMin || ""} onChange={(e) => onUpdate({ mpaMascDaysMin: e.target.value })} />
-                  <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Masculinos" placeholder="Máx" value={settings.mpaMascDaysMax || ""} onChange={(e) => onUpdate({ mpaMascDaysMax: e.target.value })} />
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="config-group" style={{ background: "var(--color-surface-alt)", padding: "10px", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
-            <h3 style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "8px", color: "var(--color-text)", textAlign: "center", borderBottom: "1px solid var(--color-border)", paddingBottom: "4px" }}>
-              FEMININO
-            </h3>
-            <div className="stack" style={{ gap: "8px" }}>
-              <div>
-                <label htmlFor="mpaFemProdMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
-                  Produção (R$)
-                </label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                  <CurrencyInput id="mpaFemProdMin" placeholder="Mín R$" value={settings.mpaFemProdMin || ""} onChange={(v) => onUpdate({ mpaFemProdMin: v })} />
-                  <CurrencyInput ariaLabel="Produção Máxima Feminina" placeholder="Máx R$" value={settings.mpaFemProdMax || ""} onChange={(v) => onUpdate({ mpaFemProdMax: v })} />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="mpaFemDaysMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
-                  Dias Trab.
-                </label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                  <input id="mpaFemDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" value={settings.mpaFemDaysMin || ""} onChange={(e) => onUpdate({ mpaFemDaysMin: e.target.value })} />
-                  <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Femininos" placeholder="Máx" value={settings.mpaFemDaysMax || ""} onChange={(e) => onUpdate({ mpaFemDaysMax: e.target.value })} />
+              <div className="config-group" style={{ background: "var(--color-surface-alt)", padding: "10px", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
+                <h3 style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "8px", color: "var(--color-text)", textAlign: "center", borderBottom: "1px solid var(--color-border)", paddingBottom: "4px" }}>
+                  FEMININO
+                </h3>
+                <div className="stack" style={{ gap: "8px" }}>
+                  <div>
+                    <label htmlFor="mpaFemProdMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
+                      Produção (R$)
+                    </label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+                      <CurrencyInput id="mpaFemProdMin" placeholder="Mín R$" value={settings.mpaFemProdMin || ""} onChange={(v) => onUpdate({ mpaFemProdMin: v })} />
+                      <CurrencyInput ariaLabel="Produção Máxima Feminina" placeholder="Máx R$" value={settings.mpaFemProdMax || ""} onChange={(v) => onUpdate({ mpaFemProdMax: v })} />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="mpaFemDaysMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
+                      Dias/Mês
+                    </label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+                      <input id="mpaFemDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" min={7} max={27} value={settings.mpaFemDaysMin || ""} onChange={(e) => onUpdate({ mpaFemDaysMin: e.target.value })} />
+                      <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Femininos" placeholder="Máx" min={7} max={27} value={settings.mpaFemDaysMax || ""} onChange={(e) => onUpdate({ mpaFemDaysMax: e.target.value })} />
+                    </div>
+                    <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>
+                      {femMin && femMax ? `Total/ano: ${fishingCount * femMin}–${fishingCount * femMax} dias` : "—"}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          );
+        })()}
       </div>
     </section>
   );

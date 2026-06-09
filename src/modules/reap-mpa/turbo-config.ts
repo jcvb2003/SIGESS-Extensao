@@ -8,6 +8,10 @@ export function validateReapSettings(settings: any, gender: string): string | nu
     return "Selecione pelo menos um mes de defeso no painel de configuracoes do REAP MPA.";
   }
 
+  if (!settings.mpaReferenceYear) {
+    return "Por favor, configure o Ano de Referencia do REAP no painel de configuracoes do REAP MPA.";
+  }
+
   if (!settings.mpaMunicipio) {
     return "Por favor, selecione um MUNICIPIO no painel de configuracoes do REAP MPA.";
   }
@@ -24,8 +28,19 @@ export function validateReapSettings(settings: any, gender: string): string | nu
   }
 
   const daysPrefix = gender === "MASCULINO" ? "mpaMascDays" : "mpaFemDays";
-  if (!settings[`${daysPrefix}Min`] || !settings[`${daysPrefix}Max`]) {
-    return `Por favor, preencha os limites (Min/Max) de "Dias Trab." para o genero ${gender} no painel de configuracoes.`;
+  const daysMin = Number(settings[`${daysPrefix}Min`]);
+  const daysMax = Number(settings[`${daysPrefix}Max`]);
+  if (!daysMin || !daysMax) {
+    return `Por favor, preencha os limites (Min/Max) de "Dias/Mes" para o genero ${gender} no painel de configuracoes.`;
+  }
+  if (daysMin < 7 || daysMax < 7) {
+    return `O minimo de "Dias/Mes" para o genero ${gender} e 7 dias.`;
+  }
+  if (daysMin > 27 || daysMax > 27) {
+    return `O maximo de "Dias/Mes" para o genero ${gender} e 27 dias.`;
+  }
+  if (daysMin > daysMax) {
+    return `O valor minimo de "Dias/Mes" nao pode ser maior que o maximo para o genero ${gender}.`;
   }
 
   const prodPrefix = gender === "MASCULINO" ? "mpaMascProd" : "mpaFemProd";

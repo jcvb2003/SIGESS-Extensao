@@ -26,7 +26,7 @@ const Draggable = {
   },
 };
 
-const isReapPage = () => /mpa\.gov\.br\/manutencao\/[^/]+\/v2\/cadastro/.test(globalThis.location.href);
+const isReapPage = () => /mpa\.gov\.br\/manutencao\/[^/]+\/v\d+\/cadastro/.test(globalThis.location.href);
 
 const UIComponents = {
   createGenderBtn(label: string, value: "MASCULINO" | "FEMININO", activeColor: string, refreshUI: () => void) {
@@ -61,7 +61,7 @@ const UIComponents = {
     } else if (isPaused) {
       mBtn.innerHTML = `${Icons.play} Continuar`; mBtn.style.background = "#28a745"; mBtn.disabled = false;
     } else {
-      mBtn.innerHTML = `${Icons.play} Modo Rápido`; mBtn.style.background = "#007bff";
+      mBtn.innerHTML = `Modo Rápido`; mBtn.style.background = "#007bff";
       mBtn.disabled = (globalThis as any).__sigessTurboRunning === true;
     }
   },
@@ -74,7 +74,7 @@ const UIComponents = {
       tBtn.innerHTML = State.stopRequested ? "Interrompendo..." : `Interromper`;
       tBtn.style.background = "#dc3545"; tBtn.disabled = State.stopRequested;
     } else {
-      tBtn.innerHTML = `Preenchimento Turbo`; tBtn.style.background = "#6f42c1";
+      tBtn.innerHTML = `Modo Turbo`; tBtn.style.background = "#6f42c1";
       tBtn.disabled = State.isRunning || State.isPaused;
     }
   },
@@ -102,7 +102,7 @@ async function executeTurboApi() {
     if (response?.success) {
       if (oBtn) {
         oBtn.innerHTML = "✅ Concluído!"; oBtn.style.background = "#28a745";
-        setTimeout(() => { oBtn.innerHTML = "Preenchimento Turbo"; oBtn.style.background = "#6f42c1"; }, 3000);
+        setTimeout(() => { oBtn.innerHTML = "Modo Turbo"; oBtn.style.background = "#6f42c1"; }, 3000);
       }
     } else {
       alert(response?.error || 'Ocorreu um erro no Preenchimento Direto.');
@@ -289,7 +289,7 @@ const injectButton = async () => {
   const btnTurbo = document.createElement("button");
   btnTurbo.id = "sigess-reap-turbo-btn";
   btnTurbo.style.cssText = "padding: 8px; background: #6f42c1; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
-  btnTurbo.innerHTML = `Preenchimento Turbo`;
+  btnTurbo.innerHTML = `Modo Turbo`;
   btnTurbo.onclick = async (e) => {
     e.stopPropagation();
     if ((globalThis as any).__sigessTurboRunning) {
@@ -304,10 +304,15 @@ const injectButton = async () => {
     const lic = await browser.runtime.sendMessage({ action: "checkLicense" });
     if (!lic.ok) { alert(`Erro de licença: ${lic.reason}`); refreshUI(); btnTurbo.disabled = false; return; }
 
-    if (!State.daysMap || Object.keys(State.daysMap).length === 0)
-      State.daysMap = DaysGenerator.generate(State.gender, settings);
-    if (!State.production || State.production.length === 0)
-      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
+    try {
+      if (!State.daysMap || Object.keys(State.daysMap).length === 0)
+        State.daysMap = DaysGenerator.generate(State.gender, settings);
+      if (!State.production || State.production.length === 0)
+        State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
+    } catch (err: any) {
+      alert(err.message);
+      refreshUI(); btnTurbo.disabled = false; return;
+    }
 
     State.turboMode = true;
     WorkflowManager.start();

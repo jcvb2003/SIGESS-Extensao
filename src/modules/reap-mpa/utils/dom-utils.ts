@@ -23,6 +23,13 @@ export const fillAutocomplete = (container: HTMLElement, value: string) =>
 export const selectOption = (containerSelector: string | HTMLElement, valueOrText: string) =>
   DomHelpers.selectOption(containerSelector, valueOrText, State);
 
+export function clickAvancar() {
+  const btn = Array.from(
+    document.querySelectorAll<HTMLElement>('button[data-action="avancar"]'),
+  ).find((b) => b.offsetParent !== null);
+  btn?.click();
+}
+
 export const Utils = {
   sleep,
   waitFor,
@@ -32,4 +39,5 @@ export const Utils = {
   fillAutocomplete,
   selectOption,
   simulateClick,
+  clickAvancar,
 };

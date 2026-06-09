@@ -34,7 +34,14 @@ export const Page3 = {
     console.log("REAP: Executando Página 3 (Meses)...");
     State.currentPage = 3;
 
-    const settings = await Page3.ensureInitialData();
+    let settings: any;
+    try {
+      settings = await Page3.ensureInitialData();
+    } catch (err: any) {
+      alert(err.message);
+      manager.stop();
+      return;
+    }
     const months = document.querySelectorAll(".br-accordion");
     const startIndex = Page3.getStartIndex(months);
 

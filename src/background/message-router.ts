@@ -530,7 +530,7 @@ async function handleTurboFillReap(message: MessageRequest) {
     return {
       success: false,
       error: license.reason === "limit_reached_turbo"
-        ? `Limite de Preenchimento Turbo atingido (${license.usage_turbo}/${license.max_turbo}). Evolua para o Plano Pro para uso ilimitado.`
+        ? `Limite de Modo Turbo atingido (${license.usage_turbo}/${license.max_turbo}). Evolua para o Plano Pro para uso ilimitado.`
         : `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }

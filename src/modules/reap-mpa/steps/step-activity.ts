@@ -1,4 +1,4 @@
-import { Utils } from "../utils/dom-utils";
+import { Utils, clickAvancar } from "../utils/dom-utils";
 import { IWorkflowManager } from "../types";
 import { getReapStateLabel, normalizeReapSettings } from "../reap-settings";
 
@@ -79,6 +79,6 @@ export const Page2 = {
     toggleCheckboxByText("compradoresPescado", "Venda direta ao consumidor");
 
     await Utils.sleep(1000);
-    document.querySelector<HTMLElement>('button[data-action="avancar"]')?.click();
+    clickAvancar();
   },
 };
