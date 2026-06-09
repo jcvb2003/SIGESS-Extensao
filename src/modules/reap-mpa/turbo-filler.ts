@@ -1,6 +1,7 @@
 import { TurboReapConfig } from '../../shared/types';
 import { State } from './session-state';
 import { DebugLogger } from '../debug/DebugLogger';
+import { ReapTurboLegacy } from './legacy/turbo-filler';
 
 if (!(globalThis as any).__sigessTurboLogSilenced) {
     (globalThis as any).__sigessTurboLogSilenced = true;
@@ -504,7 +505,9 @@ class ReapTurbo {
 }
 
 if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded) {
-    const turbo = new ReapTurbo();
+    // LEGACY: remover bloco isV1 quando /v1/ for descontinuado
+    const isV1 = /\/v1\//.test(globalThis.location.href);
+    const turbo = isV1 ? new ReapTurboLegacy() : new ReapTurbo();
     (globalThis as any).__sigessTurboLoaded = true;
 
     // Interceptor de diagnóstico de fetch — ativo apenas quando __SIGESS_DIAGNOSTICS=true

@@ -5,6 +5,7 @@ import { Utils } from './utils/dom-utils';
 import { DaysGenerator } from './generators/days-schedule';
 import { ProductionGenerator } from './generators/fish-production';
 import { validateReapSettings, buildTurboConfig } from './turbo-config';
+import { LegacyWorkflowManager } from './legacy/workflow';
 
 const Draggable = {
   init(el: HTMLElement) {
@@ -27,6 +28,8 @@ const Draggable = {
 };
 
 const isReapPage = () => /mpa\.gov\.br\/manutencao\/[^/]+\/v\d+\/cadastro/.test(globalThis.location.href);
+// LEGACY: remover quando /v1/ for descontinuado
+const isV1Portal = () => /\/v1\//.test(globalThis.location.href);
 
 const UIComponents = {
   createGenderBtn(label: string, value: "MASCULINO" | "FEMININO", activeColor: string, refreshUI: () => void) {
@@ -115,6 +118,9 @@ async function executeTurboApi() {
 }
 
 const injectButton = async () => {
+  // LEGACY: remover activeManager e usar WorkflowManager diretamente quando /v1/ for descontinuado
+  const activeManager = isV1Portal() ? LegacyWorkflowManager : WorkflowManager;
+
   let container = document.getElementById("sigess-reap-container");
   if (!isReapPage()) { if (container) container.style.display = "none"; return; }
   if (container) {
@@ -263,8 +269,8 @@ const injectButton = async () => {
   btn.style.cssText = "padding: 8px; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
   btn.onclick = async (e) => {
     e.stopPropagation();
-    if (State.isRunning) { WorkflowManager.pause(); refreshUI(); return; }
-    if (State.isPaused) { WorkflowManager.start(); refreshUI(); return; }
+    if (State.isRunning) { activeManager.pause(); refreshUI(); return; }
+    if (State.isPaused) { activeManager.start(); refreshUI(); return; }
 
     const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
     const errorMsg = validateReapSettings(settings, State.gender);
@@ -280,7 +286,7 @@ const injectButton = async () => {
     }
 
     State.turboMode = false;
-    WorkflowManager.start();
+    activeManager.start();
     refreshUI();
   };
   container.appendChild(btn);
@@ -315,7 +321,7 @@ const injectButton = async () => {
     }
 
     State.turboMode = true;
-    WorkflowManager.start();
+    activeManager.start();
     refreshUI();
   };
   container.appendChild(btnTurbo);
