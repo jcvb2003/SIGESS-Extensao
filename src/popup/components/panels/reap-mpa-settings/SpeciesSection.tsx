@@ -19,7 +19,7 @@ function AnnualRangeSlider({
 
   if (absMin >= absMax) {
     return (
-      <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>
+      <div style={{ fontSize: "10px", color: "var(--color-muted)", marginTop: "4px", textAlign: "center" }}>
         Total/ano: {absMin} dias
       </div>
     );
@@ -60,15 +60,15 @@ function AnnualRangeSlider({
     height: "12px",
     borderRadius: "50%",
     background: "var(--color-accent)",
-    border: "2px solid white",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+    border: "2px solid var(--color-page)",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
     cursor: "grab",
     pointerEvents: "none",
   });
 
   return (
     <div style={{ marginTop: "6px" }}>
-      <div style={{ fontSize: "10px", color: "var(--color-text-muted)", textAlign: "center", marginBottom: "4px" }}>
+      <div style={{ fontSize: "10px", color: "var(--color-muted)", textAlign: "center", marginBottom: "4px" }}>
         Total/ano: <strong style={{ color: "var(--color-accent)" }}>{lo}–{hi}</strong> dias
       </div>
       <div
@@ -79,12 +79,12 @@ function AnnualRangeSlider({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <div style={{ position: "absolute", top: "7px", left: 0, right: 0, height: "4px", background: "var(--color-border)", borderRadius: "2px" }} />
-        <div style={{ position: "absolute", top: "7px", left: `${pctLo}%`, width: `${pctHi - pctLo}%`, height: "4px", background: "var(--color-accent)", borderRadius: "2px" }} />
+        <div style={{ position: "absolute", top: "7px", left: 0, right: 0, height: "3px", background: "var(--color-border)", borderRadius: "2px" }} />
+        <div style={{ position: "absolute", top: "7px", left: `${pctLo}%`, width: `${pctHi - pctLo}%`, height: "3px", background: "var(--color-accent)", borderRadius: "2px" }} />
         <div style={handle(pctLo)} />
         <div style={handle(pctHi)} />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#aaa", marginTop: "1px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--color-muted)", marginTop: "1px" }}>
         <span>{absMin}</span><span>{absMax}</span>
       </div>
     </div>
@@ -114,34 +114,31 @@ export function ReapSpeciesSection({
   };
 
   return (
-    <section className="section" style={{ padding: "16px" }}>
+    <section className="section">
       <div className="section-header">
-        <h2 className="section-title">Espécies e Produção</h2>
+        <span className="section-num">04</span>
+        <div>
+          <h2 className="section-title">Espécies e Produção</h2>
+          <p className="section-description">Espécies declaradas, kg e preço por gênero.</p>
+        </div>
       </div>
 
       <div className="stack" style={{ gap: "12px" }}>
-        <div className="config-group" style={{ background: "var(--color-surface-alt)", padding: "10px", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
-          <div className="form-item">
-            <label htmlFor="mpaSpeciesCount" style={{ fontSize: "11px", fontWeight: "bold", display: "block", marginBottom: "4px", color: "var(--color-accent)" }}>
-              QTD. DE PEIXES NO REAP:
-            </label>
-            <select
-              id="mpaSpeciesCount"
-              className="gps-input"
-              style={{ width: "100%", padding: "6px" }}
-              value={settings.mpaSpeciesCount ?? 5}
-              onChange={(e) => onUpdate({ mpaSpeciesCount: Number(e.target.value) })}
-            >
-              {[4, 5, 6, 7, 8, 9, 10].map((n) => (
-                <option key={n} value={n}>
-                  {n} peixes
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="form-group">
+          <label className="reap-label" htmlFor="mpaSpeciesCount">Qtd. de espécies no REAP</label>
+          <select
+            id="mpaSpeciesCount"
+            className="gps-select"
+            value={settings.mpaSpeciesCount ?? 5}
+            onChange={(e) => onUpdate({ mpaSpeciesCount: Number(e.target.value) })}
+          >
+            {[4, 5, 6, 7, 8, 9, 10].map((n) => (
+              <option key={n} value={n}>{n} espécies</option>
+            ))}
+          </select>
         </div>
 
-        <div className="stack" style={{ gap: "10px" }}>
+        <div className="stack" style={{ gap: "8px" }}>
           {Array.from({ length: 10 }, (_, idx) => {
             const data = settings.mpaSpecies?.[idx] || {};
             const isOptional = idx >= 4;
@@ -149,27 +146,34 @@ export function ReapSpeciesSection({
               <div
                 key={idx}
                 style={{
-                  background: "white",
-                  padding: "8px",
-                  borderRadius: "8px",
-                  border: `1px solid ${isOptional ? "#e0e0e0" : "var(--color-border)"}`,
+                  background: "var(--color-surface-alt)",
+                  padding: "10px",
+                  borderRadius: "4px",
+                  border: "1px solid var(--color-border)",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                  <label htmlFor={`specie-${idx}`} style={{ fontSize: "10px", fontWeight: "bold", color: "var(--color-accent)" }}>
-                    ESPÉCIE {idx + 1}
-                  </label>
-                  <span
-                    style={{
-                      fontSize: "9px",
-                      fontWeight: "bold",
-                      padding: "2px 6px",
-                      borderRadius: "10px",
-                      background: isOptional ? "#f0f0f0" : "#e8f4fd",
-                      color: isOptional ? "#888" : "#007bff",
-                    }}
-                  >
-                    {isOptional ? "Opcional" : "Obrigatória"}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <span style={{
+                    fontFamily: "var(--mono)",
+                    fontSize: "10px",
+                    fontWeight: 600,
+                    letterSpacing: "0.08em",
+                    color: "var(--color-accent)",
+                  }}>
+                    ESP {String(idx + 1).padStart(2, "0")}
+                  </span>
+                  <span style={{
+                    fontSize: "9px",
+                    fontWeight: 600,
+                    fontFamily: "var(--mono)",
+                    letterSpacing: "0.06em",
+                    padding: "2px 7px",
+                    borderRadius: "2px",
+                    background: isOptional ? "transparent" : "var(--color-accent-soft)",
+                    color: isOptional ? "var(--color-muted)" : "var(--color-accent)",
+                    border: isOptional ? "1px solid var(--color-border)" : "1px solid rgba(196,144,32,0.3)",
+                  }}>
+                    {isOptional ? "OPCIONAL" : "OBRIG."}
                   </span>
                 </div>
 
@@ -181,22 +185,27 @@ export function ReapSpeciesSection({
                 />
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px" }}>
-                  <div className="stack" style={{ gap: "2px" }}>
-                    <span style={{ fontSize: "9px", fontWeight: "bold", color: "#888", textAlign: "center" }}>KG MÍN</span>
-                    <input type="number" className="gps-input" style={{ width: "100%", textAlign: "center", fontSize: "11px" }} value={data.kgMin || ""} onChange={(e) => updateSpecie(idx, { kgMin: e.target.value })} placeholder="0" />
-                  </div>
-                  <div className="stack" style={{ gap: "2px" }}>
-                    <span style={{ fontSize: "9px", fontWeight: "bold", color: "#888", textAlign: "center" }}>KG MÁX</span>
-                    <input type="number" className="gps-input" style={{ width: "100%", textAlign: "center", fontSize: "11px" }} value={data.kgMax || ""} onChange={(e) => updateSpecie(idx, { kgMax: e.target.value })} placeholder="0" />
-                  </div>
-                  <div className="stack" style={{ gap: "2px" }}>
-                    <span style={{ fontSize: "9px", fontWeight: "bold", color: "#888", textAlign: "center" }}>R$ MÍN</span>
-                    <input type="number" className="gps-input" style={{ width: "100%", textAlign: "center", fontSize: "11px" }} value={data.priceMin || ""} onChange={(e) => updateSpecie(idx, { priceMin: e.target.value })} placeholder="0.00" step="0.01" />
-                  </div>
-                  <div className="stack" style={{ gap: "2px" }}>
-                    <span style={{ fontSize: "9px", fontWeight: "bold", color: "#888", textAlign: "center" }}>R$ MÁX</span>
-                    <input type="number" className="gps-input" style={{ width: "100%", textAlign: "center", fontSize: "11px" }} value={data.priceMax || ""} onChange={(e) => updateSpecie(idx, { priceMax: e.target.value })} placeholder="0.00" step="0.01" />
-                  </div>
+                  {[
+                    { key: "kgMin", label: "KG MÍN" },
+                    { key: "kgMax", label: "KG MÁX" },
+                    { key: "priceMin", label: "R$ MÍN" },
+                    { key: "priceMax", label: "R$ MÁX" },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="stack" style={{ gap: "3px" }}>
+                      <span style={{ fontFamily: "var(--mono)", fontSize: "8px", fontWeight: 600, letterSpacing: "0.06em", color: "var(--color-muted)", textAlign: "center" }}>
+                        {label}
+                      </span>
+                      <input
+                        type="number"
+                        className="gps-input"
+                        style={{ textAlign: "center", fontSize: "12px", padding: "6px 4px" }}
+                        value={(data as any)[key] || ""}
+                        onChange={(e) => updateSpecie(idx, { [key]: e.target.value })}
+                        placeholder="0"
+                        step={key.startsWith("price") ? "0.01" : "1"}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             );
@@ -204,13 +213,13 @@ export function ReapSpeciesSection({
         </div>
 
         {filled < 4 && (
-          <p style={{ fontSize: "10px", color: "#dc3545", textAlign: "center", margin: 0 }}>
-            Preencha pelo menos 4 espécies para rodar o REAP.
+          <p style={{ fontFamily: "var(--mono)", fontSize: "10px", color: "var(--color-danger)", textAlign: "center", margin: 0, letterSpacing: "0.04em" }}>
+            Preencha ao menos 4 espécies.
           </p>
         )}
         {filled >= 4 && filled < count && (
-          <p style={{ fontSize: "10px", color: "#856404", textAlign: "center", margin: 0 }}>
-            Atenção: {filled} espécie(s) preenchida(s), mas {count} selecionada(s) para sorteio. Serão usadas todas as {filled}.
+          <p style={{ fontFamily: "var(--mono)", fontSize: "10px", color: "var(--color-warning)", textAlign: "center", margin: 0, letterSpacing: "0.04em" }}>
+            {filled} preenchida(s) / {count} selecionada(s) — serão usadas {filled}.
           </p>
         )}
 
@@ -234,87 +243,139 @@ export function ReapSpeciesSection({
           const hasMasc = mascMin > 0 && mascMax > 0 && fishingCount > 0;
           const hasFem = femMin > 0 && femMax > 0 && fishingCount > 0;
 
+          const panelStyle: React.CSSProperties = {
+            background: "var(--color-surface-alt)",
+            padding: "12px",
+            borderRadius: "4px",
+            border: "1px solid var(--color-border)",
+          };
+
+          const panelHeader: React.CSSProperties = {
+            fontFamily: "var(--mono)",
+            fontSize: "10px",
+            fontWeight: 600,
+            letterSpacing: "0.1em",
+            color: "var(--color-text)",
+            textAlign: "center" as const,
+            borderBottom: "1px solid var(--color-border)",
+            paddingBottom: "8px",
+            marginBottom: "10px",
+          };
+
           return (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              <div className="config-group" style={{ background: "var(--color-surface-alt)", padding: "10px", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
-                <h3 style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "8px", color: "var(--color-text)", textAlign: "center", borderBottom: "1px solid var(--color-border)", paddingBottom: "4px" }}>
-                  MASCULINO
-                </h3>
-                <div className="stack" style={{ gap: "8px" }}>
-                  <div>
-                    <label htmlFor="mpaMascProdMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
-                      Produção (R$)
-                    </label>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                      <CurrencyInput id="mpaMascProdMin" placeholder="Mín R$" value={settings.mpaMascProdMin || ""} onChange={(v) => onUpdate({ mpaMascProdMin: v })} />
-                      <CurrencyInput ariaLabel="Produção Máxima Masculina" placeholder="Máx R$" value={settings.mpaMascProdMax || ""} onChange={(v) => onUpdate({ mpaMascProdMax: v })} />
+              {[
+                {
+                  label: "MASCULINO",
+                  prodMinKey: "mpaMascProdMin" as const,
+                  prodMaxKey: "mpaMascProdMax" as const,
+                  daysMinKey: "mpaMascDaysMin" as const,
+                  daysMaxKey: "mpaMascDaysMax" as const,
+                  daysMinId: "mpaMascDaysMin",
+                  daysMaxLabel: "Dias Trabalhados Máximos Masculinos",
+                  absMin: mascAbsMin,
+                  absMax: mascAbsMax,
+                  annualMin: mascAnnualMin,
+                  annualMax: mascAnnualMax,
+                  has: hasMasc,
+                  onAnnualChange: ([lo, hi]: [number, number]) => onUpdate({ mpaMascAnnualMin: lo, mpaMascAnnualMax: hi }),
+                  onDaysMinChange: (v: string) => onUpdate({ mpaMascDaysMin: v, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined }),
+                  onDaysMaxChange: (v: string) => onUpdate({ mpaMascDaysMax: v, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined }),
+                  onProdMinChange: (v: string) => onUpdate({ mpaMascProdMin: v }),
+                  onProdMaxChange: (v: string) => onUpdate({ mpaMascProdMax: v }),
+                  prodMinVal: settings.mpaMascProdMin || "",
+                  prodMaxVal: settings.mpaMascProdMax || "",
+                  daysMinVal: settings.mpaMascDaysMin || "",
+                  daysMaxVal: settings.mpaMascDaysMax || "",
+                },
+                {
+                  label: "FEMININO",
+                  prodMinKey: "mpaFemProdMin" as const,
+                  prodMaxKey: "mpaFemProdMax" as const,
+                  daysMinKey: "mpaFemDaysMin" as const,
+                  daysMaxKey: "mpaFemDaysMax" as const,
+                  daysMinId: "mpaFemDaysMin",
+                  daysMaxLabel: "Dias Trabalhados Máximos Femininos",
+                  absMin: femAbsMin,
+                  absMax: femAbsMax,
+                  annualMin: femAnnualMin,
+                  annualMax: femAnnualMax,
+                  has: hasFem,
+                  onAnnualChange: ([lo, hi]: [number, number]) => onUpdate({ mpaFemAnnualMin: lo, mpaFemAnnualMax: hi }),
+                  onDaysMinChange: (v: string) => onUpdate({ mpaFemDaysMin: v, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined }),
+                  onDaysMaxChange: (v: string) => onUpdate({ mpaFemDaysMax: v, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined }),
+                  onProdMinChange: (v: string) => onUpdate({ mpaFemProdMin: v }),
+                  onProdMaxChange: (v: string) => onUpdate({ mpaFemProdMax: v }),
+                  prodMinVal: settings.mpaFemProdMin || "",
+                  prodMaxVal: settings.mpaFemProdMax || "",
+                  daysMinVal: settings.mpaFemDaysMin || "",
+                  daysMaxVal: settings.mpaFemDaysMax || "",
+                },
+              ].map((panel) => (
+                <div key={panel.label} style={panelStyle}>
+                  <div style={panelHeader}>{panel.label}</div>
+                  <div className="stack" style={{ gap: "10px" }}>
+                    <div>
+                      <label htmlFor={`${panel.daysMinId}-prod`} className="reap-label" style={{ marginBottom: "4px" }}>
+                        Produção (R$)
+                      </label>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+                        <CurrencyInput
+                          id={`${panel.daysMinId}-prod`}
+                          placeholder="Mín"
+                          value={panel.prodMinVal}
+                          onChange={panel.onProdMinChange}
+                        />
+                        <CurrencyInput
+                          ariaLabel={`Produção Máxima ${panel.label}`}
+                          placeholder="Máx"
+                          value={panel.prodMaxVal}
+                          onChange={panel.onProdMaxChange}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label htmlFor="mpaMascDaysMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
-                      Dias/Mês
-                    </label>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                      <input id="mpaMascDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" min={7} max={27} value={settings.mpaMascDaysMin || ""} onChange={(e) => {
-                        onUpdate({ mpaMascDaysMin: e.target.value, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined });
-                      }} />
-                      <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Masculinos" placeholder="Máx" min={7} max={27} value={settings.mpaMascDaysMax || ""} onChange={(e) => {
-                        onUpdate({ mpaMascDaysMax: e.target.value, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined });
-                      }} />
+                    <div>
+                      <label htmlFor={panel.daysMinId} className="reap-label" style={{ marginBottom: "4px" }}>
+                        Dias/Mês
+                      </label>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+                        <input
+                          id={panel.daysMinId}
+                          type="number"
+                          className="gps-input"
+                          style={{ fontSize: "12px" }}
+                          placeholder="Mín"
+                          min={7}
+                          max={27}
+                          value={panel.daysMinVal}
+                          onChange={(e) => panel.onDaysMinChange(e.target.value)}
+                        />
+                        <input
+                          type="number"
+                          className="gps-input"
+                          style={{ fontSize: "12px" }}
+                          aria-label={panel.daysMaxLabel}
+                          placeholder="Máx"
+                          min={7}
+                          max={27}
+                          value={panel.daysMaxVal}
+                          onChange={(e) => panel.onDaysMaxChange(e.target.value)}
+                        />
+                      </div>
+                      {panel.has ? (
+                        <AnnualRangeSlider
+                          absMin={panel.absMin}
+                          absMax={panel.absMax}
+                          value={[panel.annualMin, panel.annualMax]}
+                          onChange={panel.onAnnualChange}
+                        />
+                      ) : (
+                        <div style={{ fontSize: "10px", color: "var(--color-muted)", marginTop: "4px", textAlign: "center" }}>—</div>
+                      )}
                     </div>
-                    {hasMasc ? (
-                      <AnnualRangeSlider
-                        absMin={mascAbsMin}
-                        absMax={mascAbsMax}
-                        value={[mascAnnualMin, mascAnnualMax]}
-                        onChange={([lo, hi]) => onUpdate({ mpaMascAnnualMin: lo, mpaMascAnnualMax: hi })}
-                      />
-                    ) : (
-                      <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>—</div>
-                    )}
                   </div>
                 </div>
-              </div>
-
-              <div className="config-group" style={{ background: "var(--color-surface-alt)", padding: "10px", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
-                <h3 style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "8px", color: "var(--color-text)", textAlign: "center", borderBottom: "1px solid var(--color-border)", paddingBottom: "4px" }}>
-                  FEMININO
-                </h3>
-                <div className="stack" style={{ gap: "8px" }}>
-                  <div>
-                    <label htmlFor="mpaFemProdMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
-                      Produção (R$)
-                    </label>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                      <CurrencyInput id="mpaFemProdMin" placeholder="Mín R$" value={settings.mpaFemProdMin || ""} onChange={(v) => onUpdate({ mpaFemProdMin: v })} />
-                      <CurrencyInput ariaLabel="Produção Máxima Feminina" placeholder="Máx R$" value={settings.mpaFemProdMax || ""} onChange={(v) => onUpdate({ mpaFemProdMax: v })} />
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="mpaFemDaysMin" style={{ fontSize: "9px", fontWeight: "bold", display: "block", marginBottom: "2px", color: "#666" }}>
-                      Dias/Mês
-                    </label>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                      <input id="mpaFemDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" min={7} max={27} value={settings.mpaFemDaysMin || ""} onChange={(e) => {
-                        onUpdate({ mpaFemDaysMin: e.target.value, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined });
-                      }} />
-                      <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Femininos" placeholder="Máx" min={7} max={27} value={settings.mpaFemDaysMax || ""} onChange={(e) => {
-                        onUpdate({ mpaFemDaysMax: e.target.value, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined });
-                      }} />
-                    </div>
-                    {hasFem ? (
-                      <AnnualRangeSlider
-                        absMin={femAbsMin}
-                        absMax={femAbsMax}
-                        value={[femAnnualMin, femAnnualMax]}
-                        onChange={([lo, hi]) => onUpdate({ mpaFemAnnualMin: lo, mpaFemAnnualMax: hi })}
-                      />
-                    ) : (
-                      <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>—</div>
-                    )}
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           );
         })()}

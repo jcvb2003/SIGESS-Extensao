@@ -29,42 +29,60 @@ export function ReapDocumentSection({
     return () => browser.storage.onChanged.removeListener(handleStorageChange);
   }, []);
 
+  const mode = settings.mpaDocumentoMode || "manual";
+
   return (
-    <section className="section" style={{ padding: "16px" }}>
+    <section className="section">
       <div className="section-header">
-        <h2 className="section-title">Documento Comprobatório</h2>
-        <p className="section-description">Meses sem pesca.</p>
+        <span className="section-num">05</span>
+        <div>
+          <h2 className="section-title">Documento Comprobatório</h2>
+          <p className="section-description">Comprovante do período sem pesca (defeso).</p>
+        </div>
       </div>
 
-      <div className="stack" style={{ gap: "10px" }}>
-        <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-          {(["manual", "local", "url"] as const).map((mode) => (
-            <label
-              key={mode}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                fontSize: "11px",
-                cursor: "pointer",
-                flex: 1,
-                justifyContent: "center",
-              }}
-            >
-              <input
-                type="radio"
-                name="mpaDocumentoMode"
-                value={mode}
-                checked={(settings.mpaDocumentoMode || "manual") === mode}
-                onChange={() => onUpdate({ mpaDocumentoMode: mode })}
-              />
-              {mode === "manual" ? "Manual" : mode === "local" ? "Local" : "Internet"}
-            </label>
-          ))}
+      <div className="stack" style={{ gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}>
+          {(["manual", "local", "url"] as const).map((m) => {
+            const active = mode === m;
+            const labels = { manual: "Manual", local: "Arquivo local", url: "Internet" };
+            return (
+              <label
+                key={m}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "7px",
+                  padding: "9px 6px",
+                  borderRadius: "3px",
+                  border: active ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
+                  background: active ? "var(--color-accent-soft)" : "var(--color-surface-alt)",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                  fontFamily: "var(--mono)",
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  color: active ? "var(--color-accent-strong)" : "var(--color-text)",
+                  transition: "all 0.12s",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="mpaDocumentoMode"
+                  value={m}
+                  checked={active}
+                  onChange={() => onUpdate({ mpaDocumentoMode: m })}
+                  style={{ accentColor: "var(--color-accent)" }}
+                />
+                {labels[m]}
+              </label>
+            );
+          })}
         </div>
 
-        {(settings.mpaDocumentoMode || "manual") === "local" && (
-          <div>
+        {mode === "local" && (
+          <div className="stack" style={{ gap: "6px" }}>
             <button
               type="button"
               onClick={() =>
@@ -73,25 +91,29 @@ export function ReapDocumentSection({
                   : browser.tabs.create({ url: browser.runtime.getURL("file_picker.html") })
               }
               className="btn btn-secondary btn-full"
-              style={{ minHeight: "44px" }}
+              style={{ minHeight: "40px" }}
             >
               Selecionar PDF
             </button>
             {cachedPdfFilename ? (
-              <p style={{ fontSize: "10px", color: "#28a745", marginTop: "4px" }}>✅ {cachedPdfFilename}</p>
+              <p style={{ fontSize: "10px", color: "var(--color-success)", margin: 0, fontFamily: "var(--mono)" }}>
+                {cachedPdfFilename}
+              </p>
             ) : (
-              <p style={{ fontSize: "10px", color: "#999", marginTop: "4px" }}>Nenhum PDF selecionado</p>
+              <p style={{ fontSize: "10px", color: "var(--color-muted)", margin: 0, fontFamily: "var(--mono)" }}>
+                Nenhum PDF selecionado
+              </p>
             )}
           </div>
         )}
 
-        {(settings.mpaDocumentoMode || "manual") === "url" && (
-          <p style={{ fontSize: "10px", color: "var(--color-muted)", margin: 0 }}>
-            📡 {IBAMA_PDF_FILENAME} — baixado automaticamente pelo Turbo.
+        {mode === "url" && (
+          <p style={{ fontSize: "10px", color: "var(--color-muted)", margin: 0, fontFamily: "var(--mono)" }}>
+            {IBAMA_PDF_FILENAME} — baixado automaticamente pelo Turbo.
           </p>
         )}
 
-        {(settings.mpaDocumentoMode || "manual") === "manual" && (
+        {mode === "manual" && (
           <p style={{ fontSize: "10px", color: "var(--color-muted)", margin: 0 }}>
             Anexe o PDF manualmente no portal após rodar o Turbo.
           </p>

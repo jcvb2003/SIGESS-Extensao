@@ -17,13 +17,7 @@ function MonthGrid({
   onToggle: (month: number) => void;
 }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-        gap: "8px",
-      }}
-    >
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "5px" }}>
       {MONTH_LABELS.map((label, index) => {
         const month = index + 1;
         const isSelected = selectedMonths.includes(month);
@@ -34,16 +28,19 @@ function MonthGrid({
             onClick={() => onToggle(month)}
             style={{
               border: isSelected ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
-              background: isSelected ? "var(--color-accent-soft)" : "white",
+              background: isSelected ? "var(--color-accent-soft)" : "var(--color-surface-alt)",
               color: isSelected ? "var(--color-accent-strong)" : "var(--color-text)",
-              borderRadius: "10px",
-              padding: "10px 6px",
-              fontSize: "11px",
-              fontWeight: 700,
+              borderRadius: "3px",
+              padding: "9px 4px",
+              fontSize: "10px",
+              fontFamily: "var(--mono)",
+              fontWeight: 600,
+              letterSpacing: "0.06em",
               cursor: "pointer",
+              transition: "all 0.12s",
             }}
           >
-            {label}
+            {label.slice(0, 3).toUpperCase()}
           </button>
         );
       })}
@@ -67,13 +64,7 @@ function MultiStateSelector({
   };
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: "8px",
-      }}
-    >
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "5px" }}>
       {REAP_STATE_OPTIONS.map((option) => {
         const checked = selected.includes(option.value);
         return (
@@ -83,14 +74,16 @@ function MultiStateSelector({
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              padding: "10px",
-              borderRadius: "10px",
+              padding: "9px 10px",
+              borderRadius: "3px",
               border: checked ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
-              background: checked ? "var(--color-accent-soft)" : "white",
-              opacity: option.enabled ? 1 : 0.45,
+              background: checked ? "var(--color-accent-soft)" : "var(--color-surface-alt)",
+              opacity: option.enabled ? 1 : 0.35,
               cursor: option.enabled ? "pointer" : "not-allowed",
-              fontSize: "11px",
-              fontWeight: 600,
+              fontSize: "12px",
+              fontWeight: 500,
+              color: checked ? "var(--color-accent-strong)" : "var(--color-text)",
+              transition: "all 0.12s",
             }}
           >
             <input
@@ -98,6 +91,7 @@ function MultiStateSelector({
               disabled={!option.enabled}
               checked={checked}
               onChange={() => toggle(option.value)}
+              style={{ accentColor: "var(--color-accent)" }}
             />
             <span>{option.label}</span>
           </label>
@@ -118,15 +112,18 @@ export function ReapPage1Section({
   const residenceMunicipios = getMunicipiosByUf(residenceUf);
 
   return (
-    <section className="section" style={{ padding: "16px" }}>
+    <section className="section">
       <div className="section-header">
-        <h2 className="section-title">Pagina 1</h2>
-        <p className="section-description">Identificacao do pescador e dados de residencia.</p>
+        <span className="section-num">01</span>
+        <div>
+          <h2 className="section-title">Identificação</h2>
+          <p className="section-description">Ano de referência, estado e município de residência.</p>
+        </div>
       </div>
 
       <div className="stack" style={{ gap: "12px" }}>
         <div className="form-group">
-          <label className="reap-label" htmlFor="mpaReferenceYear">Ano de referencia do REAP</label>
+          <label className="reap-label" htmlFor="mpaReferenceYear">Ano de referência</label>
           <select
             id="mpaReferenceYear"
             className="gps-select"
@@ -135,51 +132,39 @@ export function ReapPage1Section({
           >
             {Array.from({ length: Math.max(new Date().getFullYear() - 2025 + 1, 1) }, (_, index) => {
               const year = String(2025 + index);
-              return (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              );
+              return <option key={year} value={year}>{year}</option>;
             })}
           </select>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div className="form-group">
-            <label className="reap-label" htmlFor="mpaResidenceUF">Estado de residencia</label>
+            <label className="reap-label" htmlFor="mpaResidenceUF">Estado</label>
             <select
               id="mpaResidenceUF"
               className="gps-select"
               value={residenceUf}
-              onChange={(e) =>
-                onUpdate({
-                  mpaResidenceUF: Number(e.target.value),
-                  mpaResidenceMunicipio: undefined,
-                })
-              }
+              onChange={(e) => onUpdate({ mpaResidenceUF: Number(e.target.value), mpaResidenceMunicipio: undefined })}
             >
               {REAP_STATE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value} disabled={!option.enabled}>
-                  {option.label}
-                  {option.enabled ? "" : " (indisponivel)"}
+                  {option.label}{option.enabled ? "" : " (indisponível)"}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="form-group">
-            <label className="reap-label" htmlFor="mpaResidenceMunicipio">Municipio de residencia</label>
+            <label className="reap-label" htmlFor="mpaResidenceMunicipio">Município</label>
             <select
               id="mpaResidenceMunicipio"
               className="gps-select"
               value={settings.mpaResidenceMunicipio || ""}
               onChange={(e) => onUpdate({ mpaResidenceMunicipio: Number(e.target.value) })}
             >
-              <option value="">Selecione um municipio...</option>
+              <option value="">Selecione...</option>
               {residenceMunicipios.map((municipio) => (
-                <option key={municipio.id} value={municipio.id}>
-                  {municipio.nome}
-                </option>
+                <option key={municipio.id} value={municipio.id}>{municipio.nome}</option>
               ))}
             </select>
           </div>
@@ -199,15 +184,18 @@ export function ReapPage2Section({
   const commercializationStates = settings.mpaCommercializationStates ?? [5];
 
   return (
-    <section className="section" style={{ padding: "16px" }}>
+    <section className="section">
       <div className="section-header">
-        <h2 className="section-title">Pagina 2</h2>
-        <p className="section-description">Dados da atividade e estados de comercializacao.</p>
+        <span className="section-num">02</span>
+        <div>
+          <h2 className="section-title">Atividade</h2>
+          <p className="section-description">Relação de trabalho e estados de comercialização.</p>
+        </div>
       </div>
 
       <div className="stack" style={{ gap: "12px" }}>
         <div className="form-group">
-          <label className="reap-label" htmlFor="mpaWorkRelation">Relacao de trabalho</label>
+          <label className="reap-label" htmlFor="mpaWorkRelation">Relação de trabalho</label>
           <select
             id="mpaWorkRelation"
             className="gps-select"
@@ -215,20 +203,18 @@ export function ReapPage2Section({
             onChange={(e) => onUpdate({ mpaWorkRelation: e.target.value })}
           >
             {WORK_RELATION_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
+              <option key={option} value={option}>{option}</option>
             ))}
           </select>
         </div>
 
         <div className="form-group">
-          <label className="reap-label">Estado de comercializacao nos meses de referencia</label>
+          <label className="reap-label">Estados de comercialização</label>
           <MultiStateSelector
             selected={commercializationStates}
             onChange={(next) => onUpdate({ mpaCommercializationStates: next })}
           />
-          <p className="reap-note">Somente Para e Maranhao ficam habilitados por enquanto.</p>
+          <p className="reap-note">Somente Pará e Maranhão disponíveis.</p>
         </div>
       </div>
     </section>
@@ -254,24 +240,27 @@ export function ReapPage3Section({
   };
 
   return (
-    <section className="section" style={{ padding: "16px" }}>
+    <section className="section">
       <div className="section-header">
-        <h2 className="section-title">Pagina 3</h2>
-        <p className="section-description">Meses de defeso e perfil dos meses com pesca.</p>
+        <span className="section-num">03</span>
+        <div>
+          <h2 className="section-title">Locais de Pesca</h2>
+          <p className="section-description">Defeso, método, área e município de captura.</p>
+        </div>
       </div>
 
       <div className="stack" style={{ gap: "14px" }}>
         <div className="form-group">
-          <label className="reap-label">Marque os meses do periodo de defeso.</label>
+          <label className="reap-label">Meses de defeso</label>
           <MonthGrid selectedMonths={defesoMonths} onToggle={toggleDefesoMonth} />
-          {defesoMonths.length === 0 ? (
-            <p className="reap-note">Selecione pelo menos um mes de defeso.</p>
-          ) : null}
+          {defesoMonths.length === 0 && (
+            <p className="reap-note">Selecione ao menos um mês.</p>
+          )}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div className="form-group">
-            <label className="reap-label" htmlFor="mpaLocalPesca">Local da pesca</label>
+            <label className="reap-label" htmlFor="mpaLocalPesca">Local</label>
             <select
               id="mpaLocalPesca"
               className="gps-select"
@@ -279,15 +268,13 @@ export function ReapPage3Section({
               onChange={(e) => onUpdate({ mpaLocalPesca: Number(e.target.value) })}
             >
               {FISHING_LOCATION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </div>
 
           <div className="form-group">
-            <label className="reap-label" htmlFor="mpaMetodoPesca">Metodo petrecho de pesca</label>
+            <label className="reap-label" htmlFor="mpaMetodoPesca">Petrecho</label>
             <select
               id="mpaMetodoPesca"
               className="gps-select"
@@ -295,9 +282,7 @@ export function ReapPage3Section({
               onChange={(e) => onUpdate({ mpaMetodoPesca: Number(e.target.value) })}
             >
               {APETRECHOS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </div>
@@ -308,35 +293,27 @@ export function ReapPage3Section({
               id="mpaUF"
               className="gps-select"
               value={fishingUf}
-              onChange={(e) =>
-                onUpdate({
-                  mpaUF: Number(e.target.value),
-                  mpaMunicipio: undefined,
-                })
-              }
+              onChange={(e) => onUpdate({ mpaUF: Number(e.target.value), mpaMunicipio: undefined })}
             >
               {REAP_STATE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value} disabled={!option.enabled}>
-                  {option.label}
-                  {option.enabled ? "" : " (indisponivel)"}
+                  {option.label}{option.enabled ? "" : " (indisponível)"}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="form-group">
-            <label className="reap-label" htmlFor="mpaMunicipio">Municipio</label>
+            <label className="reap-label" htmlFor="mpaMunicipio">Município</label>
             <select
               id="mpaMunicipio"
               className="gps-select"
               value={settings.mpaMunicipio || ""}
               onChange={(e) => onUpdate({ mpaMunicipio: Number(e.target.value) })}
             >
-              <option value="">Selecione um municipio...</option>
+              <option value="">Selecione...</option>
               {fishingMunicipios.map((municipio) => (
-                <option key={municipio.id} value={municipio.id}>
-                  {municipio.nome}
-                </option>
+                <option key={municipio.id} value={municipio.id}>{municipio.nome}</option>
               ))}
             </select>
           </div>

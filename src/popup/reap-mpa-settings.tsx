@@ -34,9 +34,9 @@ const ReapMpaSettingsPage: React.FC = () => {
           action: "updateESocialSettings",
           settings: next,
         });
-        setStatus(defesoNotice || "Configuracoes salvas.");
+        setStatus(defesoNotice || "Salvo");
       } catch (error: any) {
-        setStatus(`Erro ao salvar: ${error?.message || "desconhecido"}`);
+        setStatus(`Erro: ${error?.message || "desconhecido"}`);
       } finally {
         setSaving(false);
       }
@@ -45,35 +45,49 @@ const ReapMpaSettingsPage: React.FC = () => {
   );
 
   if (!settings) {
-    return <div className="page-shell"><div className="page-card">Carregando...</div></div>;
+    return (
+      <div className="page-shell">
+        <div className="page-header-wrap">
+          <div className="page-header">
+            <div className="page-header-left">
+              <span className="page-eyebrow">SIGESS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="page-shell">
-      <div className="page-card">
+      <div className="page-header-wrap">
         <header className="page-header">
-          <div>
-            <div className="page-eyebrow">SIGESS</div>
-            <h1>Configurações do REAP MPA</h1>
+          <div className="page-header-left">
+            <span className="page-eyebrow">SIGESS</span>
+            <span className="page-header-title">REAP MPA — Configurações</span>
           </div>
-          <button type="button" className="back-link" onClick={() => window.close()}>
-            Fechar
-          </button>
+          <div className="page-header-right">
+            {status && (
+              <div className={`status-pill ${saving ? "saving" : "saved"}`}>
+                <div className={`status-dot ${saving ? "saving" : "saved"}`} />
+                {status}
+              </div>
+            )}
+            <button type="button" className="back-link" onClick={() => window.close()}>
+              Fechar
+            </button>
+          </div>
         </header>
+      </div>
 
-        <div className="status-row">
-          {status ? (
-            <span className={`status-pill ${saving ? "saving" : "saved"}`}>
-              {status}
-            </span>
-          ) : null}
+      <div className="page-card">
+        <div className="page-content-inner">
+          <ReapMpaSettingsForm
+            settings={settings}
+            onUpdate={updateSettings}
+            onOpenFilePicker={() => browser.tabs.create({ url: browser.runtime.getURL("file_picker.html") })}
+          />
         </div>
-
-        <ReapMpaSettingsForm
-          settings={settings}
-          onUpdate={updateSettings}
-          onOpenFilePicker={() => browser.tabs.create({ url: browser.runtime.getURL("file_picker.html") })}
-        />
       </div>
     </div>
   );

@@ -94,9 +94,9 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
         style={{
           display: "flex",
           alignItems: "center",
-          border: "1px solid #ccc",
-          borderRadius: "4px",
-          background: "white",
+          border: "1px solid var(--color-border)",
+          borderRadius: "3px",
+          background: "var(--color-surface-alt)",
           overflow: "hidden",
         }}
       >
@@ -110,6 +110,7 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
             fontSize: "11px",
             padding: "5px 6px",
             outline: "none",
+            background: "transparent",
           }}
           placeholder={selected ? selected.nome : "-- Buscar espécie --"}
           value={open ? query : selected ? selected.nome : ""}
@@ -128,10 +129,11 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
               background: "none",
               border: "none",
               cursor: "pointer",
-              padding: "0 6px",
-              color: "#999",
-              fontSize: "13px",
+              padding: "0 8px",
+              color: "var(--color-muted)",
+              fontSize: "14px",
               lineHeight: 1,
+              flexShrink: 0,
             }}
             title="Limpar"
           >
@@ -148,21 +150,22 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
             left: 0,
             right: 0,
             zIndex: 9999,
-            background: "white",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border-strong)",
+            borderRadius: "3px",
             maxHeight: "180px",
             overflowY: "auto",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
           }}
         >
           {filtered.length === 0 && (
             <div
               style={{
-                padding: "8px",
+                padding: "10px 8px",
                 fontSize: "11px",
-                color: "#888",
+                color: "var(--color-muted)",
                 textAlign: "center",
+                fontFamily: "var(--mono)",
               }}
             >
               Nenhum resultado
@@ -170,27 +173,32 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
           )}
           {filtered.map((s) => {
             const isDisabled = disabledIds.includes(s.id) && s.id !== selectedId;
+            const isActive = s.id === selectedId;
             return (
               <div
                 key={s.id}
                 onMouseDown={() => !isDisabled && handleSelect(s.id)}
                 style={{
-                  padding: "6px 8px",
+                  padding: "7px 10px",
                   cursor: isDisabled ? "not-allowed" : "pointer",
-                  opacity: isDisabled ? 0.4 : 1,
-                  background: s.id === selectedId ? "#e8f4fd" : "white",
-                  borderBottom: "1px solid #f0f0f0",
+                  opacity: isDisabled ? 0.35 : 1,
+                  background: isActive ? "var(--color-accent-soft)" : "transparent",
+                  borderBottom: "1px solid var(--color-border)",
+                  transition: "background 0.1s",
                 }}
                 onMouseEnter={(e) => {
-                  if (!isDisabled) (e.currentTarget as HTMLDivElement).style.background = "#f5f5f5";
+                  if (!isDisabled) (e.currentTarget as HTMLDivElement).style.background =
+                    isActive ? "var(--color-accent-soft)" : "var(--color-surface-alt)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLDivElement).style.background =
-                    s.id === selectedId ? "#e8f4fd" : "white";
+                    isActive ? "var(--color-accent-soft)" : "transparent";
                 }}
               >
-                <div style={{ fontSize: "11px", fontWeight: "bold", color: "#333" }}>{s.nome}</div>
-                <div style={{ fontSize: "9px", color: "#888", fontStyle: "italic" }}>
+                <div style={{ fontSize: "11px", fontWeight: 600, color: isActive ? "var(--color-accent-strong)" : "var(--color-text-strong)" }}>
+                  {s.nome}
+                </div>
+                <div style={{ fontSize: "9px", color: "var(--color-muted)", fontStyle: "italic" }}>
                   {s.camposAdicionais.nomeCientifico}
                 </div>
               </div>
