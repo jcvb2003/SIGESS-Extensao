@@ -1,4 +1,6 @@
-export const MUNICIPIOS_LIST = [
+import { MUNICIPIOS_MARANHAO } from "./municipios_maranhao";
+
+const MUNICIPIOS_PARA = [
   {
     "id": 4820,
     "nome": "Tomé-Açu",
@@ -3132,3 +3134,5 @@ export const MUNICIPIOS_LIST = [
     }
   }
 ];
+
+export const MUNICIPIOS_LIST = [...MUNICIPIOS_PARA, ...MUNICIPIOS_MARANHAO];

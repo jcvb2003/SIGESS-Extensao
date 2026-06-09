@@ -37,7 +37,15 @@ export const WORK_RELATION_OPTIONS = [
 ];
 
 export const FISHING_LOCATION_OPTIONS = [
+  { value: 1, label: "Acude" },
+  { value: 2, label: "Estuario" },
+  { value: 3, label: "Mar" },
+  { value: 4, label: "Lago" },
+  { value: 5, label: "Lagoa" },
   { value: 6, label: "Rio" },
+  { value: 7, label: "Represa" },
+  { value: 8, label: "Reservatorio" },
+  { value: 9, label: "Laguna" },
 ];
 
 export const FISHING_ENVIRONMENT_OPTIONS = [
