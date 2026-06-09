@@ -4,6 +4,7 @@ import { ProductionGenerator } from '../generators/fish-production';
 import { Utils } from '../utils/dom-utils';
 import { IWorkflowManager } from "../types";
 import { MUNICIPIOS_LIST } from '../../../shared/data/municipios';
+import { FULL_PORTAL_SPECIES } from '../../../shared/data/species';
 import {
   getEffectiveFishingMethod,
   getReapFishingLocationLabel,
@@ -18,6 +19,11 @@ const MONTHS_MAP: Record<string, number> = {
   JANEIRO: 0, FEVEREIRO: 1, MARÇO: 2, MARCO: 2, ABRIL: 3, MAIO: 4, JUNHO: 5,
   JULHO: 6, AGOSTO: 7, SETEMBRO: 8, OUTUBRO: 9, NOVEMBRO: 10, DEZEMBRO: 11,
 };
+
+function getPortalSpeciesName(speciesId?: number) {
+  if (!speciesId) return "";
+  return FULL_PORTAL_SPECIES.find((item) => item.id === speciesId)?.nome || "";
+}
 
 export const Page3 = {
   isCurrentPage: () =>
@@ -175,7 +181,7 @@ export const Page3 = {
     if (diasInput) Utils.setReactInput(diasInput, String(monthPlan.diasTrabalhados ?? 16));
 
     await Page3.fillAreaTable(activeContent, settings);
-    await Page3.fillProductionTable(activeContent, monthPlan, settings);
+    await Page3.fillProductionTable(activeContent, monthPlan);
   },
 
   fillAreaTable: async (activeContent: HTMLElement, settings: any) => {
@@ -206,12 +212,11 @@ export const Page3 = {
     await Utils.selectOption(areaTable.querySelector("td:nth-child(6) .br-select") as HTMLElement, "Água Doce");
   },
 
-  fillProductionTable: async (activeContent: HTMLElement, monthPlan: TurboMesConfig, settings: any) => {
+  fillProductionTable: async (activeContent: HTMLElement, monthPlan: TurboMesConfig) => {
     const prodTable = Array.from(activeContent.querySelectorAll(".table-title"))
       .find(el => el.textContent?.includes("Resultado"))?.closest(".br-table") as HTMLElement;
     if (!prodTable) return;
 
-    const targetSpeciesLabel = settings.mpaEspecieLabel || "";
     const species = monthPlan.especies || [];
 
     for (let fishIdx = 0; fishIdx < species.length; fishIdx++) {
@@ -219,7 +224,7 @@ export const Page3 = {
       const row = prodTable.querySelectorAll("tbody tr")[fishIdx] as HTMLElement;
       if (!row) continue;
 
-      await Page3.fillProductionRow(row, species[fishIdx], targetSpeciesLabel);
+      await Page3.fillProductionRow(row, species[fishIdx]);
     }
   },
 
@@ -234,10 +239,13 @@ export const Page3 = {
     }
   },
 
-  fillProductionRow: async (row: HTMLElement, especie: any, targetSpeciesLabel: string) => {
+  fillProductionRow: async (row: HTMLElement, especie: any) => {
     const specSelect = row.querySelector("td:nth-child(1) .br-select") as HTMLElement;
-    const fallbackSpeciesName = State.production.find((fish) => fish.id === especie.especiePescado)?.name || "";
-    if (specSelect) await Utils.fillAutocomplete(specSelect, targetSpeciesLabel || fallbackSpeciesName);
+    const portalSpeciesName =
+      getPortalSpeciesName(especie.especiePescado) ||
+      State.production.find((fish) => fish.id === especie.especiePescado)?.name ||
+      "";
+    if (specSelect) await Utils.fillAutocomplete(specSelect, portalSpeciesName);
     await Utils.selectOption(row.querySelector("td:nth-child(2) .br-select") as HTMLElement, "Quilo");
 
     const qtdInput = row.querySelector("td:nth-child(3) input") as HTMLInputElement;
