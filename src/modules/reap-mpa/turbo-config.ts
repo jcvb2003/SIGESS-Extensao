@@ -1,8 +1,13 @@
 import { State } from "./session-state";
 import { TurboReapConfig } from "../../shared/types";
 import { getEffectiveFishingMethod } from "./reap-settings";
+import { buildMonthPlan, hasConfiguredDefesoMonths } from "./monthly-plan";
 
 export function validateReapSettings(settings: any, gender: string): string | null {
+  if (!hasConfiguredDefesoMonths(settings)) {
+    return "Selecione pelo menos um mes de defeso no painel de configuracoes do REAP MPA.";
+  }
+
   if (!settings.mpaMunicipio) {
     return "Por favor, selecione um MUNICIPIO no painel de configuracoes do REAP MPA.";
   }
@@ -56,30 +61,7 @@ export function buildTurboConfig(
   };
 
   for (let i = 0; i < 12; i++) {
-    const especies = State.production
-      .map((fish: any) => {
-        const monthlyKg = fish.monthlyKg[i] || 0;
-        return monthlyKg > 0
-          ? {
-              especiePescado: fish.id,
-              unidadeMedida: 1,
-              quantidade: monthlyKg,
-              valorMedioQuilo: fish.price,
-            }
-          : null;
-      })
-      .filter((f): f is NonNullable<typeof f> => f !== null);
-
-    if (especies.length === 0) {
-      config.meses.push({ mes: i + 1, houvePesca: false, justificativa: 1 });
-    } else {
-      config.meses.push({
-        mes: i + 1,
-        houvePesca: true,
-        diasTrabalhados: State.daysMap[i] || 16,
-        especies,
-      });
-    }
+    config.meses.push(buildMonthPlan(settings, i, State.daysMap, State.production));
   }
 
   if (config.documentoMode === "local" && pdfCache?.b64) {

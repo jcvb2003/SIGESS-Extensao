@@ -78,7 +78,7 @@ export function getEffectiveFishingMethod(settings: Partial<AppSettings>) {
   return settings.mpaMetodoPesca ?? settings.mpaPetrecho ?? 4;
 }
 
-function normalizeDefesoMonths(months?: number[]) {
+export function normalizeDefesoMonths(months?: number[]) {
   if (!Array.isArray(months)) return [];
 
   return Array.from(

@@ -11,6 +11,7 @@ import {
   getReapStateLabel,
   normalizeReapSettings,
 } from '../reap-settings';
+import { isDefesoMonth } from "../monthly-plan";
 
 const MONTHS_MAP: Record<string, number> = {
   JANEIRO: 0, FEVEREIRO: 1, MARÇO: 2, MARCO: 2, ABRIL: 3, MAIO: 4, JUNHO: 5,
@@ -26,7 +27,7 @@ export const Page3 = {
     console.log("REAP: Executando Página 3 (Meses)...");
     State.currentPage = 3;
 
-    await Page3.ensureInitialData();
+    const settings = await Page3.ensureInitialData();
     const months = document.querySelectorAll(".br-accordion");
     const startIndex = Page3.getStartIndex(months);
 
@@ -50,7 +51,7 @@ export const Page3 = {
 
       if (State.stopRequested) break;
 
-      await Page3.processMonth(monthAccordion, realMonthIndex);
+      await Page3.processMonth(monthAccordion, realMonthIndex, settings);
       State.monthlyProgress[realMonthIndex] = "done";
       await Page3.refreshUI();
     }
@@ -73,6 +74,8 @@ export const Page3 = {
     if (!State.production || State.production.length === 0) {
       State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
     }
+
+    return settings;
   },
 
   getStartIndex: (months: NodeListOf<Element>) => {
@@ -120,7 +123,7 @@ export const Page3 = {
     }
   },
 
-  processMonth: async (monthAccordion: HTMLElement, realMonthIndex: number) => {
+  processMonth: async (monthAccordion: HTMLElement, realMonthIndex: number, settings: any) => {
     const btn = monthAccordion.querySelector("button.header") as HTMLElement;
     const monthName = btn?.textContent?.trim() || `Mês ${realMonthIndex + 1}`;
     console.log(`REAP: Processando ${monthName} (${realMonthIndex + 1}/12)`);
@@ -137,7 +140,7 @@ export const Page3 = {
     const activeContent = monthAccordion.querySelector(".content") as HTMLElement;
     if (!activeContent) return;
 
-    if (realMonthIndex <= 3) {
+    if (isDefesoMonth(settings, realMonthIndex + 1)) {
       await Page3.fillDefeso(activeContent);
     } else {
       await Page3.fillNormalMonth(activeContent, realMonthIndex);
