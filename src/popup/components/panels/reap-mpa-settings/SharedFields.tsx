@@ -88,16 +88,19 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
     setQuery("");
   };
 
+  const hasFish = !!selected;
+
   return (
     <div ref={containerRef} style={{ position: "relative", marginBottom: "8px" }}>
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          border: "1px solid var(--color-border)",
-          borderRadius: "3px",
-          background: "var(--color-surface-alt)",
+          border: hasFish ? "1px solid var(--color-accent)" : "1px dashed var(--color-border-strong)",
+          borderRadius: "6px",
+          background: hasFish ? "var(--color-accent-soft)" : "var(--color-surface)",
           overflow: "hidden",
+          transition: "border-color 0.15s, background 0.15s",
         }}
       >
         <input
@@ -107,12 +110,15 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
           style={{
             flex: 1,
             border: "none",
-            fontSize: "11px",
-            padding: "5px 6px",
+            fontSize: "12px",
+            fontWeight: hasFish ? 600 : 400,
+            padding: "7px 10px",
             outline: "none",
             background: "transparent",
+            color: hasFish ? "var(--color-accent-strong)" : "var(--color-muted)",
+            boxShadow: "none",
           }}
-          placeholder={selected ? selected.nome : "-- Buscar espécie --"}
+          placeholder="— selecionar espécie —"
           value={open ? query : selected ? selected.nome : ""}
           onFocus={() => {
             setOpen(true);
@@ -121,7 +127,7 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
           onChange={(e) => setQuery(e.target.value)}
           autoComplete="off"
         />
-        {selectedId && (
+        {hasFish && (
           <button
             type="button"
             onClick={handleClear}
@@ -129,11 +135,12 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
               background: "none",
               border: "none",
               cursor: "pointer",
-              padding: "0 8px",
-              color: "var(--color-muted)",
-              fontSize: "14px",
+              padding: "0 10px",
+              color: "var(--color-accent)",
+              fontSize: "16px",
               lineHeight: 1,
               flexShrink: 0,
+              opacity: 0.6,
             }}
             title="Limpar"
           >
