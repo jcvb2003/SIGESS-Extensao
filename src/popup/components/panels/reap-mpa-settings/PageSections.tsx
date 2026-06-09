@@ -27,10 +27,10 @@ function MonthGrid({
             type="button"
             onClick={() => onToggle(month)}
             style={{
-              border: isSelected ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
-              background: isSelected ? "var(--color-accent-soft)" : "var(--color-surface-alt)",
-              color: isSelected ? "var(--color-accent-strong)" : "var(--color-text)",
-              borderRadius: "3px",
+              border: isSelected ? "1px solid var(--color-accent-strong)" : "1px solid var(--color-border)",
+              background: isSelected ? "var(--color-accent)" : "var(--color-surface-alt)",
+              color: isSelected ? "#ffffff" : "var(--color-text)",
+              borderRadius: "6px",
               padding: "9px 4px",
               fontSize: "10px",
               fontFamily: "var(--mono)",
@@ -63,9 +63,11 @@ function MultiStateSelector({
     onChange([...selected, value]);
   };
 
+  const sortedOptions = [...REAP_STATE_OPTIONS].sort((a, b) => a.label.localeCompare(b.label));
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "5px" }}>
-      {REAP_STATE_OPTIONS.map((option) => {
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "5px" }}>
+      {sortedOptions.map((option) => {
         const checked = selected.includes(option.value);
         return (
           <label
@@ -73,17 +75,20 @@ function MultiStateSelector({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "8px",
-              padding: "9px 10px",
-              borderRadius: "3px",
-              border: checked ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
-              background: checked ? "var(--color-accent-soft)" : "var(--color-surface-alt)",
-              opacity: option.enabled ? 1 : 0.35,
+              justifyContent: "center",
+              gap: "5px",
+              padding: "7px 4px",
+              borderRadius: "6px",
+              border: checked ? "1px solid var(--color-accent-strong)" : "1px solid var(--color-border)",
+              background: checked ? "var(--color-accent)" : "var(--color-surface-alt)",
+              opacity: option.enabled ? 1 : 0.3,
               cursor: option.enabled ? "pointer" : "not-allowed",
-              fontSize: "12px",
-              fontWeight: 500,
-              color: checked ? "var(--color-accent-strong)" : "var(--color-text)",
+              fontSize: "10px",
+              fontWeight: checked ? 700 : 500,
+              color: checked ? "#ffffff" : "var(--color-text)",
               transition: "all 0.12s",
+              textAlign: "center",
+              lineHeight: 1.2,
             }}
           >
             <input
@@ -91,7 +96,7 @@ function MultiStateSelector({
               disabled={!option.enabled}
               checked={checked}
               onChange={() => toggle(option.value)}
-              style={{ accentColor: "var(--color-accent)" }}
+              style={{ display: "none" }}
             />
             <span>{option.label}</span>
           </label>
