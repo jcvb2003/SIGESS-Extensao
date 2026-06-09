@@ -218,7 +218,6 @@ export const Page3 = {
     if (!prodTable) return;
 
     const species = monthPlan.especies || [];
-    await Page3.trimExtraRows(prodTable, species.length);
 
     for (let fishIdx = 0; fishIdx < species.length; fishIdx++) {
       await Page3.ensureRowExists(prodTable, fishIdx);
@@ -237,32 +236,6 @@ export const Page3 = {
     if (addBtn) {
       addBtn.click();
       await Utils.waitFor(() => prodTable.querySelectorAll("tbody tr").length > fishIdx, 3000);
-    }
-  },
-
-  trimExtraRows: async (prodTable: HTMLElement, expectedRows: number) => {
-    let rows = Array.from(prodTable.querySelectorAll("tbody tr")) as HTMLElement[];
-
-    while (rows.length > expectedRows && !State.stopRequested) {
-      const lastRow = rows[rows.length - 1];
-      const removeBtn = Array.from(lastRow.querySelectorAll("button")).find((button) => {
-        const text = (button.textContent || "").trim().toLowerCase();
-        const ariaLabel = (button.getAttribute("aria-label") || "").trim().toLowerCase();
-        const title = (button.getAttribute("title") || "").trim().toLowerCase();
-        return [text, ariaLabel, title].some((value) =>
-          value.includes("remover") || value.includes("excluir") || value.includes("apagar")
-        );
-      }) as HTMLElement | undefined;
-
-      if (!removeBtn) {
-        console.warn("REAP: Linha excedente detectada na tabela de resultado, mas sem botao seguro de remocao.");
-        return;
-      }
-
-      removeBtn.click();
-      await Utils.waitFor(() => prodTable.querySelectorAll("tbody tr").length < rows.length, 3000);
-      await Utils.sleep(250);
-      rows = Array.from(prodTable.querySelectorAll("tbody tr")) as HTMLElement[];
     }
   },
 
