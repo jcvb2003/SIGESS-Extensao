@@ -75,8 +75,7 @@ export interface AppSettings {
   mpaWorkRelation?: string;
   mpaCommercializationStates?: number[];
   mpaDefesoMonths?: number[];
-  mpaEspeciePescado?: number;
-  mpaMunicipio?: number;
+mpaMunicipio?: number;
   mpaUF?: number;
   mpaLocalPesca?: number;
   mpaMetodoPesca?: number;

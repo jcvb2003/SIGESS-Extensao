@@ -1,4 +1,5 @@
 import { AppSettings } from "../../shared/types";
+import { getConfiguredDefesoMonths } from "./monthly-plan";
 
 const REAP_STATE_LABELS: Record<number, string> = {
   1: "RONDONIA",
@@ -78,18 +79,6 @@ export function getEffectiveFishingMethod(settings: Partial<AppSettings>) {
   return settings.mpaMetodoPesca ?? settings.mpaPetrecho ?? 4;
 }
 
-export function normalizeDefesoMonths(months?: number[]) {
-  if (!Array.isArray(months)) return [];
-
-  return Array.from(
-    new Set(
-      months
-        .map((month) => Number(month))
-        .filter((month) => Number.isInteger(month) && month >= 1 && month <= 12),
-    ),
-  ).sort((a, b) => a - b);
-}
-
 export function getDefesoMonthsNormalizationNotice(months?: number[]) {
   if (!Array.isArray(months)) return "Selecione os meses do defeso antes de usar o REAP.";
 
@@ -97,25 +86,9 @@ export function getDefesoMonthsNormalizationNotice(months?: number[]) {
     return "Selecione pelo menos um mes de defeso antes de continuar.";
   }
 
-  const normalized = normalizeDefesoMonths(months);
-  if (normalized.length === 0) {
+  const normalized = getConfiguredDefesoMonths({ mpaDefesoMonths: months });
+  if (normalized.length === 0 || normalized.length !== months.length) {
     return "Selecao de meses de defeso invalida. Revise os meses marcados antes de continuar.";
-  }
-
-  if (normalized.length !== months.length) {
-    return "Selecao de meses de defeso invalida. Revise os meses marcados antes de continuar.";
-  }
-
-  const normalizedFromInput = months
-    ? Array.from(
-        months.map((month) => Number(month)),
-      )
-    : [];
-
-  for (let index = 0; index < normalizedFromInput.length; index += 1) {
-    if (normalizedFromInput[index] !== normalized[index]) {
-      return "Selecao de meses de defeso invalida. Revise os meses marcados antes de continuar.";
-    }
   }
 
   return null;
@@ -128,7 +101,7 @@ export function normalizeReapSettings(settings: AppSettings): AppSettings {
     settings.mpaCommercializationStates && settings.mpaCommercializationStates.length > 0
       ? settings.mpaCommercializationStates
       : [residenceUF];
-  const defesoMonths = normalizeDefesoMonths(settings.mpaDefesoMonths);
+  const defesoMonths = getConfiguredDefesoMonths(settings);
 
   return {
     ...settings,

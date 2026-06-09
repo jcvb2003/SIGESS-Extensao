@@ -84,7 +84,7 @@ export function buildMonthPlan(
   return {
     mes: monthNumber,
     houvePesca: true,
-    diasTrabalhados: daysMap[monthIndex] || 16,
+    diasTrabalhados: daysMap[monthIndex],
     especies: buildSpeciesForMonth(monthIndex, production),
   };
 }

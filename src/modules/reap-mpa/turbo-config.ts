@@ -25,6 +25,12 @@ export function validateReapSettings(settings: any, gender: string): string | nu
     if (!s.kgMin || !s.kgMax || !s.priceMin || !s.priceMax) {
       return "Preencha todos os campos numericos (KG e VAL Min/Max) para todas as especies configuradas.";
     }
+    if (Number(s.kgMin) > Number(s.kgMax)) {
+      return "KG Min nao pode ser maior que KG Max em nenhuma especie.";
+    }
+    if (Number(s.priceMin) > Number(s.priceMax)) {
+      return "Valor Min nao pode ser maior que Valor Max em nenhuma especie.";
+    }
   }
 
   const daysPrefix = gender === "MASCULINO" ? "mpaMascDays" : "mpaFemDays";
