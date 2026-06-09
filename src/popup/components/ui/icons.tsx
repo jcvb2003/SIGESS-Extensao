@@ -1,19 +1,30 @@
 import React from "react";
 
+export const ExpandIcon: React.FC<{ isOpen: boolean }> = ({ isOpen }) => (
+  <div style={{
+    width: "22px",
+    height: "22px",
+    borderRadius: "50%",
+    border: `1.5px solid ${isOpen ? "var(--color-accent)" : "var(--color-border-strong)"}`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: isOpen ? "var(--color-accent)" : "var(--color-muted)",
+    fontSize: "15px",
+    fontWeight: 400,
+    lineHeight: 1,
+    flexShrink: 0,
+    transition: "border-color 0.2s ease, color 0.2s ease",
+    userSelect: "none",
+    fontFamily: "system-ui, sans-serif",
+  }}>
+    {isOpen ? "−" : "+"}
+  </div>
+);
+
+/** @deprecated use ExpandIcon */
 export const ChevronIcon: React.FC<{ isOpen: boolean }> = ({ isOpen }) => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={`accordion-icon ${isOpen ? "open" : ""}`}
-  >
-    <polyline points="6 9 12 15 18 9" />
-  </svg>
+  <ExpandIcon isOpen={isOpen} />
 );
 
 export const GlobeIcon: React.FC = () => (

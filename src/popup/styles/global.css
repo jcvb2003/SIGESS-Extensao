@@ -146,12 +146,7 @@ body {
 .accordion-icon {
     font-size: 16px;
     color: var(--color-muted);
-    transition: transform 0.2s ease, color 0.2s ease;
-}
-
-.accordion-icon.open {
-    transform: rotate(180deg);
-    color: var(--color-accent);
+    flex-shrink: 0;
 }
 
 .accordion-content {

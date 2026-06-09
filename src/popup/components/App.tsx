@@ -11,10 +11,10 @@ import { LicenseInfo } from "./ui/LicenseInfo";
 import { Skeleton, SkeletonBadge, SkeletonCard } from "./ui/Skeleton";
 import { ToastProvider, useToast } from "./ui/Toast";
 import { ActivationScreen, getLicenseErrorMessage } from "./ui/ActivationScreen";
-import { ChevronIcon } from "./ui/icons";
+import { ExpandIcon } from "./ui/icons";
 import { useLicense } from "../hooks/useLicense";
 import { useSettings } from "../hooks/useSettings";
-import { ShieldCheck, Info, UserPlus } from "lucide-react";
+import { ShieldCheck, Info } from "lucide-react";
 import { UpdateAvailableInfo } from "../../shared/services/update-block";
 
 function useUpdateAvailable(): UpdateAvailableInfo | null {
@@ -313,10 +313,7 @@ const AppContent: React.FC = () => {
                 Coleta de dados de sites governamentais
               </p>
             </div>
-            <UserPlus
-              size={18}
-              className={`accordion-icon ${openSections.autoRegistration ? "open" : ""}`}
-            />
+            <ExpandIcon isOpen={openSections.autoRegistration} />
           </button>
           <div
             className={`accordion-content ${openSections.autoRegistration ? "open" : "collapsed"
@@ -341,7 +338,7 @@ const AppContent: React.FC = () => {
                 Configurações de automação para o eSocial
               </p>
             </div>
-            <ChevronIcon isOpen={openSections.esocial} />
+            <ExpandIcon isOpen={openSections.esocial} />
           </button>
           <div
             className={`accordion-content ${openSections.esocial ? "open" : "collapsed"
@@ -366,10 +363,7 @@ const AppContent: React.FC = () => {
                 Automação para o portal de Seguro-Desemprego
               </p>
             </div>
-            <ShieldCheck
-              size={18}
-              className={`accordion-icon ${openSections.sdpa ? "open" : ""}`}
-            />
+            <ExpandIcon isOpen={openSections.sdpa} />
           </button>
           <div
             className={`accordion-content ${openSections.sdpa ? "open" : "collapsed"
