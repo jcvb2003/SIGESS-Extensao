@@ -244,7 +244,7 @@ export function ReapPage3Section({
 }) {
   const fishingUf = settings.mpaUF ?? 5;
   const fishingMunicipios = getMunicipiosByUf(fishingUf);
-  const defesoMonths = settings.mpaDefesoMonths ?? [1, 2, 3, 4];
+  const defesoMonths = settings.mpaDefesoMonths ?? [];
 
   const toggleDefesoMonth = (month: number) => {
     const next = defesoMonths.includes(month)
@@ -264,6 +264,9 @@ export function ReapPage3Section({
         <div className="form-group">
           <label className="reap-label">Marque os meses do periodo de defeso.</label>
           <MonthGrid selectedMonths={defesoMonths} onToggle={toggleDefesoMonth} />
+          {defesoMonths.length === 0 ? (
+            <p className="reap-note">Selecione pelo menos um mes de defeso.</p>
+          ) : null}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>

@@ -46,7 +46,7 @@ export class StorageService {
       mpaResidenceUF: 5,
       mpaWorkRelation: "Economia Familiar",
       mpaCommercializationStates: [5],
-      mpaDefesoMonths: [1, 2, 3, 4],
+      mpaDefesoMonths: [],
       mpaUF: 5,
       mpaLocalPesca: 6,
       mpaMetodoPesca: 4,

@@ -61,7 +61,7 @@ const UIComponents = {
     } else if (isPaused) {
       mBtn.innerHTML = `${Icons.play} Continuar`; mBtn.style.background = "#28a745"; mBtn.disabled = false;
     } else {
-      mBtn.innerHTML = `${Icons.play} Iniciar`; mBtn.style.background = "#007bff";
+      mBtn.innerHTML = `${Icons.play} Modo Rápido`; mBtn.style.background = "#007bff";
       mBtn.disabled = (globalThis as any).__sigessTurboRunning === true;
     }
   },

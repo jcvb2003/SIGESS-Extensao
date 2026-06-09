@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import ReapMpaSettingsForm from "./components/panels/ReapMpaSettingsForm";
 import { StorageService } from "../background/services/storage";
+import { getDefesoMonthsNormalizationNotice, normalizeReapSettings } from "../modules/reap-mpa/reap-settings";
 import { AppSettings } from "../shared/types";
 
 const ReapMpaSettingsPage: React.FC = () => {
@@ -10,22 +11,30 @@ const ReapMpaSettingsPage: React.FC = () => {
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    StorageService.getSettings().then(setSettings);
+    StorageService.getSettings().then((current) => {
+      const notice = getDefesoMonthsNormalizationNotice(current.mpaDefesoMonths);
+      setSettings(normalizeReapSettings(current));
+      if (notice) setStatus(notice);
+    });
   }, []);
 
   const updateSettings = useCallback(
     async (patch: Partial<AppSettings>) => {
       if (!settings) return;
-      const next = { ...settings, ...patch };
+      const defesoNotice =
+        Object.prototype.hasOwnProperty.call(patch, "mpaDefesoMonths")
+          ? getDefesoMonthsNormalizationNotice(patch.mpaDefesoMonths)
+          : null;
+      const next = normalizeReapSettings({ ...settings, ...patch });
       setSettings(next);
       setSaving(true);
-      setStatus("Salvando...");
+      setStatus(defesoNotice || "Salvando...");
       try {
         await browser.runtime.sendMessage({
           action: "updateESocialSettings",
           settings: next,
         });
-        setStatus("Configurações salvas.");
+        setStatus(defesoNotice || "Configuracoes salvas.");
       } catch (error: any) {
         setStatus(`Erro ao salvar: ${error?.message || "desconhecido"}`);
       } finally {

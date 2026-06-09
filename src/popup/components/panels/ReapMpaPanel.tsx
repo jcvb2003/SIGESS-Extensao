@@ -25,7 +25,7 @@ const ReapMpaPanel: React.FC<ReapMpaPanelProps> = ({
   };
 
   const filledSpecies = settings.mpaSpecies?.filter((item) => item?.id).length ?? 0;
-  const defesoMonths = settings.mpaDefesoMonths?.length ?? 4;
+  const defesoMonths = settings.mpaDefesoMonths?.length ?? 0;
 
   return (
     <section className="section accordion">
