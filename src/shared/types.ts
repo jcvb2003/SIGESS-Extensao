@@ -98,10 +98,14 @@ export interface AppSettings {
   mpaMascProdMax?: string;
   mpaMascDaysMin?: string;
   mpaMascDaysMax?: string;
+  mpaMascAnnualMin?: number;
+  mpaMascAnnualMax?: number;
   mpaFemProdMin?: string;
   mpaFemProdMax?: string;
   mpaFemDaysMin?: string;
   mpaFemDaysMax?: string;
+  mpaFemAnnualMin?: number;
+  mpaFemAnnualMax?: number;
 
   pessoaData?: PessoaData;
   pessoaData_raw?: Record<string, Partial<PessoaData>>;

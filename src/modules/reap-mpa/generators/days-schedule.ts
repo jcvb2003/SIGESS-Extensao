@@ -4,9 +4,9 @@ export const DaysGenerator: any = {
   generate(gender: "MASCULINO" | "FEMININO", settings?: any) {
     const months = getFishingMonthIndexes(settings || {});
     const peaks = getPeakMonthIndexes(settings?.mpaDefesoMonths || []);
-    const { min, max } = this.getMonthLimits(gender, settings);
+    const { min, max, annualMin, annualMax } = this.getMonthLimits(gender, settings, months.length);
 
-    const schedule = this.tryGenerateSchedule(months, peaks, min, max);
+    const schedule = this.tryGenerateSchedule(months, peaks, min, max, annualMin, annualMax);
 
     if (!schedule) {
       throw new Error(
@@ -21,17 +21,40 @@ export const DaysGenerator: any = {
     return schedule;
   },
 
-  getMonthLimits(gender: "MASCULINO" | "FEMININO", settings?: any): { min: number; max: number } {
+  getMonthLimits(gender: "MASCULINO" | "FEMININO", settings?: any, fishingCount = 0): { min: number; max: number; annualMin: number | null; annualMax: number | null } {
     const prefix = gender === "MASCULINO" ? "mpaMascDays" : "mpaFemDays";
+    const annualPrefix = gender === "MASCULINO" ? "mpaMascAnnual" : "mpaFemAnnual";
     const min = Number(settings?.[`${prefix}Min`]) || 14;
     const max = Number(settings?.[`${prefix}Max`]) || 18;
-    return { min, max };
+
+    const absoluteAnnualMin = fishingCount * min;
+    const absoluteAnnualMax = fishingCount * max;
+
+    const savedAnnualMin = settings?.[`${annualPrefix}Min`];
+    const savedAnnualMax = settings?.[`${annualPrefix}Max`];
+
+    const annualMin = savedAnnualMin != null
+      ? Math.max(absoluteAnnualMin, Math.min(savedAnnualMin, absoluteAnnualMax))
+      : null;
+    const annualMax = savedAnnualMax != null
+      ? Math.max(absoluteAnnualMin, Math.min(savedAnnualMax, absoluteAnnualMax))
+      : null;
+
+    return { min, max, annualMin, annualMax };
   },
 
-  tryGenerateSchedule(months: number[], peaks: Set<number>, min: number, max: number): Record<number, number> | null {
+  tryGenerateSchedule(months: number[], peaks: Set<number>, min: number, max: number, annualMin: number | null, annualMax: number | null): Record<number, number> | null {
     for (let attempt = 0; attempt < 200; attempt++) {
       const schedule = this.generateSingleAttempt(months, peaks, min, max);
-      if (schedule) return schedule;
+      if (!schedule) continue;
+
+      if (annualMin != null || annualMax != null) {
+        const total = months.reduce((sum, m) => sum + schedule[m], 0);
+        if (annualMin != null && total < annualMin) continue;
+        if (annualMax != null && total > annualMax) continue;
+      }
+
+      return schedule;
     }
     return null;
   },

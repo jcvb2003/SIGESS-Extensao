@@ -1,5 +1,95 @@
+import { useRef } from "react";
 import { AppSettings } from "../../../../shared/types";
 import { CurrencyInput, SpeciesSearch } from "./SharedFields";
+
+function AnnualRangeSlider({
+  absMin,
+  absMax,
+  value,
+  onChange,
+}: {
+  absMin: number;
+  absMax: number;
+  value: [number, number];
+  onChange: (v: [number, number]) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef<"lo" | "hi" | null>(null);
+  const [lo, hi] = value;
+
+  if (absMin >= absMax) {
+    return (
+      <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>
+        Total/ano: {absMin} dias
+      </div>
+    );
+  }
+
+  const valueFromPointer = (e: React.PointerEvent) => {
+    const rect = trackRef.current!.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    return Math.round(absMin + pct * (absMax - absMin));
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const v = valueFromPointer(e);
+    draggingRef.current = Math.abs(v - lo) <= Math.abs(v - hi) ? "lo" : "hi";
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    if (draggingRef.current === "lo") onChange([Math.min(v, hi), hi]);
+    else onChange([lo, Math.max(v, lo)]);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const v = valueFromPointer(e);
+    if (draggingRef.current === "lo") onChange([Math.min(v, hi), hi]);
+    else onChange([lo, Math.max(v, lo)]);
+  };
+
+  const onPointerUp = () => { draggingRef.current = null; };
+
+  const pctLo = ((lo - absMin) / (absMax - absMin)) * 100;
+  const pctHi = ((hi - absMin) / (absMax - absMin)) * 100;
+
+  const handle = (pct: number): React.CSSProperties => ({
+    position: "absolute",
+    top: "50%",
+    left: `${pct}%`,
+    transform: "translate(-50%, -50%)",
+    width: "12px",
+    height: "12px",
+    borderRadius: "50%",
+    background: "var(--color-accent)",
+    border: "2px solid white",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+    cursor: "grab",
+    pointerEvents: "none",
+  });
+
+  return (
+    <div style={{ marginTop: "6px" }}>
+      <div style={{ fontSize: "10px", color: "var(--color-text-muted)", textAlign: "center", marginBottom: "4px" }}>
+        Total/ano: <strong style={{ color: "var(--color-accent)" }}>{lo}–{hi}</strong> dias
+      </div>
+      <div
+        ref={trackRef}
+        style={{ position: "relative", height: "18px", cursor: "pointer", userSelect: "none" }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        <div style={{ position: "absolute", top: "7px", left: 0, right: 0, height: "4px", background: "var(--color-border)", borderRadius: "2px" }} />
+        <div style={{ position: "absolute", top: "7px", left: `${pctLo}%`, width: `${pctHi - pctLo}%`, height: "4px", background: "var(--color-accent)", borderRadius: "2px" }} />
+        <div style={handle(pctLo)} />
+        <div style={handle(pctHi)} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#aaa", marginTop: "1px" }}>
+        <span>{absMin}</span><span>{absMax}</span>
+      </div>
+    </div>
+  );
+}
 
 export function ReapSpeciesSection({
   settings,
@@ -130,6 +220,20 @@ export function ReapSpeciesSection({
           const mascMax = Number(settings.mpaMascDaysMax) || 0;
           const femMin = Number(settings.mpaFemDaysMin) || 0;
           const femMax = Number(settings.mpaFemDaysMax) || 0;
+
+          const mascAbsMin = fishingCount * mascMin;
+          const mascAbsMax = fishingCount * mascMax;
+          const femAbsMin = fishingCount * femMin;
+          const femAbsMax = fishingCount * femMax;
+
+          const mascAnnualMin = settings.mpaMascAnnualMin ?? mascAbsMin;
+          const mascAnnualMax = settings.mpaMascAnnualMax ?? mascAbsMax;
+          const femAnnualMin = settings.mpaFemAnnualMin ?? femAbsMin;
+          const femAnnualMax = settings.mpaFemAnnualMax ?? femAbsMax;
+
+          const hasMasc = mascMin > 0 && mascMax > 0 && fishingCount > 0;
+          const hasFem = femMin > 0 && femMax > 0 && fishingCount > 0;
+
           return (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
               <div className="config-group" style={{ background: "var(--color-surface-alt)", padding: "10px", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
@@ -151,12 +255,23 @@ export function ReapSpeciesSection({
                       Dias/Mês
                     </label>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                      <input id="mpaMascDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" min={7} max={27} value={settings.mpaMascDaysMin || ""} onChange={(e) => onUpdate({ mpaMascDaysMin: e.target.value })} />
-                      <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Masculinos" placeholder="Máx" min={7} max={27} value={settings.mpaMascDaysMax || ""} onChange={(e) => onUpdate({ mpaMascDaysMax: e.target.value })} />
+                      <input id="mpaMascDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" min={7} max={27} value={settings.mpaMascDaysMin || ""} onChange={(e) => {
+                        onUpdate({ mpaMascDaysMin: e.target.value, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined });
+                      }} />
+                      <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Masculinos" placeholder="Máx" min={7} max={27} value={settings.mpaMascDaysMax || ""} onChange={(e) => {
+                        onUpdate({ mpaMascDaysMax: e.target.value, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined });
+                      }} />
                     </div>
-                    <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>
-                      {mascMin && mascMax ? `Total/ano: ${fishingCount * mascMin}–${fishingCount * mascMax} dias` : "—"}
-                    </div>
+                    {hasMasc ? (
+                      <AnnualRangeSlider
+                        absMin={mascAbsMin}
+                        absMax={mascAbsMax}
+                        value={[mascAnnualMin, mascAnnualMax]}
+                        onChange={([lo, hi]) => onUpdate({ mpaMascAnnualMin: lo, mpaMascAnnualMax: hi })}
+                      />
+                    ) : (
+                      <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>—</div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -180,12 +295,23 @@ export function ReapSpeciesSection({
                       Dias/Mês
                     </label>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                      <input id="mpaFemDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" min={7} max={27} value={settings.mpaFemDaysMin || ""} onChange={(e) => onUpdate({ mpaFemDaysMin: e.target.value })} />
-                      <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Femininos" placeholder="Máx" min={7} max={27} value={settings.mpaFemDaysMax || ""} onChange={(e) => onUpdate({ mpaFemDaysMax: e.target.value })} />
+                      <input id="mpaFemDaysMin" type="number" className="gps-input" style={{ fontSize: "11px" }} placeholder="Mín" min={7} max={27} value={settings.mpaFemDaysMin || ""} onChange={(e) => {
+                        onUpdate({ mpaFemDaysMin: e.target.value, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined });
+                      }} />
+                      <input type="number" className="gps-input" style={{ fontSize: "11px" }} aria-label="Dias Trabalhados Máximos Femininos" placeholder="Máx" min={7} max={27} value={settings.mpaFemDaysMax || ""} onChange={(e) => {
+                        onUpdate({ mpaFemDaysMax: e.target.value, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined });
+                      }} />
                     </div>
-                    <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>
-                      {femMin && femMax ? `Total/ano: ${fishingCount * femMin}–${fishingCount * femMax} dias` : "—"}
-                    </div>
+                    {hasFem ? (
+                      <AnnualRangeSlider
+                        absMin={femAbsMin}
+                        absMax={femAbsMax}
+                        value={[femAnnualMin, femAnnualMax]}
+                        onChange={([lo, hi]) => onUpdate({ mpaFemAnnualMin: lo, mpaFemAnnualMax: hi })}
+                      />
+                    ) : (
+                      <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "4px", textAlign: "center" }}>—</div>
+                    )}
                   </div>
                 </div>
               </div>
