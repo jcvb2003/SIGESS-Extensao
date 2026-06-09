@@ -1,15 +1,19 @@
-import { MONTHS } from "../config";
+import { getFishingMonthIndexes } from "../monthly-plan";
 
 export const DaysGenerator: any = {
   generate(gender: "MASCULINO" | "FEMININO", settings?: any) {
-    const months = MONTHS;
+    const months = getFishingMonthIndexes(settings || {});
     const { min, max } = this.getTargetLimits(gender, settings);
-    
+     
     let schedule = this.tryGenerateValidSchedule(months, min, max);
 
     if (!schedule) {
       schedule = {};
       months.forEach((m) => (schedule![m] = 16));
+    }
+
+    for (let monthIndex = 0; monthIndex < 12; monthIndex += 1) {
+      schedule[monthIndex] ??= 0;
     }
     return schedule;
   },

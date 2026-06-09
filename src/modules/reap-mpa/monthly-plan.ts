@@ -2,6 +2,7 @@ import { AppSettings, TurboEspecieConfig, TurboMesConfig } from "../../shared/ty
 import { FishProduction } from "./types";
 
 const DEFESO_JUSTIFICATIVA = 1;
+const ALL_MONTH_INDEXES = Array.from({ length: 12 }, (_, index) => index);
 
 function sanitizeDefesoMonths(months?: number[]) {
   if (!Array.isArray(months)) return [];
@@ -25,6 +26,14 @@ export function hasConfiguredDefesoMonths(settings: Partial<AppSettings>) {
 
 export function isDefesoMonth(settings: Partial<AppSettings>, monthNumber: number) {
   return getConfiguredDefesoMonths(settings).includes(monthNumber);
+}
+
+export function getFishingMonthIndexes(settings: Partial<AppSettings>) {
+  return ALL_MONTH_INDEXES.filter((monthIndex) => !isDefesoMonth(settings, monthIndex + 1));
+}
+
+export function getFishingMonthNumbers(settings: Partial<AppSettings>) {
+  return getFishingMonthIndexes(settings).map((monthIndex) => monthIndex + 1);
 }
 
 function buildSpeciesForMonth(monthIndex: number, production: FishProduction[]): TurboEspecieConfig[] {

@@ -1,6 +1,7 @@
 import { FishProduction, FishData } from "../types";
-import { FISH_TABLE, MONTHS } from "../config";
+import { FISH_TABLE } from "../config";
 import { FULL_PORTAL_SPECIES } from "../../../shared/data/species";
+import { getFishingMonthIndexes } from "../monthly-plan";
 
 export const ProductionGenerator: any = {
   generate(
@@ -8,15 +9,16 @@ export const ProductionGenerator: any = {
     gender: "MASCULINO" | "FEMININO",
     settings?: any
   ): FishProduction[] {
+    const fishingMonths = getFishingMonthIndexes(settings || {});
     const currentFishTable = this.selectSpecies(settings);
     const { targetMin, targetMax } = this.getTargetRange(gender, settings);
-    const totalDays = MONTHS.reduce((s, m) => s + (daysMap[m] || 16), 0);
+    const totalDays = fishingMonths.reduce((s, m) => s + (daysMap[m] || 0), 0);
 
-    let bestResult = this.tryGenerateIdeal(currentFishTable, daysMap, totalDays, targetMin, targetMax);
+    let bestResult = this.tryGenerateIdeal(currentFishTable, daysMap, fishingMonths, totalDays, targetMin, targetMax);
 
     if (!bestResult) {
       console.warn("Não foi possível gerar produção ideal, usando fallback.");
-      bestResult = this.generateFallback(currentFishTable);
+      bestResult = this.generateFallback(currentFishTable, fishingMonths);
     }
 
     this.logFinalProduction(bestResult, gender);
@@ -64,10 +66,10 @@ export const ProductionGenerator: any = {
     return { targetMin, targetMax };
   },
 
-  tryGenerateIdeal(table: FishData[], daysMap: Record<number, number>, totalDays: number, min: number, max: number) {
+  tryGenerateIdeal(table: FishData[], daysMap: Record<number, number>, fishingMonths: number[], totalDays: number, min: number, max: number) {
     let attempts = 0;
     while (attempts < 300) {
-      const result = this.generateInitialProduction(table, daysMap, totalDays);
+      const result = this.generateInitialProduction(table, daysMap, fishingMonths, totalDays);
       const totalValue = result.reduce((s: number, p: FishProduction) => s + p.totalKg * p.price, 0);
 
       if (totalValue >= min && totalValue <= max) return result;
@@ -82,7 +84,7 @@ export const ProductionGenerator: any = {
     return null;
   },
 
-  generateInitialProduction(table: FishData[], daysMap: Record<number, number>, totalDays: number): FishProduction[] {
+  generateInitialProduction(table: FishData[], daysMap: Record<number, number>, fishingMonths: number[], totalDays: number): FishProduction[] {
     const result: FishProduction[] = table.map(fish => ({
       id: fish.id,
       name: fish.name,
@@ -93,7 +95,7 @@ export const ProductionGenerator: any = {
 
     result.sort((a, b) => b.totalKg - a.totalKg);
     this.assignPrices(result, table);
-    this.distributeMonthlyKg(result, daysMap, totalDays);
+    this.distributeMonthlyKg(result, daysMap, fishingMonths, totalDays);
     
     return result;
   },
@@ -110,19 +112,23 @@ export const ProductionGenerator: any = {
     });
   },
 
-  distributeMonthlyKg(productions: FishProduction[], daysMap: Record<number, number>, totalDays: number) {
+  distributeMonthlyKg(productions: FishProduction[], daysMap: Record<number, number>, fishingMonths: number[], totalDays: number) {
     for (const prod of productions) {
       let remaining = prod.totalKg;
       const monthlyRaw: Record<number, number> = {};
+
+      for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+        monthlyRaw[monthIndex] = 0;
+      }
       
-      for (const m of MONTHS) {
-        const daysProportion = (daysMap[m] || 16) / totalDays;
+      for (const m of fishingMonths) {
+        const daysProportion = totalDays > 0 ? (daysMap[m] || 0) / totalDays : 0;
         const kgForMonth = Math.round(prod.totalKg * daysProportion);
         monthlyRaw[m] = kgForMonth;
         remaining -= kgForMonth;
       }
       
-      const lastMonth = MONTHS.at(-1);
+      const lastMonth = fishingMonths.at(-1);
       if (lastMonth !== undefined) {
           monthlyRaw[lastMonth] += remaining;
       }
@@ -144,12 +150,18 @@ export const ProductionGenerator: any = {
     }
   },
 
-  generateFallback(table: FishData[]): FishProduction[] {
+  generateFallback(table: FishData[], fishingMonths: number[]): FishProduction[] {
     return table.map((fish) => {
       const totalKg = Math.floor((fish.kgMin + fish.kgMax) / 2);
       const price = (fish.priceMin + fish.priceMax) / 2;
       const monthlyKg: Record<number, number> = {};
-      MONTHS.forEach((m) => (monthlyKg[m] = Math.round(totalKg / 8)));
+
+      for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+        monthlyKg[monthIndex] = 0;
+      }
+
+      const divisor = fishingMonths.length || 1;
+      fishingMonths.forEach((m) => (monthlyKg[m] = Math.round(totalKg / divisor)));
       return { id: fish.id, name: fish.name, totalKg, price, monthlyKg };
     });
   },
