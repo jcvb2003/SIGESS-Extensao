@@ -80,7 +80,7 @@ export interface AppSettings {
   mpaUF?: number;
   mpaLocalPesca?: number;
   mpaMetodoPesca?: number;
-  mpaPetrecho?: number;
+  mpaPetrecho?: number; // legado: usar mpaMetodoPesca como campo canonico
   mpaAmbiente?: number;
   multiLoginEnabled?: boolean;
   multiLoginQueue?: MultiLoginItem[];

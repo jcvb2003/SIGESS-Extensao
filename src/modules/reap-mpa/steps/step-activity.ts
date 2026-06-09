@@ -1,5 +1,6 @@
-import { Utils } from '../utils/dom-utils';
+import { Utils } from "../utils/dom-utils";
 import { IWorkflowManager } from "../types";
+import { getReapStateLabel, normalizeReapSettings } from "../reap-settings";
 
 function normalizeText(value: string | null | undefined) {
   return (value || "")
@@ -27,38 +28,57 @@ function toggleCheckboxByText(groupName: string, expectedText: string) {
   }
 }
 
+function getFieldValue(inputName: string) {
+  const input = document.querySelector<HTMLInputElement>(`input[name="${inputName}"]`);
+  return normalizeText(input?.value);
+}
+
 export const Page2 = {
-  isCurrentPage: () =>
-    !!document.querySelector('input[name="prestacaoServico"]'),
+  isCurrentPage: () => !!document.querySelector('input[name="prestacaoServico"]'),
   execute: async (_manager: IWorkflowManager) => {
-    console.log("REAP: Executando Página 2...");
+    console.log("REAP: Executando Pagina 2...");
 
-    const inputRelacao = document.querySelector<HTMLInputElement>('input[name="prestacaoServico"]');
-    const inputEstados = document.querySelector<HTMLInputElement>('input[name="estadosComercializacao"]');
-    
-    // Se a relação ou os estados já estiverem preenchidos, assumimos que a página está pronta
-    const isAlreadyFilled = (inputRelacao?.value?.trim() !== "") || (inputEstados?.value?.trim() !== "");
+    const rawSettings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+    const settings = normalizeReapSettings(rawSettings);
+    const desiredRelation = settings.mpaWorkRelation || "Economia Familiar";
+    const desiredStates = (settings.mpaCommercializationStates || [5])
+      .map((stateCode) => getReapStateLabel(stateCode))
+      .filter(Boolean);
 
-    if (isAlreadyFilled) {
-      console.log('REAP: Página 2 já preenchida (detectado via inputs). Avançando para Página 3.');
-      const btn = document.querySelector<HTMLElement>('button[data-action="avancar"]');
-      if (btn) btn.click();
-      return;
+    const currentRelation = getFieldValue("prestacaoServico");
+    const currentStates = getFieldValue("estadosComercializacao");
+
+    const hasDesiredRelation =
+      !desiredRelation || currentRelation.includes(normalizeText(desiredRelation));
+    const hasDesiredStates =
+      desiredStates.length === 0 ||
+      desiredStates.every((stateLabel) => currentStates.includes(normalizeText(stateLabel)));
+
+    if (!hasDesiredRelation) {
+      const relationSelect = document
+        .querySelector('input[name="prestacaoServico"]')
+        ?.closest<HTMLElement>(".br-select");
+      if (relationSelect) {
+        await Utils.selectOption(relationSelect, desiredRelation);
+      }
     }
 
-    const divRelacao = document
-      .querySelector('input[name="prestacaoServico"]')
-      ?.closest<HTMLElement>(".br-select");
-    if (divRelacao) await Utils.selectOption(divRelacao, "Economia Familiar");
-    const divEstados = document
-      .querySelector('input[name="estadosComercializacao"]')
-      ?.closest<HTMLElement>(".br-select");
-    if (divEstados) await Utils.selectOption(divEstados, "PARA");
+    if (!hasDesiredStates) {
+      const statesSelect = document
+        .querySelector('input[name="estadosComercializacao"]')
+        ?.closest<HTMLElement>(".br-select");
+      if (statesSelect) {
+        for (const stateLabel of desiredStates) {
+          await Utils.selectOption(statesSelect, stateLabel);
+          await Utils.sleep(150);
+        }
+      }
+    }
+
     toggleCheckboxByText("gruposAlvo", "Peixes");
     toggleCheckboxByText("compradoresPescado", "Venda direta ao consumidor");
+
     await Utils.sleep(1000);
-    (
-      document.querySelector<HTMLElement>('button[data-action="avancar"]')
-    )?.click();
+    document.querySelector<HTMLElement>('button[data-action="avancar"]')?.click();
   },
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { StorageService } from "../../background/services/storage";
+import { normalizeReapSettings } from "../../modules/reap-mpa/reap-settings";
 import { AppSettings } from "../../shared/types";
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -17,9 +18,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   mpaUF: 5,
   mpaLocalPesca: 6,
   mpaMetodoPesca: 4,
-  mpaPetrecho: 4,
   mpaAmbiente: 1,
-  mpaSpeciesCount: 5,
+  mpaSpeciesCount: 4,
   mpaSpecies: [
     { id: 12, kgMin: "60", kgMax: "70", priceMin: "8.00", priceMax: "11.00" },
     { id: 21, kgMin: "55", kgMax: "60", priceMin: "8.00", priceMax: "12.00" },
@@ -55,14 +55,14 @@ export const useSettings = (): UseSettingsReturn => {
     setLoading(true);
     try {
       const s = await StorageService.getSettings();
-      setSettings(s);
+      setSettings(normalizeReapSettings(s));
     } finally {
       setLoading(false);
     }
   }, []);
 
   const updateSettings = useCallback(async (newSettings: Partial<AppSettings>) => {
-    const updated = { ...settings, ...newSettings };
+    const updated = normalizeReapSettings({ ...settings, ...newSettings });
     setSettings(updated);
     await browser.runtime.sendMessage({
       action: "updateESocialSettings",
@@ -71,8 +71,9 @@ export const useSettings = (): UseSettingsReturn => {
   }, [settings]);
 
   const resetSettings = useCallback(async () => {
-    setSettings(DEFAULT_SETTINGS);
-    await StorageService.saveSettings(DEFAULT_SETTINGS);
+    const normalizedDefaults = normalizeReapSettings(DEFAULT_SETTINGS);
+    setSettings(normalizedDefaults);
+    await StorageService.saveSettings(normalizedDefaults);
   }, []);
 
   useEffect(() => {

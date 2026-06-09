@@ -1,4 +1,5 @@
 import { AppSettings, GovBatchItemStatus, UserCredentials, PessoaData } from "../../shared/types";
+import { normalizeReapSettings } from "../../modules/reap-mpa/reap-settings";
 
 declare var chrome: any;
 declare var browser: any;
@@ -49,7 +50,6 @@ export class StorageService {
       mpaUF: 5,
       mpaLocalPesca: 6,
       mpaMetodoPesca: 4,
-      mpaPetrecho: 4,
       mpaAmbiente: 1,
       mpaSpecies: [
         { id: 12, kgMin: "60", kgMax: "70", priceMin: "8.00", priceMax: "11.00" },
@@ -72,15 +72,15 @@ export class StorageService {
       sdpaFallbackPhone: "",
     };
 
-    return {
+    return normalizeReapSettings({
       ...defaults,
       ...current,
       mpaSpecies: current.mpaSpecies && current.mpaSpecies.length > 0 ? current.mpaSpecies : defaults.mpaSpecies,
-    };
+    });
   }
 
   static async saveSettings(settings: AppSettings): Promise<void> {
-    await this.set({ sigessSettings: settings });
+    await this.set({ sigessSettings: normalizeReapSettings(settings) });
   }
 
   /**

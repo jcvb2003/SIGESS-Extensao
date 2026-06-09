@@ -1,7 +1,7 @@
 import { AppSettings } from "../../../../shared/types";
+import { getEffectiveFishingMethod } from "../../../../modules/reap-mpa/reap-settings";
 import {
   APETRECHOS_OPTIONS,
-  FISHING_ENVIRONMENT_OPTIONS,
   FISHING_LOCATION_OPTIONS,
   MONTH_LABELS,
   REAP_STATE_OPTIONS,
@@ -120,13 +120,13 @@ export function ReapPage1Section({
   return (
     <section className="section" style={{ padding: "16px" }}>
       <div className="section-header">
-        <h2 className="section-title">Página 1</h2>
-        <p className="section-description">Identificação do pescador e dados de residência.</p>
+        <h2 className="section-title">Pagina 1</h2>
+        <p className="section-description">Identificacao do pescador e dados de residencia.</p>
       </div>
 
       <div className="stack" style={{ gap: "12px" }}>
         <div className="form-group">
-          <label className="reap-label" htmlFor="mpaReferenceYear">Ano de referência do REAP</label>
+          <label className="reap-label" htmlFor="mpaReferenceYear">Ano de referencia do REAP</label>
           <select
             id="mpaReferenceYear"
             className="gps-select"
@@ -146,7 +146,7 @@ export function ReapPage1Section({
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div className="form-group">
-            <label className="reap-label" htmlFor="mpaResidenceUF">Estado de residência</label>
+            <label className="reap-label" htmlFor="mpaResidenceUF">Estado de residencia</label>
             <select
               id="mpaResidenceUF"
               className="gps-select"
@@ -160,21 +160,22 @@ export function ReapPage1Section({
             >
               {REAP_STATE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value} disabled={!option.enabled}>
-                  {option.label}{option.enabled ? "" : " (indisponível)"}
+                  {option.label}
+                  {option.enabled ? "" : " (indisponivel)"}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="form-group">
-            <label className="reap-label" htmlFor="mpaResidenceMunicipio">Município de residência</label>
+            <label className="reap-label" htmlFor="mpaResidenceMunicipio">Municipio de residencia</label>
             <select
               id="mpaResidenceMunicipio"
               className="gps-select"
               value={settings.mpaResidenceMunicipio || ""}
               onChange={(e) => onUpdate({ mpaResidenceMunicipio: Number(e.target.value) })}
             >
-              <option value="">Selecione um município...</option>
+              <option value="">Selecione um municipio...</option>
               {residenceMunicipios.map((municipio) => (
                 <option key={municipio.id} value={municipio.id}>
                   {municipio.nome}
@@ -200,13 +201,13 @@ export function ReapPage2Section({
   return (
     <section className="section" style={{ padding: "16px" }}>
       <div className="section-header">
-        <h2 className="section-title">Página 2</h2>
-        <p className="section-description">Dados da atividade e estados de comercialização.</p>
+        <h2 className="section-title">Pagina 2</h2>
+        <p className="section-description">Dados da atividade e estados de comercializacao.</p>
       </div>
 
       <div className="stack" style={{ gap: "12px" }}>
         <div className="form-group">
-          <label className="reap-label" htmlFor="mpaWorkRelation">Relação de trabalho</label>
+          <label className="reap-label" htmlFor="mpaWorkRelation">Relacao de trabalho</label>
           <select
             id="mpaWorkRelation"
             className="gps-select"
@@ -222,12 +223,12 @@ export function ReapPage2Section({
         </div>
 
         <div className="form-group">
-          <label className="reap-label">Estado de comercialização nos meses de referência</label>
+          <label className="reap-label">Estado de comercializacao nos meses de referencia</label>
           <MultiStateSelector
             selected={commercializationStates}
             onChange={(next) => onUpdate({ mpaCommercializationStates: next })}
           />
-          <p className="reap-note">Somente Pará e Maranhão ficam habilitados por enquanto.</p>
+          <p className="reap-note">Somente Para e Maranhao ficam habilitados por enquanto.</p>
         </div>
       </div>
     </section>
@@ -255,13 +256,13 @@ export function ReapPage3Section({
   return (
     <section className="section" style={{ padding: "16px" }}>
       <div className="section-header">
-        <h2 className="section-title">Página 3</h2>
+        <h2 className="section-title">Pagina 3</h2>
         <p className="section-description">Meses de defeso e perfil dos meses com pesca.</p>
       </div>
 
       <div className="stack" style={{ gap: "14px" }}>
         <div className="form-group">
-          <label className="reap-label">Marque os meses do período de defeso.</label>
+          <label className="reap-label">Marque os meses do periodo de defeso.</label>
           <MonthGrid selectedMonths={defesoMonths} onToggle={toggleDefesoMonth} />
         </div>
 
@@ -283,11 +284,11 @@ export function ReapPage3Section({
           </div>
 
           <div className="form-group">
-            <label className="reap-label" htmlFor="mpaMetodoPesca">Método de pesca</label>
+            <label className="reap-label" htmlFor="mpaMetodoPesca">Metodo petrecho de pesca</label>
             <select
               id="mpaMetodoPesca"
               className="gps-select"
-              value={settings.mpaMetodoPesca ?? settings.mpaPetrecho ?? 4}
+              value={getEffectiveFishingMethod(settings)}
               onChange={(e) => onUpdate({ mpaMetodoPesca: Number(e.target.value) })}
             >
               {APETRECHOS_OPTIONS.map((option) => (
@@ -313,56 +314,25 @@ export function ReapPage3Section({
             >
               {REAP_STATE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value} disabled={!option.enabled}>
-                  {option.label}{option.enabled ? "" : " (indisponível)"}
+                  {option.label}
+                  {option.enabled ? "" : " (indisponivel)"}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="form-group">
-            <label className="reap-label" htmlFor="mpaMunicipio">Município</label>
+            <label className="reap-label" htmlFor="mpaMunicipio">Municipio</label>
             <select
               id="mpaMunicipio"
               className="gps-select"
               value={settings.mpaMunicipio || ""}
               onChange={(e) => onUpdate({ mpaMunicipio: Number(e.target.value) })}
             >
-              <option value="">Selecione um município...</option>
+              <option value="">Selecione um municipio...</option>
               {fishingMunicipios.map((municipio) => (
                 <option key={municipio.id} value={municipio.id}>
                   {municipio.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="reap-label" htmlFor="mpaPetrecho">Petrecho de pesca</label>
-            <select
-              id="mpaPetrecho"
-              className="gps-select"
-              value={settings.mpaPetrecho ?? 4}
-              onChange={(e) => onUpdate({ mpaPetrecho: Number(e.target.value) })}
-            >
-              {APETRECHOS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="reap-label" htmlFor="mpaAmbiente">Ambiente de pesca</label>
-            <select
-              id="mpaAmbiente"
-              className="gps-select"
-              value={settings.mpaAmbiente ?? 1}
-              onChange={(e) => onUpdate({ mpaAmbiente: Number(e.target.value) })}
-            >
-              {FISHING_ENVIRONMENT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
                 </option>
               ))}
             </select>

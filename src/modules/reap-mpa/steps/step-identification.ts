@@ -1,6 +1,7 @@
-import { Utils } from '../utils/dom-utils';
+import { Utils } from "../utils/dom-utils";
 import { IWorkflowManager } from "../types";
-import { MUNICIPIOS_LIST } from '../../../shared/data/municipios';
+import { MUNICIPIOS_LIST } from "../../../shared/data/municipios";
+import { getReapStateLabel, normalizeReapSettings } from "../reap-settings";
 
 function normalizeText(value: string | null | undefined) {
   return (value || "")
@@ -54,22 +55,26 @@ export const Page1 = {
     Array.from(document.querySelectorAll("h4")).some((heading) =>
       normalizeText(heading.textContent).includes("SITUACAO DO(A) PESCADOR(A)"),
     ) &&
-    getFieldValueByLabel("Nº do RGP") !== "",
+    getFieldValueByLabel("NÂº do RGP") !== "",
   execute: async (manager: IWorkflowManager) => {
-    console.log("REAP: Validando PÃ¡gina 1...");
+    console.log("REAP: Validando Pagina 1...");
 
-    const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
-    const municipio = MUNICIPIOS_LIST.find((m) => m.id === settings.mpaMunicipio);
+    const rawSettings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+    const settings = normalizeReapSettings(rawSettings);
+    const municipio = MUNICIPIOS_LIST.find((m) => m.id === settings.mpaResidenceMunicipio);
     const municipioName = municipio?.nome || "";
+    const estadoResidencia = getReapStateLabel(settings.mpaResidenceUF);
 
     const validations: Array<[string, string]> = [
-      ["Estado de residência", "PARA"],
-      ["Município de residência", municipioName],
+      ["Estado de residÃªncia", estadoResidencia],
+      ["MunicÃ­pio de residÃªncia", municipioName],
       ["Categoria", "Artesanal"],
-      ["Forma de atuação", "Desembarcado"],
+      ["Forma de atuaÃ§Ã£o", "Desembarcado"],
     ];
 
     const hasMismatch = validations.some(([label, expected]) => {
+      if (!expected) return false;
+
       const value = getFieldValueByLabel(label);
       if (!value || normalizeText(value).includes(normalizeText(expected))) {
         return false;
@@ -85,8 +90,6 @@ export const Page1 = {
       return;
     }
 
-    (
-      document.querySelector('button[data-action="avancar"]') as HTMLElement
-    )?.click();
+    (document.querySelector('button[data-action="avancar"]') as HTMLElement)?.click();
   },
 };
