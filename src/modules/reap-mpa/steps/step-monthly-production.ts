@@ -4,6 +4,13 @@ import { ProductionGenerator } from '../generators/fish-production';
 import { Utils } from '../utils/dom-utils';
 import { IWorkflowManager } from "../types";
 import { MUNICIPIOS_LIST } from '../../../shared/data/municipios';
+import {
+  getEffectiveFishingMethod,
+  getReapFishingLocationLabel,
+  getReapFishingMethodLabel,
+  getReapStateLabel,
+  normalizeReapSettings,
+} from '../reap-settings';
 
 const MONTHS_MAP: Record<string, number> = {
   JANEIRO: 0, FEVEREIRO: 1, MARÇO: 2, MARCO: 2, ABRIL: 3, MAIO: 4, JUNHO: 5,
@@ -57,7 +64,8 @@ export const Page3 = {
   },
 
   ensureInitialData: async () => {
-    const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+    const rawSettings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+    const settings = normalizeReapSettings(rawSettings);
 
     if (!State.daysMap || Object.keys(State.daysMap).length === 0) {
       State.daysMap = DaysGenerator.generate(State.gender, settings);
@@ -168,12 +176,17 @@ export const Page3 = {
       .find(el => el.textContent?.includes("Área"))?.closest(".br-table") as HTMLElement;
     if (!areaTable) return;
 
-    await Utils.selectOption(areaTable.querySelector("td:nth-child(1) .br-select") as HTMLElement, "Rio");
-    await Utils.selectOption(areaTable.querySelector("td:nth-child(2) .br-select") as HTMLElement, "PARA");
+    const rawSettings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
+    const settings = normalizeReapSettings(rawSettings);
+    const localPescaLabel = getReapFishingLocationLabel(settings.mpaLocalPesca || 6) || "Rio";
+    const estadoLabel = getReapStateLabel(settings.mpaUF || 5) || "PARA";
+    const metodoLabel = getReapFishingMethodLabel(getEffectiveFishingMethod(settings)) || "Emalhe";
+
+    await Utils.selectOption(areaTable.querySelector("td:nth-child(1) .br-select") as HTMLElement, localPescaLabel);
+    await Utils.selectOption(areaTable.querySelector("td:nth-child(2) .br-select") as HTMLElement, estadoLabel);
 
     const munSelect = areaTable.querySelector("td:nth-child(3) .br-select") as HTMLElement;
     if (munSelect) {
-      const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
       const municipio = MUNICIPIOS_LIST.find(m => m.id === settings.mpaMunicipio);
       const municipioName = municipio?.nome || "";
 
@@ -184,7 +197,7 @@ export const Page3 = {
         attempts++;
       }
     }
-    await Utils.selectOption(areaTable.querySelector("td:nth-child(5) .br-select") as HTMLElement, "Emalhe");
+    await Utils.selectOption(areaTable.querySelector("td:nth-child(5) .br-select") as HTMLElement, metodoLabel);
     await Utils.selectOption(areaTable.querySelector("td:nth-child(6) .br-select") as HTMLElement, "Água Doce");
   },
 
