@@ -171,7 +171,7 @@ export function ReapSpeciesSection({
                     borderRadius: "2px",
                     background: isOptional ? "transparent" : "var(--color-accent-soft)",
                     color: isOptional ? "var(--color-muted)" : "var(--color-accent)",
-                    border: isOptional ? "1px solid var(--color-border)" : "1px solid rgba(196,144,32,0.3)",
+                    border: isOptional ? "1px solid var(--color-border)" : "1px solid rgba(15,118,110,0.3)",
                   }}>
                     {isOptional ? "OPCIONAL" : "OBRIG."}
                   </span>
@@ -192,7 +192,7 @@ export function ReapSpeciesSection({
                     { key: "priceMax", label: "R$ MÁX" },
                   ].map(({ key, label }) => (
                     <div key={key} className="stack" style={{ gap: "3px" }}>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: "8px", fontWeight: 600, letterSpacing: "0.06em", color: "var(--color-muted)", textAlign: "center" }}>
+                      <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-muted)", textAlign: "center" }}>
                         {label}
                       </span>
                       <input
@@ -213,12 +213,12 @@ export function ReapSpeciesSection({
         </div>
 
         {filled < 4 && (
-          <p style={{ fontFamily: "var(--mono)", fontSize: "10px", color: "var(--color-danger)", textAlign: "center", margin: 0, letterSpacing: "0.04em" }}>
+          <p style={{ fontSize: "11px", color: "var(--color-danger)", textAlign: "center", margin: 0 }}>
             Preencha ao menos 4 espécies.
           </p>
         )}
         {filled >= 4 && filled < count && (
-          <p style={{ fontFamily: "var(--mono)", fontSize: "10px", color: "var(--color-warning)", textAlign: "center", margin: 0, letterSpacing: "0.04em" }}>
+          <p style={{ fontSize: "11px", color: "var(--color-warning)", textAlign: "center", margin: 0 }}>
             {filled} preenchida(s) / {count} selecionada(s) — serão usadas {filled}.
           </p>
         )}

@@ -60,7 +60,7 @@ export function ReapDocumentSection({
                   background: active ? "var(--color-accent-soft)" : "var(--color-surface-alt)",
                   cursor: "pointer",
                   fontSize: "11px",
-                  fontFamily: "var(--mono)",
+                  fontFamily: "var(--sans)",
                   fontWeight: 600,
                   letterSpacing: "0.04em",
                   color: active ? "var(--color-accent-strong)" : "var(--color-text)",
@@ -96,11 +96,11 @@ export function ReapDocumentSection({
               Selecionar PDF
             </button>
             {cachedPdfFilename ? (
-              <p style={{ fontSize: "10px", color: "var(--color-success)", margin: 0, fontFamily: "var(--mono)" }}>
+              <p style={{ fontSize: "10px", color: "var(--color-success)", margin: 0, fontFamily: "var(--sans)" }}>
                 {cachedPdfFilename}
               </p>
             ) : (
-              <p style={{ fontSize: "10px", color: "var(--color-muted)", margin: 0, fontFamily: "var(--mono)" }}>
+              <p style={{ fontSize: "10px", color: "var(--color-muted)", margin: 0, fontFamily: "var(--sans)" }}>
                 Nenhum PDF selecionado
               </p>
             )}
@@ -108,7 +108,7 @@ export function ReapDocumentSection({
         )}
 
         {mode === "url" && (
-          <p style={{ fontSize: "10px", color: "var(--color-muted)", margin: 0, fontFamily: "var(--mono)" }}>
+          <p style={{ fontSize: "10px", color: "var(--color-muted)", margin: 0, fontFamily: "var(--sans)" }}>
             {IBAMA_PDF_FILENAME} — baixado automaticamente pelo Turbo.
           </p>
         )}
