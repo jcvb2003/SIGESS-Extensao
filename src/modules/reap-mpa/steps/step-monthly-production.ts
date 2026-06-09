@@ -11,7 +11,8 @@ import {
   getReapStateLabel,
   normalizeReapSettings,
 } from '../reap-settings';
-import { isDefesoMonth } from "../monthly-plan";
+import { TurboMesConfig } from "../../../shared/types";
+import { buildMonthPlan } from "../monthly-plan";
 
 const MONTHS_MAP: Record<string, number> = {
   JANEIRO: 0, FEVEREIRO: 1, MARÇO: 2, MARCO: 2, ABRIL: 3, MAIO: 4, JUNHO: 5,
@@ -140,27 +141,30 @@ export const Page3 = {
     const activeContent = monthAccordion.querySelector(".content") as HTMLElement;
     if (!activeContent) return;
 
-    if (isDefesoMonth(settings, realMonthIndex + 1)) {
-      await Page3.fillDefeso(activeContent);
+    const monthPlan = buildMonthPlan(settings, realMonthIndex, State.daysMap, State.production);
+
+    if (!monthPlan.houvePesca) {
+      await Page3.fillDefeso(activeContent, monthPlan);
     } else {
-      await Page3.fillNormalMonth(activeContent, realMonthIndex);
+      await Page3.fillNormalMonth(activeContent, monthPlan, settings);
     }
     await Utils.sleep(500);
   },
 
-  fillDefeso: async (activeContent: HTMLElement) => {
+  fillDefeso: async (activeContent: HTMLElement, monthPlan: TurboMesConfig) => {
     const radioNao = activeContent.querySelector(`input[name*="houvePesca"][value="false"]`) as HTMLInputElement;
     if (radioNao && !radioNao.checked) {
       activeContent.querySelector(`label[for="${radioNao.id}"]`)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Utils.sleep(400);
     }
-    const checkDefeso = activeContent.querySelector(`input[name*="justificativasNaoDeclaracao"][value="1"]`) as HTMLInputElement;
+    const justificativa = Number(monthPlan.justificativa ?? 1);
+    const checkDefeso = activeContent.querySelector(`input[name*="justificativasNaoDeclaracao"][value="${justificativa}"]`) as HTMLInputElement;
     if (checkDefeso && !checkDefeso.checked) {
       activeContent.querySelector(`label[for="${checkDefeso.id}"]`)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     }
   },
 
-  fillNormalMonth: async (activeContent: HTMLElement, realMonthIndex: number) => {
+  fillNormalMonth: async (activeContent: HTMLElement, monthPlan: TurboMesConfig, settings: any) => {
     const radioSim = activeContent.querySelector(`input[name*="houvePesca"][value="true"]`) as HTMLInputElement;
     if (radioSim && !radioSim.checked) {
       activeContent.querySelector(`label[for="${radioSim.id}"]`)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -168,19 +172,17 @@ export const Page3 = {
     }
 
     const diasInput = activeContent.querySelector(`input[name*="diasTrabalhados"]`) as HTMLInputElement;
-    if (diasInput) Utils.setReactInput(diasInput, String(State.daysMap[realMonthIndex] || 16));
+    if (diasInput) Utils.setReactInput(diasInput, String(monthPlan.diasTrabalhados ?? 16));
 
-    await Page3.fillAreaTable(activeContent);
-    await Page3.fillProductionTable(activeContent, realMonthIndex);
+    await Page3.fillAreaTable(activeContent, settings);
+    await Page3.fillProductionTable(activeContent, monthPlan, settings);
   },
 
-  fillAreaTable: async (activeContent: HTMLElement) => {
+  fillAreaTable: async (activeContent: HTMLElement, settings: any) => {
     const areaTable = Array.from(activeContent.querySelectorAll(".table-title"))
       .find(el => el.textContent?.includes("Área"))?.closest(".br-table") as HTMLElement;
     if (!areaTable) return;
 
-    const rawSettings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
-    const settings = normalizeReapSettings(rawSettings);
     const localPescaLabel = getReapFishingLocationLabel(settings.mpaLocalPesca || 6) || "Rio";
     const estadoLabel = getReapStateLabel(settings.mpaUF || 5) || "PARA";
     const metodoLabel = getReapFishingMethodLabel(getEffectiveFishingMethod(settings)) || "Emalhe";
@@ -204,24 +206,20 @@ export const Page3 = {
     await Utils.selectOption(areaTable.querySelector("td:nth-child(6) .br-select") as HTMLElement, "Água Doce");
   },
 
-  fillProductionTable: async (activeContent: HTMLElement, realMonthIndex: number) => {
+  fillProductionTable: async (activeContent: HTMLElement, monthPlan: TurboMesConfig, settings: any) => {
     const prodTable = Array.from(activeContent.querySelectorAll(".table-title"))
       .find(el => el.textContent?.includes("Resultado"))?.closest(".br-table") as HTMLElement;
     if (!prodTable) return;
 
-    const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
     const targetSpeciesLabel = settings.mpaEspecieLabel || "";
+    const species = monthPlan.especies || [];
 
-    for (let fishIdx = 0; fishIdx < State.production.length; fishIdx++) {
-      const fish = State.production[fishIdx];
-      const monthlyKg = fish.monthlyKg[realMonthIndex] || 0;
-      if (monthlyKg === 0) continue;
-
+    for (let fishIdx = 0; fishIdx < species.length; fishIdx++) {
       await Page3.ensureRowExists(prodTable, fishIdx);
       const row = prodTable.querySelectorAll("tbody tr")[fishIdx] as HTMLElement;
       if (!row) continue;
 
-      await Page3.fillProductionRow(row, fish, monthlyKg, targetSpeciesLabel);
+      await Page3.fillProductionRow(row, species[fishIdx], targetSpeciesLabel);
     }
   },
 
@@ -236,16 +234,17 @@ export const Page3 = {
     }
   },
 
-  fillProductionRow: async (row: HTMLElement, fish: any, monthlyKg: number, targetSpeciesLabel: string) => {
+  fillProductionRow: async (row: HTMLElement, especie: any, targetSpeciesLabel: string) => {
     const specSelect = row.querySelector("td:nth-child(1) .br-select") as HTMLElement;
-    if (specSelect) await Utils.fillAutocomplete(specSelect, targetSpeciesLabel || fish.name);
+    const fallbackSpeciesName = State.production.find((fish) => fish.id === especie.especiePescado)?.name || "";
+    if (specSelect) await Utils.fillAutocomplete(specSelect, targetSpeciesLabel || fallbackSpeciesName);
     await Utils.selectOption(row.querySelector("td:nth-child(2) .br-select") as HTMLElement, "Quilo");
 
     const qtdInput = row.querySelector("td:nth-child(3) input") as HTMLInputElement;
-    if (qtdInput) Utils.setReactInput(qtdInput, String(monthlyKg));
+    if (qtdInput) Utils.setReactInput(qtdInput, String(especie.quantidade));
 
     const valInput = row.querySelector("td:nth-child(4) input") as HTMLInputElement;
-    if (valInput) Utils.setReactInput(valInput, fish.price.toFixed(2).replace(".", ","));
+    if (valInput) Utils.setReactInput(valInput, Number(especie.valorMedioQuilo).toFixed(2).replace(".", ","));
     await Utils.sleep(300);
   }
 };
