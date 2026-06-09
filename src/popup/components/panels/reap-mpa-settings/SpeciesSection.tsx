@@ -147,33 +147,34 @@ export function ReapSpeciesSection({
                 key={idx}
                 style={{
                   background: "var(--color-surface-alt)",
-                  padding: "10px",
-                  borderRadius: "4px",
+                  padding: "10px 12px",
+                  borderRadius: "8px",
                   border: "1px solid var(--color-border)",
+                  borderLeft: isOptional
+                    ? "3px solid var(--color-border-strong)"
+                    : "3px solid var(--color-accent)",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <span style={{
                     fontFamily: "var(--mono)",
-                    fontSize: "10px",
-                    fontWeight: 600,
-                    letterSpacing: "0.08em",
-                    color: "var(--color-accent)",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    color: isOptional ? "var(--color-muted)" : "var(--color-accent)",
                   }}>
-                    ESP {String(idx + 1).padStart(2, "0")}
+                    {String(idx + 1).padStart(2, "0")}
                   </span>
                   <span style={{
-                    fontSize: "9px",
+                    fontSize: "10px",
                     fontWeight: 600,
-                    fontFamily: "var(--mono)",
-                    letterSpacing: "0.06em",
-                    padding: "2px 7px",
-                    borderRadius: "2px",
+                    padding: "2px 8px",
+                    borderRadius: "999px",
                     background: isOptional ? "transparent" : "var(--color-accent-soft)",
-                    color: isOptional ? "var(--color-muted)" : "var(--color-accent)",
-                    border: isOptional ? "1px solid var(--color-border)" : "1px solid rgba(15,118,110,0.3)",
+                    color: isOptional ? "var(--color-muted)" : "var(--color-accent-strong)",
+                    border: isOptional ? "1px solid var(--color-border)" : "none",
                   }}>
-                    {isOptional ? "OPCIONAL" : "OBRIG."}
+                    {isOptional ? "opcional" : "obrigatória"}
                   </span>
                 </div>
 
@@ -243,23 +244,30 @@ export function ReapSpeciesSection({
           const hasMasc = mascMin > 0 && mascMax > 0 && fishingCount > 0;
           const hasFem = femMin > 0 && femMax > 0 && fishingCount > 0;
 
-          const panelStyle: React.CSSProperties = {
-            background: "var(--color-surface-alt)",
-            padding: "12px",
-            borderRadius: "4px",
-            border: "1px solid var(--color-border)",
+          const panelColors: Record<string, { accent: string; soft: string }> = {
+            MASCULINO: { accent: "#2563eb", soft: "rgba(37,99,235,0.08)" },
+            FEMININO:  { accent: "#db2777", soft: "rgba(219,39,119,0.08)" },
           };
 
-          const panelHeader: React.CSSProperties = {
-            fontFamily: "var(--mono)",
-            fontSize: "10px",
-            fontWeight: 600,
-            letterSpacing: "0.1em",
-            color: "var(--color-text)",
-            textAlign: "center" as const,
+          const panelStyle = (_label: string): React.CSSProperties => ({
+            background: "var(--color-surface-alt)",
+            padding: "0",
+            borderRadius: "8px",
+            border: "1px solid var(--color-border)",
+            overflow: "hidden",
+          });
+
+          const panelHeader = (label: string): React.CSSProperties => ({
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "8px 12px",
             borderBottom: "1px solid var(--color-border)",
-            paddingBottom: "8px",
-            marginBottom: "10px",
+            background: panelColors[label]?.soft ?? "var(--color-surface-alt)",
+          });
+
+          const panelBody: React.CSSProperties = {
+            padding: "12px",
           };
 
           return (
@@ -312,9 +320,20 @@ export function ReapSpeciesSection({
                   daysMaxVal: settings.mpaFemDaysMax || "",
                 },
               ].map((panel) => (
-                <div key={panel.label} style={panelStyle}>
-                  <div style={panelHeader}>{panel.label}</div>
-                  <div className="stack" style={{ gap: "10px" }}>
+                <div key={panel.label} style={panelStyle(panel.label)}>
+                  <div style={panelHeader(panel.label)}>
+                    <span style={{
+                      width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0,
+                      background: panelColors[panel.label]?.accent ?? "var(--color-accent)",
+                    }} />
+                    <span style={{
+                      fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em",
+                      color: panelColors[panel.label]?.accent ?? "var(--color-text-strong)",
+                    }}>
+                      {panel.label}
+                    </span>
+                  </div>
+                  <div className="stack" style={{ ...panelBody, gap: "10px" }}>
                     <div>
                       <label htmlFor={`${panel.daysMinId}-prod`} className="reap-label" style={{ marginBottom: "4px" }}>
                         Produção (R$)
