@@ -50,17 +50,8 @@ export const AgroManager = {
     if (!container) throw new Error("br-select container not found");
     const button = container.querySelector("button");
     await Utils.waitFor(() => button !== null && !button.disabled);
-    button?.click();
-    await Utils.waitFor(() =>
-      [...container.querySelectorAll("label")].some(
-        (l) => l.textContent?.includes(optionText) === true,
-      ),
-    );
-    const opt = [...container.querySelectorAll("label")].find(
-      (l) => l.textContent?.includes(optionText) === true,
-    ) as HTMLElement;
-    if (!opt) throw new Error(`Option not found: ${optionText}`);
-    opt.click();
+    const selected = await Utils.selectOption(container as HTMLElement, optionText);
+    if (!selected) throw new Error(`Option not found: ${optionText}`);
     await Utils.sleep(400);
   },
 
