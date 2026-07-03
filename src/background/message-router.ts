@@ -150,7 +150,9 @@ async function handleGetESocialAutomationContext(
   return {
     success: true,
     data: {
-      gerarGps: Boolean(settings.gerarGps),
+      // gerarGps só dispara se a aba veio de um batch (tem credenciais no storage).
+      // Navegação manual nunca tem credenciais → não aciona o fluxo de geração.
+      gerarGps: credentials ? Boolean(settings.gerarGps) : false,
       selectedYear: settings.selectedYear || "current",
       selectedMonth: month,
       competencia,
