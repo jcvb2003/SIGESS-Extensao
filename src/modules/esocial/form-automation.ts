@@ -20,7 +20,9 @@ const browserAPI =
   typeof browser !== "undefined" ? browser : (window as any).chrome;
 
 type ESocialAutomationContext = {
+  isBatchTab?: boolean;
   gerarGps?: boolean;
+  consultarGuias?: boolean;
   selectedYear?: string;
   selectedMonth?: string;
   competencia?: string;
@@ -138,20 +140,24 @@ function start(settings: AppSettings) {
   }
 }
 
-browserAPI.storage.local.get(["sigessSettings"], (result: any) => {
-  const settings = result.sigessSettings as AppSettings;
-  if (settings) {
-    start(settings);
-  }
-});
+async function init() {
+  const response = await browserAPI.runtime.sendMessage({
+    action: "getESocialAutomationContext",
+  });
 
-browserAPI.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: (response: any) => void) => {
-  if (message.action === "updateESocialSettings") {
-    const settings = message.settings as AppSettings;
-    start(settings);
-    sendResponse({ success: true });
+  if (!response?.success || !response.data?.isBatchTab) {
     return;
   }
-  // Don't interfere with other messages
-  return false;
-});
+
+  const ctx = response.data as ESocialAutomationContext;
+  const settings = {
+    gerarGps: ctx.gerarGps ?? false,
+    consultarGuias: ctx.consultarGuias ?? false,
+    selectedYear: ctx.selectedYear ?? "current",
+    selectedMonth: ctx.selectedMonth ?? "",
+    valorComercializado: ctx.valorComercializado ?? "",
+  } as AppSettings;
+  start(settings);
+}
+
+void init();

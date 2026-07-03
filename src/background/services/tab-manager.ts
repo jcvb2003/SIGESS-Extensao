@@ -61,6 +61,10 @@ export class TabManager {
     nome?: string,
     portalType?: "pesqbrasil" | "esocial",
     valorComercializado?: string,
+    gerarGps?: boolean,
+    consultarGuias?: boolean,
+    selectedYear?: string,
+    selectedMonth?: string,
   ): Promise<void> {
     try {
       const resolvedPortalType =
@@ -99,6 +103,10 @@ export class TabManager {
           nome,
           valorComercializado,
           portalType: resolvedPortalType,
+          gerarGps,
+          consultarGuias,
+          selectedYear,
+          selectedMonth,
           loginConcluido: false,
           govBrCpfSubmitted: false,
           govBrPasswordSubmitted: false,

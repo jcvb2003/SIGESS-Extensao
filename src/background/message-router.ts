@@ -138,28 +138,32 @@ async function handleGetESocialAutomationSettings(): Promise<MessageResponse> {
 async function handleGetESocialAutomationContext(
   sender?: browser.runtime.MessageSender,
 ): Promise<MessageResponse> {
-  const settings = await StorageService.getSettings();
-  const rawYear = (settings.selectedYear || "").trim();
-  const month = (settings.selectedMonth || "").padStart(2, "0");
-  const year = rawYear === "current" ? String(new Date().getFullYear()) : rawYear;
-  const competencia = year && month && /^\d{4}$/.test(year) && /^\d{2}$/.test(month)
-    ? `${year}${month}`
-    : "";
   const tabId = sender?.tab?.id;
   const credentials = typeof tabId === "number"
     ? await StorageService.getCredentials(tabId)
     : null;
 
+  if (!credentials) {
+    return { success: true, data: { isBatchTab: false } };
+  }
+
+  const selectedYear = (credentials.selectedYear || "current").trim();
+  const selectedMonth = (credentials.selectedMonth || "").padStart(2, "0");
+  const year = selectedYear === "current" ? String(new Date().getFullYear()) : selectedYear;
+  const competencia = year && selectedMonth && /^\d{4}$/.test(year) && /^\d{2}$/.test(selectedMonth)
+    ? `${year}${selectedMonth}`
+    : "";
+
   return {
     success: true,
     data: {
-      gerarGps: Boolean(settings.gerarGps),
-      selectedYear: settings.selectedYear || "current",
-      selectedMonth: month,
+      isBatchTab: true,
+      gerarGps: Boolean(credentials.gerarGps),
+      consultarGuias: Boolean(credentials.consultarGuias),
+      selectedYear,
+      selectedMonth,
       competencia,
-      // valorComercializado só existe no contexto de batch (credenciais da aba).
-      // Navegação manual retorna string vazia — o gps-flow decide se prossegue.
-      valorComercializado: credentials?.valorComercializado || "",
+      valorComercializado: credentials.valorComercializado || "",
     },
   };
 }
@@ -252,6 +256,10 @@ async function handleStartBatchLogin(
         cred.nome || formatCpf(cred.cpf),
         type as "pesqbrasil" | "esocial",
         cred.valorComercializado,
+        cred.gerarGps,
+        cred.consultarGuias,
+        cred.selectedYear,
+        cred.selectedMonth,
       ),
     ),
   );
@@ -327,14 +335,19 @@ async function handleAbrirAbaContainer(
   }
 
   const randIndex = Math.floor(Math.random() * 1000);
+  const isEsocial = url.includes("esocial");
   await getTabManager().createSession(
     url,
     cpf,
     senha,
     randIndex,
     nome,
-    url.includes("esocial") ? "esocial" : "pesqbrasil",
+    isEsocial ? "esocial" : "pesqbrasil",
     valorComercializado,
+    isEsocial ? Boolean(settings.gerarGps) : undefined,
+    isEsocial ? Boolean(settings.consultarGuias) : undefined,
+    isEsocial ? settings.selectedYear : undefined,
+    isEsocial ? settings.selectedMonth : undefined,
   );
   return { success: true };
 }
@@ -398,6 +411,10 @@ async function handleEnqueueGovBatchSessions(
       senha: item.senha,
       url: item.url,
       valorComercializado: item.valorComercializado,
+      gerarGps: item.gerarGps,
+      consultarGuias: item.consultarGuias,
+      selectedYear: item.selectedYear,
+      selectedMonth: item.selectedMonth,
       type: "esocial",
       timestamp: Date.now(),
     });
@@ -419,6 +436,10 @@ async function handleEnqueueGovBatchSessions(
     senha: item.senha,
     nome: item.nome,
     valorComercializado: item.valorComercializado,
+    gerarGps: item.gerarGps,
+    consultarGuias: item.consultarGuias,
+    selectedYear: item.selectedYear,
+    selectedMonth: item.selectedMonth,
   }));
 
   const openResult = await handleStartBatchLogin(

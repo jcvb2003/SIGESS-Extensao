@@ -4,6 +4,10 @@ export interface UserCredentials {
   nome?: string;
   valorComercializado?: string;
   portalType?: "pesqbrasil" | "esocial";
+  gerarGps?: boolean;
+  consultarGuias?: boolean;
+  selectedYear?: string;
+  selectedMonth?: string;
   progressStep?: number;
   progressTotal?: number;
   loginConcluido?: boolean;
@@ -49,6 +53,10 @@ export interface MultiLoginItem {
   senha: string;
   url: string;
   valorComercializado?: string;
+  gerarGps?: boolean;
+  consultarGuias?: boolean;
+  selectedYear?: string;
+  selectedMonth?: string;
   type: 'pesqbrasil' | 'esocial';
   timestamp: number;
 }
@@ -59,6 +67,10 @@ export interface GovBatchQueueItem {
   nome?: string;
   url: string;
   valorComercializado?: string;
+  gerarGps?: boolean;
+  consultarGuias?: boolean;
+  selectedYear?: string;
+  selectedMonth?: string;
 }
 
 export interface AppSettings {
