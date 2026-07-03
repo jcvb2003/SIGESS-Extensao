@@ -143,7 +143,7 @@ async function handleGetESocialAutomationContext(
     ? await StorageService.getCredentials(tabId)
     : null;
 
-  if (!credentials) {
+  if (!credentials || (!credentials.gerarGps && !credentials.consultarGuias)) {
     return { success: true, data: { isBatchTab: false } };
   }
 
@@ -344,10 +344,6 @@ async function handleAbrirAbaContainer(
     nome,
     isEsocial ? "esocial" : "pesqbrasil",
     valorComercializado,
-    isEsocial ? Boolean(settings.gerarGps) : undefined,
-    isEsocial ? Boolean(settings.consultarGuias) : undefined,
-    isEsocial ? settings.selectedYear : undefined,
-    isEsocial ? settings.selectedMonth : undefined,
   );
   return { success: true };
 }
