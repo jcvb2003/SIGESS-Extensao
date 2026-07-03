@@ -128,6 +128,9 @@ async function handleGetESocialAutomationSettings(): Promise<MessageResponse> {
     data: {
       competencia,
       gerarGps: Boolean(settings.gerarGps),
+      consultarGuias: Boolean(settings.consultarGuias),
+      selectedYear: settings.selectedYear || "current",
+      selectedMonth: month,
     },
   };
 }
@@ -150,12 +153,12 @@ async function handleGetESocialAutomationContext(
   return {
     success: true,
     data: {
-      // gerarGps só dispara se a aba veio de um batch (tem credenciais no storage).
-      // Navegação manual nunca tem credenciais → não aciona o fluxo de geração.
-      gerarGps: credentials ? Boolean(settings.gerarGps) : false,
+      gerarGps: Boolean(settings.gerarGps),
       selectedYear: settings.selectedYear || "current",
       selectedMonth: month,
       competencia,
+      // valorComercializado só existe no contexto de batch (credenciais da aba).
+      // Navegação manual retorna string vazia — o gps-flow decide se prossegue.
       valorComercializado: credentials?.valorComercializado || "",
     },
   };

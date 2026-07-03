@@ -8,12 +8,14 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   "getESocialAutomationSettings",
   "getAutoRegistrationSnapshot",
   "abrirAbaContainer",
+  "updateESocialSettings",
 ]);
 
 const UPDATE_ALLOWED_MESSAGE_TYPES = new Set([
   "getGovBatchStatuses",
   "getESocialAutomationSettings",
   "getAutoRegistrationSnapshot",
+  "updateESocialSettings",
 ]);
 const EXTENSION_EVENT_TYPE = "SIGESS_EXTENSION_EVENT";
 const ESOCIAL_SETTINGS_EVENT_NAME = "esocialAutomationSettingsChanged";
@@ -21,6 +23,9 @@ const ESOCIAL_SETTINGS_EVENT_NAME = "esocialAutomationSettingsChanged";
 type ESocialAutomationSettingsSnapshot = {
   competencia: string;
   gerarGps: boolean;
+  consultarGuias: boolean;
+  selectedYear: string;
+  selectedMonth: string;
 };
 
 function buildESocialAutomationSnapshot(settings: Record<string, unknown>): ESocialAutomationSettingsSnapshot {
@@ -35,6 +40,9 @@ function buildESocialAutomationSnapshot(settings: Record<string, unknown>): ESoc
   return {
     competencia,
     gerarGps: Boolean(settings.gerarGps),
+    consultarGuias: Boolean(settings.consultarGuias),
+    selectedYear: rawYear || "current",
+    selectedMonth: month,
   };
 }
 

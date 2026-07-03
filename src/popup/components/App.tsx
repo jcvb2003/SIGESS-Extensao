@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { UserCredentials } from "../../shared/types";
-import ESocialPanel from "./panels/ESocialPanel";
 import { LoginSection } from "./panels/LoginSection";
 
 import ReapMpaPanel from "./panels/ReapMpaPanel";
@@ -167,7 +166,6 @@ const AppContent: React.FC = () => {
   const [openSections, setOpenSections] = useState({
     login: false,
     autoRegistration: false,
-    esocial: false,
     reapMpa: false,
     sdpa: false,
   });
@@ -248,7 +246,6 @@ const AppContent: React.FC = () => {
       const newState = {
         login: false,
         autoRegistration: false,
-        esocial: false,
         reapMpa: false,
         sdpa: false,
       };
@@ -321,31 +318,6 @@ const AppContent: React.FC = () => {
           >
             <div className="section-content">
               <AutoRegistrationPanel settings={settings} onUpdate={updateSettings} />
-            </div>
-          </div>
-        </section>
-
-        <section className="section accordion">
-          <button
-            type="button"
-            className="accordion-header"
-            aria-expanded={openSections.esocial}
-            onClick={() => toggleSection("esocial")}
-          >
-            <div className="section-header">
-              <h2 className="section-title">eSocial</h2>
-              <p className="section-description">
-                Configurações de automação para o eSocial
-              </p>
-            </div>
-            <ExpandIcon isOpen={openSections.esocial} />
-          </button>
-          <div
-            className={`accordion-content ${openSections.esocial ? "open" : "collapsed"
-              }`}
-          >
-            <div className="section-content">
-              <ESocialPanel settings={settings} onUpdate={updateSettings} />
             </div>
           </div>
         </section>

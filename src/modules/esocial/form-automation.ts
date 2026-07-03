@@ -1,5 +1,6 @@
 import { AppSettings } from "../../shared/types";
 import { logger } from "../../shared/services/logger";
+import { Utils } from "../../shared/utils/dom-helpers";
 import {
   hydrateEsocialProgressOverlay,
   clearEsocialProgressOverlay,
@@ -26,11 +27,38 @@ type ESocialAutomationContext = {
   valorComercializado?: string;
 };
 
+const CONSULTAR_REDIR_KEY = "sigess_last_redir_guias";
+const COMPETENCIAS_URL = "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias";
+
 function isHomePage(): boolean {
   return (
     window.location.href.includes("Home/Inicial") ||
     window.location.href.includes("tipoEmpregador=EMPREGADOR_DOMESTICO")
   );
+}
+
+function redirecionarParaConsulta(settings: AppSettings) {
+  if (!settings.consultarGuias || !isHomePage()) return;
+  const yearStr = settings.selectedYear || "current";
+  if (sessionStorage.getItem(CONSULTAR_REDIR_KEY) === yearStr) return;
+  sessionStorage.setItem(CONSULTAR_REDIR_KEY, yearStr);
+  window.location.href = COMPETENCIAS_URL;
+}
+
+async function automatizarCompetencias(settings: AppSettings) {
+  if (!window.location.href.includes("FolhaPagamento/Listagem/Competencias")) return;
+  if (!settings.consultarGuias) return;
+
+  const yearStr = settings.selectedYear || "current";
+  if (yearStr === "current") return;
+
+  const select = await Utils.waitForElement("#AnoFiltrado", 15000, document, false) as HTMLSelectElement | null;
+  if (!select || select.value === yearStr) return;
+
+  select.value = yearStr;
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+  const btn = await Utils.waitForElement("#btnFiltro", 5000, document, false);
+  if (btn) Utils.simulateClick(btn as HTMLElement);
 }
 
 async function executarFluxoGpsSeNecessario(settings: AppSettings) {
@@ -97,12 +125,15 @@ function start(settings: AppSettings) {
   }
 
   observarBotaoEmitirGuia();
+  redirecionarParaConsulta(settings);
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
+      automatizarCompetencias(settings);
       executarFluxoGpsSeNecessario(settings);
     });
   } else {
+    automatizarCompetencias(settings);
     executarFluxoGpsSeNecessario(settings);
   }
 }
