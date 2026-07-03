@@ -52,6 +52,9 @@ export const AgroManager = {
     await Utils.waitFor(() => button !== null && !button.disabled);
     const selected = await Utils.selectOption(container as HTMLElement, optionText);
     if (!selected) throw new Error(`Option not found: ${optionText}`);
+    input.blur();
+    button?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    document.body.click();
     await Utils.sleep(400);
   },
 
