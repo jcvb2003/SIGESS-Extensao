@@ -16,6 +16,11 @@ const UPDATE_ALLOWED_ACTIONS = new Set([
   "getAutoRegistrationSnapshot",
 ]);
 
+function formatCpf(cpf: string): string {
+  const digits = String(cpf).replace(/\D/g, "").padStart(11, "0");
+  return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+}
+
 function isUrlAllowed(url: string): boolean {
   try {
     const { protocol, hostname } = new URL(url);
@@ -212,6 +217,22 @@ async function handleStartBatchLogin(
   };
   const targetUrl = urlMap[type as keyof typeof urlMap];
   if (!targetUrl) return { success: false, error: "Tipo de login inválido" };
+
+  const capturedSettings = await StorageService.getSettings();
+  const capturedCpf = capturedSettings.pessoaData?.cpf?.replace(/\D/g, "");
+  if (capturedCpf) {
+    const match = (credentials as any[]).find(
+      (cred) => String(cred.cpf).replace(/\D/g, "") === capturedCpf && cred.senha,
+    );
+    if (match) {
+      try {
+        await StorageService.mergePessoaData({ senhaGovInss: match.senha }, "SIGESS_WEB");
+      } catch {
+        // silencioso
+      }
+    }
+  }
+
   const results = await Promise.allSettled(
     credentials.map((cred: any, index: number) =>
       getTabManager().createSession(
@@ -219,7 +240,7 @@ async function handleStartBatchLogin(
         cred.cpf,
         cred.senha,
         index + 1,
-        cred.nome,
+        cred.nome || formatCpf(cred.cpf),
         type as "pesqbrasil" | "esocial",
         cred.valorComercializado,
       ),

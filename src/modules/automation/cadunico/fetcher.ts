@@ -126,7 +126,8 @@ async function fetchDetails(pessoaId: number, cpf: string, headers: CadUnicoHead
     escolaridade: mapEscolaridade(
       esc.cursoMaisElevadoQueFrequentou?.codigo,
       esc.concluiuOCursoQueFrequentou?.codigo,
-      esc.sabeLerEEscrever?.codigo
+      esc.sabeLerEEscrever?.codigo,
+      esc.cursoQueFrequenta?.codigo,
     ),
   };
 }
@@ -207,27 +208,49 @@ function mapEstadoCivil(codigo: number | undefined): string | undefined {
 function mapEscolaridade(
   cursoCodigo: number | undefined,
   concluiuCodigo: number | undefined,
-  sabeLerCodigo: number | undefined
+  sabeLerCodigo: number | undefined,
+  cursoAtualCodigo: number | undefined,
 ): string | undefined {
   const concluiu = concluiuCodigo === 1;
 
   switch (cursoCodigo) {
     case 3:
     case 9:
-      return "LÊ E ESCREVE";
+      return "FUNDAMENTAL I INCOMPLETO";
     case 4:
-      return "ENSINO FUNDAMENTAL INCOMPLETO";
+      return concluiu ? "FUNDAMENTAL I COMPLETO" : "FUNDAMENTAL I INCOMPLETO";
     case 5:
-      return concluiu ? "ENSINO FUNDAMENTAL COMPLETO" : "ENSINO FUNDAMENTAL INCOMPLETO";
+      return concluiu ? "FUNDAMENTAL II COMPLETO" : "FUNDAMENTAL II INCOMPLETO";
     case 6:
-      return concluiu ? "ENSINO MÉDIO COMPLETO" : "ENSINO MÉDIO INCOMPLETO";
-    case 7:
-      return concluiu ? "ENSINO SUPERIOR COMPLETO" : "ENSINO SUPERIOR INCOMPLETO";
     case 8:
-      return "ENSINO SUPERIOR COMPLETO";
+      return concluiu ? "MÉDIO COMPLETO" : "MÉDIO INCOMPLETO";
+    case 7:
+      return concluiu ? "SUPERIOR COMPLETO" : "SUPERIOR INCOMPLETO";
     case 10:
-      return sabeLerCodigo === 1 ? "LÊ E ESCREVE" : "ANALFABETO";
+      return sabeLerCodigo === 1 ? "FUNDAMENTAL I INCOMPLETO" : "ANALFABETO(A)";
     default:
-      return undefined;
+      break;
   }
+
+  // Fallback: usa o curso que está frequentando atualmente (sempre incompleto)
+  switch (cursoAtualCodigo) {
+    case 3:
+    case 4:
+      return "FUNDAMENTAL I INCOMPLETO";
+    case 5:
+    case 6:
+      return "FUNDAMENTAL II INCOMPLETO";
+    case 7:
+    case 8:
+      return "MÉDIO INCOMPLETO";
+    case 9:
+      return "SUPERIOR INCOMPLETO";
+    default:
+      break;
+  }
+
+  // Fallback final: alfabetização
+  if (sabeLerCodigo === 1) return "FUNDAMENTAL I INCOMPLETO";
+  if (sabeLerCodigo === 2) return "ANALFABETO(A)";
+  return undefined;
 }
