@@ -82,7 +82,6 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Preenchendo credenciais no Gov.BR...");
 
     const storedCreds = (await StorageService.getCredentials(tabId)) || creds;
-    const cpfSubmitted = !!storedCreds.govBrCpfSubmitted;
     const passwordSubmitted = !!storedCreds.govBrPasswordSubmitted;
 
     const isCpfScreen = await DOMInjector.execute(
@@ -98,14 +97,18 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
       try {
         await DOMInjector.waitForElement(tabId, "#accountId", 2500);
 
-        if (!cpfSubmitted) {
-          await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
-          await DOMInjector.clickElement(tabId, "#enter-account-id");
-          await StorageService.updateCredentials(tabId, {
-            govBrCpfSubmitted: true,
-            govBrPasswordSubmitted: false,
-          });
-        }
+        // Tela do CPF visível — reseta flags e resubmete (F5 ou nova navegação)
+        await StorageService.updateCredentials(tabId, {
+          govBrCpfSubmitted: false,
+          govBrPasswordSubmitted: false,
+        });
+
+        await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
+        await DOMInjector.clickElement(tabId, "#enter-account-id");
+        await StorageService.updateCredentials(tabId, {
+          govBrCpfSubmitted: true,
+          govBrPasswordSubmitted: false,
+        });
 
         const nextElement = await DOMInjector.waitForAnyElement(
           tabId,
