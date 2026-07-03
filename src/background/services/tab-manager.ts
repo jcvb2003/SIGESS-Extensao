@@ -216,8 +216,6 @@ export class TabManager {
     this.processingTabs.add(tabId);
 
     try {
-      await new Promise((r) => setTimeout(r, 2000));
-
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           await strategy.execute(tabId, tabUrl, credentials);
@@ -254,6 +252,28 @@ export class TabManager {
       "Aguardando página",
       host ? `Carregando ${host} para iniciar a automacao...` : "Aguardando a pagina ficar pronta...",
     );
+  }
+
+  async triggerReloginForTab(tabId: number): Promise<void> {
+    const tab = await browser.tabs.get(tabId);
+    if (!tab.url) return;
+
+    await StorageService.updateCredentials(tabId, {
+      loginConcluido: false,
+      govBrCpfSubmitted: false,
+      govBrPasswordSubmitted: false,
+    });
+
+    const credentials = await StorageService.getCredentials(tabId);
+    if (!credentials) return;
+
+    const portalType = credentials.portalType || "pesqbrasil";
+    const strategy = this.strategies.find((s) =>
+      portalType === "esocial" ? s.name === "eSocial" : s.name === "PesqBrasil",
+    );
+    if (!strategy) return;
+
+    await this.executeWithRetry(tabId, tab.url, credentials, strategy);
   }
 
   private extractHostLabel(url: string): string {

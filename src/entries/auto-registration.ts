@@ -28,7 +28,56 @@ async function initMain() {
 
   // ── Inicialização ────────────────────────────────────────────────────────
 
+  async function injectGovBrReloginButton() {
+    if (document.readyState === "loading") {
+      await new Promise<void>((resolve) =>
+        document.addEventListener("DOMContentLoaded", () => resolve(), { once: true }),
+      );
+    }
+
+    if (!document.querySelector("#accountId")) return;
+
+    const api = globalThis.browser || globalThis.chrome;
+    const response = await api.runtime.sendMessage({ action: "checkReloginEligible" }).catch(() => null);
+    if (!response?.eligible) return;
+
+    const target = document.querySelector("#enter-account-id");
+    if (!target || document.querySelector("#sigess-relogin-btn")) return;
+
+    const btn = document.createElement("button");
+    btn.id = "sigess-relogin-btn";
+    btn.type = "button";
+    btn.textContent = "Relogin SIGESS";
+    btn.style.cssText = [
+      "margin-left:8px",
+      "padding:0 16px",
+      "height:40px",
+      "border-radius:4px",
+      "border:2px solid #1351b4",
+      "background:#fff",
+      "color:#1351b4",
+      "font-size:14px",
+      "font-weight:600",
+      "cursor:pointer",
+      "vertical-align:middle",
+    ].join(";");
+
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Preenchendo...";
+      btn.style.opacity = "0.6";
+      await api.runtime.sendMessage({ action: "triggerRelogin" }).catch(() => null);
+    });
+
+    target.insertAdjacentElement("afterend", btn);
+  }
+
   async function startAutomation() {
+    if (globalThis.location.hostname === "sso.acesso.gov.br") {
+      await injectGovBrReloginButton();
+      return;
+    }
+
     // Correção para falha intermitente de redirecionamento no CadÚnico (Gov.br -> SuccessLogin sem token)
     if (
       globalThis.location.hostname.includes('cadunico.dataprev.gov.br') &&

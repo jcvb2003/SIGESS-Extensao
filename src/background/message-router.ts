@@ -92,6 +92,10 @@ export async function routeMessage(
         return await handleSavePessoaData(message);
       case "downloadESocialGuide":
         return await handleDownloadESocialGuide(message);
+      case "checkReloginEligible":
+        return await handleCheckReloginEligible(sender);
+      case "triggerRelogin":
+        return await handleTriggerRelogin(sender, getTabManager);
       default:
         logger.error("Extension", `Ação desconhecida: ${action}`);
         return {
@@ -607,6 +611,25 @@ async function handleSavePessoaData(message: MessageRequest) {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+}
+
+async function handleCheckReloginEligible(
+  sender?: browser.runtime.MessageSender,
+): Promise<MessageResponse> {
+  const tabId = sender?.tab?.id;
+  if (!tabId) return { success: true, eligible: false };
+  const creds = await StorageService.getCredentials(tabId);
+  return { success: true, eligible: !!creds?.loginConcluido };
+}
+
+async function handleTriggerRelogin(
+  sender?: browser.runtime.MessageSender,
+  getTabManager?: () => any,
+): Promise<MessageResponse> {
+  const tabId = sender?.tab?.id;
+  if (!tabId || !getTabManager) return { success: false, error: "Sem contexto de aba." };
+  await getTabManager().triggerReloginForTab(tabId);
+  return { success: true };
 }
 
 async function handleDownloadESocialGuide(message: MessageRequest) {
