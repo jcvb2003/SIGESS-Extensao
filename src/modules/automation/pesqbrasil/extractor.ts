@@ -92,7 +92,7 @@ function mapDefaultValuesToPessoaData(dv: any): Partial<PessoaData> {
 
     // RGP (Dados do registro principal)
     rgp: reg.codigoRGP?.trim() || dv.numeroAtualRgp?.trim() || undefined,
-    tipoRgp: mapTipoRgp(dv.tipoSolicitacaoNome),
+    tipoRgp: mapTipoRgp(dv.tipoSolicitacaoNome, dv.registroComProtocolo ?? reg.registroComProtocolo),
     // Priorizamos a data do 1º RGP para o campo que o SIGESS preenche
     emissaoRgp: dv.dataPrimeiroRgp?.split('T')[0] || reg.dataPrimeiroRGP?.split('T')[0] || reg.dataEmissao?.split('T')[0] || undefined,
     dataPrimeiroRegistro: dv.dataPrimeiroRgp?.split('T')[0] || reg.dataPrimeiroRGP?.split('T')[0] || undefined,
@@ -128,10 +128,14 @@ function mapSexo(sexo: any): "MASCULINO" | "FEMININO" | undefined {
   return undefined;
 }
 
-function mapTipoRgp(nome: string | undefined): "INICIAL" | "PROTOCOLO" | "RECADASTRAMENTO" | undefined {
+function mapTipoRgp(
+  nome: string | undefined,
+  registroComProtocolo?: boolean,
+): "INICIAL" | "PROTOCOLO" | "RECADASTRAMENTO" | undefined {
   if (!nome) return undefined;
   const n = nome.toUpperCase();
   if (n.includes("RECADASTRAMENTO")) return "RECADASTRAMENTO";
+  if (registroComProtocolo) return "PROTOCOLO";
   if (n.includes("PROTOCOLO")) return "PROTOCOLO";
   if (n.includes("INICIAL") || n.includes("PRIMEIRA")) return "INICIAL";
   return undefined;
