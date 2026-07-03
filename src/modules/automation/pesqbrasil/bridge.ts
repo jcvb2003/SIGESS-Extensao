@@ -43,14 +43,23 @@
     if (action === NEXT_ACTION_CONFIG) {
        const clone = response.clone();
        clone.text().then(text => {
-         // O formato RSC do Next.js coloca dados em linhas precedidas por IDs (1:, 2:, etc)
+         // Se a URL atual já tem um /registro/{id}/, usa esse ID — é o registro que o
+         // usuário está visualizando. solicitacaoAtiva pode ser um registro diferente.
+         const urlMatch = /\/registro\/(\d+)\//.exec(globalThis.location.pathname);
+         if (urlMatch) {
+           console.log(`[SIGESS] ID extraído da URL: ${urlMatch[1]}`);
+           triggerAutoFetch(urlMatch[1]);
+           return;
+         }
+
+         // Fallback: sem registro na URL (página de lista/landing), usa solicitacaoAtiva
          const jsonLine = text.split('\n').find(l => l.startsWith('1:'));
          if (!jsonLine) return;
          try {
-           const obj = JSON.parse(jsonLine.slice(2)); // remove o prefixo "1:"
+           const obj = JSON.parse(jsonLine.slice(2));
            const registroId = obj?.configuracoes?.solicitacaoAtiva?.id;
            if (registroId) {
-             console.log(`[SIGESS] ID identificado na resposta RSC: ${registroId}`);
+             console.log(`[SIGESS] ID identificado via solicitacaoAtiva: ${registroId}`);
              triggerAutoFetch(registroId);
            }
          } catch {}
