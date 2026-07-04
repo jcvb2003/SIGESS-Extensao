@@ -177,6 +177,35 @@ export class PesqBrasilStrategy extends BaseAuthStrategy {
   }
 }
 
+export class MTEStrategy extends BaseAuthStrategy {
+  name = "MTE";
+  urlTrigger = "servicos.mte.gov.br";
+
+  async execute(
+    tabId: number,
+    tabUrl: string,
+    credentials: UserCredentials,
+  ): Promise<void> {
+    if (
+      tabUrl.includes("servicos.mte.gov.br") &&
+      !tabUrl.includes("sso.acesso.gov.br") &&
+      credentials.status !== "fazendo_login"
+    ) {
+      try {
+        await DOMInjector.waitForElement(tabId, "button.br-button.primary", 5000);
+        await DOMInjector.clickElement(tabId, "button.br-button.primary");
+        await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
+      } catch (e) {
+        console.log("Botao MTE nao encontrado ou ja clicado");
+      }
+    }
+
+    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+      await this.handleGovBrLogin(tabId, credentials);
+    }
+  }
+}
+
 export class INSSStrategy extends BaseAuthStrategy {
   name = "INSS";
   urlTrigger = "meu.inss.gov.br";

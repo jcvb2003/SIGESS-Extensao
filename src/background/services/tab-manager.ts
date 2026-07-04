@@ -3,6 +3,7 @@ import {
   AuthStrategy,
   PesqBrasilStrategy,
   PesqBrasilMPAStrategy,
+  MTEStrategy,
   INSSStrategy,
   ESocialStrategy,
 } from "./auth-strategy";
@@ -16,7 +17,7 @@ export class TabManager {
   private readonly processingTabs = new Set<number>();
 
   constructor() {
-    this.strategies = [new PesqBrasilStrategy(), new PesqBrasilMPAStrategy(), new INSSStrategy(), new ESocialStrategy()];
+    this.strategies = [new PesqBrasilStrategy(), new PesqBrasilMPAStrategy(), new MTEStrategy(), new INSSStrategy(), new ESocialStrategy()];
   }
 
   private enqueueContainerOp(fn: () => Promise<void>): Promise<void> {
