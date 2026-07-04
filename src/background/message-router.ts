@@ -2,12 +2,17 @@ import { logger } from "../shared/services/logger";
 import { StorageService } from "./services/storage";
 import { LicenseService } from "../shared/services/license";
 import {
+  CadastroSession,
   GovBatchQueueItem,
   MessageRequest,
   MessageResponse,
   MultiLoginItem,
+  PessoaData,
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
+
+// Timeouts em memória para sessões de cadastro automático
+const cadastroTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
   "checkLicense",
@@ -88,8 +93,12 @@ export async function routeMessage(
         return await handleUpdateGovBatchStatus(message, sender);
       case "turboFillReap":
         return await handleTurboFillReap(message);
+      case "iniciarCadastroAutomatico":
+        return await handleIniciarCadastroAutomatico(message, getTabManager);
+      case "cancelarCadastroAutomatico":
+        return await handleCancelarCadastroAutomatico();
       case "SAVE_PESSOA_DATA":
-        return await handleSavePessoaData(message);
+        return await handleSavePessoaData(message, getTabManager, sender);
       case "downloadESocialGuide":
         return await handleDownloadESocialGuide(message);
       case "checkReloginEligible":
@@ -628,7 +637,11 @@ async function handleTurboFillReap(message: MessageRequest) {
   }
 }
 
-async function handleSavePessoaData(message: MessageRequest) {
+async function handleSavePessoaData(
+  message: MessageRequest,
+  getTabManager?: () => any,
+  _sender?: browser.runtime.MessageSender,
+) {
   const { data, fonte } = message;
   if (!data || !fonte) {
     return { success: false, error: "Dados ou fonte não fornecidos" };
@@ -636,10 +649,281 @@ async function handleSavePessoaData(message: MessageRequest) {
 
   try {
     const newSettings = await StorageService.mergePessoaData(data, fonte);
+
+    // Enfileira a atualização de sessão em série para evitar race condition
+    // quando pesqbrasil_mpa e ecac_caepf chegam simultaneamente.
+    enqueueCadastroDataArrival(fonte, data, getTabManager);
+
     return { success: true, settings: newSettings };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+}
+
+// ── Cadastro Automático ───────────────────────────────────────────────────
+
+const CADASTRO_SESSION_KEY = "sigessActiveCadastro";
+const SESSION_TIMEOUT_MS = 120_000;
+
+// Garante que atualizações de portais sejam aplicadas em série —
+// pesqbrasil_mpa e ecac_caepf chegam simultaneamente e causam race condition
+// se cada um ler/escrever a sessão de forma concorrente.
+let _cadastroUpdateQueue: Promise<void> = Promise.resolve();
+
+function enqueueCadastroDataArrival(
+  fonte: string,
+  data: Partial<PessoaData>,
+  getTabManager?: () => any,
+): void {
+  _cadastroUpdateQueue = _cadastroUpdateQueue
+    .then(() => handleCadastroDataArrival(fonte, data, getTabManager))
+    .catch(() => {});
+}
+
+function fonteToPortal(fonte: string): keyof CadastroSession["portais"] | null {
+  if (fonte === "cadunico" || fonte === "cadunico_adv") return "cadunico";
+  if (fonte === "ecac_cpf" || fonte === "ecac_caepf") return "ecac";
+  if (fonte === "pesqbrasil" || fonte === "pesqbrasil_mpa") return "pesqbrasil";
+  if (fonte === "tse") return "tse";
+  return null;
+}
+
+async function getActiveSession(): Promise<CadastroSession | null> {
+  const result = await StorageService.get<CadastroSession>(CADASTRO_SESSION_KEY);
+  const session: CadastroSession | undefined = (result as any)[CADASTRO_SESSION_KEY];
+  return session?.sessionState === "active" ? session : null;
+}
+
+async function saveSession(session: CadastroSession): Promise<void> {
+  await StorageService.set({ [CADASTRO_SESSION_KEY]: session });
+}
+
+/** Verifica se a sessão ativa não tem mais nenhuma tab aberta (background reiniciou e perdeu o timeout). */
+async function isCadastroSessionStale(session: CadastroSession): Promise<boolean> {
+  const tabIds = [
+    session.portais.cadunico.tabId,
+    session.portais.pesqbrasil?.tabId,
+    session.portais.ecac?.tabId,
+    session.portais.tse?.tabId,
+  ].filter((id): id is number => typeof id === "number");
+
+  if (tabIds.length === 0) return true; // sem tabs conhecidas → stale
+
+  for (const tabId of tabIds) {
+    try {
+      await browser.tabs.get(tabId);
+      return false; // pelo menos uma tab ainda existe → sessão válida
+    } catch {
+      // tab não existe, testa a próxima
+    }
+  }
+  return true; // nenhuma tab sobreviveu
+}
+
+async function clearStaleSession(session: CadastroSession): Promise<void> {
+  const timeout = cadastroTimeouts.get(session.sessionId);
+  if (timeout) {
+    clearTimeout(timeout);
+    cadastroTimeouts.delete(session.sessionId);
+  }
+  try {
+    await (browser as any).contextualIdentities.remove(session.cookieStoreId);
+  } catch { /* container pode já ter sido removido */ }
+  await StorageService.remove(CADASTRO_SESSION_KEY);
+}
+
+async function handleCancelarCadastroAutomatico(): Promise<MessageResponse> {
+  const session = await getActiveSession();
+  if (!session) return { success: true }; // nada a cancelar
+  await clearStaleSession(session);
+  return { success: true };
+}
+
+async function handleIniciarCadastroAutomatico(
+  message: MessageRequest,
+  getTabManager: () => any,
+): Promise<MessageResponse> {
+  const { cpf, senha, nome } = message;
+  if (!cpf || !senha) {
+    return { success: false, error: "CPF e senha são obrigatórios." };
+  }
+
+  // Idempotência: bloqueia sessão duplicada — mas auto-limpa sessões stale
+  // (o timeout de 120s fica só em memória; se o background reiniciar, o timeout
+  // se perde e a sessão fica presa em "active" no storage para sempre).
+  const existing = await getActiveSession();
+  if (existing) {
+    const isStale = await isCadastroSessionStale(existing);
+    if (!isStale) {
+      return { success: false, error: "sessao_ja_ativa" };
+    }
+    // Sessão stale: limpa silenciosamente e prossegue
+    await clearStaleSession(existing);
+  }
+
+  if (!(browser as any).contextualIdentities) {
+    return { success: false, error: "Containers Firefox não disponíveis. Ative a extensão Multi-Account Containers." };
+  }
+
+  const sessionId = `cadastro-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  try {
+    const container = await (browser as any).contextualIdentities.create({
+      name: `Cadastro-${String(cpf).slice(-4)}`,
+      color: "green",
+      icon: "briefcase",
+    });
+    const cookieStoreId: string = container.cookieStoreId;
+
+    const session: CadastroSession = {
+      sessionId,
+      cookieStoreId,
+      sessionState: "active",
+      startedAt: Date.now(),
+      portais: {
+        cadunico: { status: "abrindo" },
+        pesqbrasil: { status: "aguardando" },
+        ecac: { status: "aguardando" },
+      },
+    };
+    await saveSession(session);
+
+    // Abre CadÚnico diretamente na rota onde está o botão Gov.br
+    const cadUnicoTabId = await getTabManager().createSessionInContainer(
+      "https://cadunico.dataprev.gov.br/#/home",
+      cpf, senha, cookieStoreId, nome, "cadunico", sessionId,
+    );
+    if (cadUnicoTabId) {
+      session.portais.cadunico.tabId = cadUnicoTabId;
+      await saveSession(session);
+    }
+
+    // Timeout global da sessão
+    const globalTimeout = setTimeout(async () => {
+      const s = await getActiveSession();
+      if (s?.sessionId === sessionId) {
+        await finalizeCadastroSession(s, getTabManager);
+      }
+    }, SESSION_TIMEOUT_MS);
+    cadastroTimeouts.set(sessionId, globalTimeout);
+
+    return { success: true, sessionId };
+  } catch (error: any) {
+    await StorageService.remove(CADASTRO_SESSION_KEY);
+    return { success: false, error: error.message };
+  }
+}
+
+async function handleCadastroDataArrival(
+  fonte: string,
+  data: Partial<PessoaData>,
+  getTabManager?: () => any,
+): Promise<void> {
+  const session = await getActiveSession();
+  if (!session) return;
+
+  const portalKey = fonteToPortal(fonte);
+  if (!portalKey) return;
+
+  const portal = session.portais[portalKey];
+  if (!portal) return;
+
+  // Atualiza status do portal
+  if (fonte === "cadunico") {
+    // Primeira chegada do CadÚnico (JWT básico) — marca como coletando
+    if (portal.status === "abrindo" || portal.status === "aguardando") {
+      portal.status = "coletando";
+    }
+  } else {
+    // cadunico_adv, ecac_cpf, pesqbrasil*, tse → concluído
+    portal.status = "concluido";
+  }
+
+  await saveSession(session);
+
+  // Verificação condicional do TSE após cadunico_adv
+  if (fonte === "cadunico_adv" && !session.portais.tse && getTabManager) {
+    const tituloEleitor = (data as Partial<PessoaData>).tituloEleitor;
+    if (!tituloEleitor) {
+      session.portais.tse = { status: "abrindo" };
+      await saveSession(session);
+
+      // Abre TSE no mesmo container (herda sessão Gov.br)
+      const { cookieStoreId } = session;
+      const cadUnicoTabId = session.portais.cadunico.tabId;
+      const cadCreds = cadUnicoTabId
+        ? await StorageService.getCredentials(cadUnicoTabId)
+        : null;
+
+      if (cadCreds?.cpf && cadCreds?.senha) {
+        const tseTabId = await getTabManager().createSessionInContainer(
+          "https://www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral#/",
+          cadCreds.cpf, cadCreds.senha, cookieStoreId,
+          cadCreds.nome, "tse", session.sessionId,
+        );
+        if (tseTabId) {
+          session.portais.tse!.tabId = tseTabId;
+          await saveSession(session);
+        }
+      }
+    }
+  }
+
+  // Verifica se todos os portais esperados estão concluídos/erro/timeout
+  const portaisEsperados: (keyof typeof session.portais)[] = ["cadunico", "pesqbrasil", "ecac"];
+  if (session.portais.tse) portaisEsperados.push("tse");
+
+  const todosFinalizados = portaisEsperados.every((key) => {
+    const p = session.portais[key];
+    return p && (p.status === "concluido" || p.status === "erro" || p.status === "timeout");
+  });
+
+  if (todosFinalizados) {
+    await finalizeCadastroSession(session, getTabManager);
+  }
+}
+
+async function finalizeCadastroSession(
+  session: CadastroSession,
+  _getTabManager?: () => any,
+): Promise<void> {
+  // Cancela timeout global
+  const timeout = cadastroTimeouts.get(session.sessionId);
+  if (timeout) {
+    clearTimeout(timeout);
+    cadastroTimeouts.delete(session.sessionId);
+  }
+
+  // Busca dados brutos coletados para o mergeRequest
+  const settings = await StorageService.getSettings();
+  const raw: Record<string, Partial<PessoaData>> = (settings.pessoaData_raw as any) || {};
+
+  session.sessionState = "complete";
+  session.mergeRequest = { raw };
+  await saveSession(session);
+
+  // Fecha tabs dos portais
+  const tabIds = [
+    session.portais.cadunico.tabId,
+    session.portais.pesqbrasil.tabId,
+    session.portais.ecac.tabId,
+    session.portais.tse?.tabId,
+  ].filter((id): id is number => typeof id === "number");
+
+  if (tabIds.length > 0) {
+    try {
+      await browser.tabs.remove(tabIds);
+    } catch (e) {
+      // Tabs podem já ter sido fechadas
+    }
+  }
+
+  // Remove container com pequeno delay (tabs precisam fechar primeiro)
+  setTimeout(async () => {
+    try {
+      await (browser as any).contextualIdentities.remove(session.cookieStoreId);
+    } catch (e) {}
+  }, 2000);
 }
 
 async function handleCheckReloginEligible(

@@ -2,6 +2,8 @@ import { UserCredentials } from "../../shared/types";
 import { DOMInjector } from "./dom-injector";
 import { StorageService } from "./storage";
 
+declare var browser: any;
+
 export interface AuthStrategy {
   name: string;
   urlTrigger: string;
@@ -282,6 +284,82 @@ export class ESocialStrategy extends BaseAuthStrategy {
 
     if (tabUrl.includes("sso.acesso.gov.br/login")) {
       await this.handleGovBrLogin(tabId, credentials);
+    }
+  }
+}
+
+export class CadUnicoStrategy extends BaseAuthStrategy {
+  name = "CadUnico";
+  urlTrigger = "cadunico.dataprev.gov.br";
+
+  async execute(
+    tabId: number,
+    tabUrl: string,
+    credentials: UserCredentials,
+  ): Promise<void> {
+    if (
+      tabUrl.includes("cadunico.dataprev.gov.br") &&
+      !tabUrl.includes("sso.acesso.gov.br") &&
+      credentials.status !== "fazendo_login"
+    ) {
+      try {
+        // Aguarda o botão Gov.br aparecer na página inicial do CadÚnico
+        const selector = await DOMInjector.waitForAnyElement(
+          tabId,
+          ["button.br-button[class*='botaoGovBr']", ".br-button.primary", "button.br-button"],
+          8000,
+        );
+        if (selector) {
+          await DOMInjector.clickElement(tabId, selector);
+          await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
+        }
+      } catch (e) {
+        // Botão não encontrado (pode já estar logado ou em outra rota)
+      }
+    }
+
+    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+      await this.handleGovBrLogin(tabId, credentials);
+    }
+  }
+}
+
+export class EcacStrategy extends BaseAuthStrategy {
+  name = "EcacCadastro";
+  urlTrigger = "cav.receita.fazenda.gov.br";
+
+  async execute(
+    tabId: number,
+    tabUrl: string,
+    credentials: UserCredentials,
+  ): Promise<void> {
+    // Página de login do eCAC — clica no botão Gov.br
+    if (
+      tabUrl.includes("cav.receita.fazenda.gov.br") &&
+      tabUrl.includes("autenticacao") &&
+      credentials.status !== "fazendo_login"
+    ) {
+      try {
+        await DOMInjector.waitForElement(tabId, "input[type='image']", 5000);
+        // input[type="image"] tem onclick= no mundo principal; scripting.executeScript (mundo isolado)
+        // não dispara o handler — delegamos ao content script que já corre no contexto da página.
+        await browser.tabs.sendMessage(tabId, { action: "clickEcacGovBrButton" });
+        await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
+      } catch (e) {}
+    }
+
+    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+      await this.handleGovBrLogin(tabId, credentials);
+    }
+
+    // SSO bypass: Gov.br já tinha sessão ativa no container e redirecionou
+    // de volta para o eCAC sem passar pela tela de senha
+    if (
+      tabUrl.includes("cav.receita.fazenda.gov.br") &&
+      !tabUrl.includes("autenticacao") &&
+      !tabUrl.includes("sso.acesso.gov.br")
+    ) {
+      await this.markLoginComplete(tabId);
     }
   }
 }

@@ -25,6 +25,10 @@ async function initMain() {
 
   /** Cache reativo do estado de ativação — evita I/O no storage a cada mensagem. */
   let _autoEnabled = false;
+  /** True quando há sessão de cadastro automático ativa (diferente de autoRegistrationEnabled genérico). */
+  let _cadastroSessionActive = false;
+  /** Evita disparar o click do Gov.br no eCAC mais de uma vez por ciclo de vida do content script. */
+  let _ecacClickAttempted = false;
 
   // ── Inicialização ────────────────────────────────────────────────────────
 
@@ -94,9 +98,14 @@ async function initMain() {
       return;
     }
 
-    const result = await (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings");
-    const settings = result.sigessSettings || {};
-    _autoEnabled = !!settings.autoRegistrationEnabled;
+    const [settingsResult, cadastroResult] = await Promise.all([
+      (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings"),
+      (globalThis.browser || globalThis.chrome).storage.local.get("sigessActiveCadastro"),
+    ]);
+    const settings = settingsResult.sigessSettings || {};
+    const activeCadastro = cadastroResult.sigessActiveCadastro;
+    _autoEnabled = !!settings.autoRegistrationEnabled || activeCadastro?.sessionState === "active";
+    _cadastroSessionActive = activeCadastro?.sessionState === "active";
 
     // SEMPRE registra listeners de bridge, mesmo se desativado (para poder ativar em tempo real)
     globalThis.addEventListener("message", handleBridgeMessages);
@@ -138,23 +147,54 @@ async function initMain() {
 
     injectBridges();
 
-    // Scrapers de DOM para e-CAC (id=15 e id=89)
     const url = globalThis.location.href;
+    const host = globalThis.location.hostname;
+
+    // Scrapers de DOM para e-CAC (id=15 e id=89)
     const isEcacCpf = url.includes('id=15') || url.includes('ConsultarCPF');
     const isEcacCaepf = url.includes('id=89');
 
     if (isEcacCpf || isEcacCaepf) {
       const runScrape = () => {
         const data = isEcacCpf ? scrapeEcacCpfData() : scrapeEcacCaepfTable();
-        if (data) {
-          saveData(data, isEcacCpf ? "ecac_cpf" : "ecac_caepf");
-        }
+        // Sempre sinaliza conclusão, mesmo sem dados — marca portal ecac como concluido
+        // para que a sessão não fique bloqueada quando a pessoa não tem CAEPF inscrito.
+        saveData(data ?? {}, isEcacCpf ? "ecac_cpf" : "ecac_caepf");
       };
 
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', runScrape, { once: true });
       } else {
         runScrape();
+      }
+    }
+
+    // eCAC auth page: clique proativo no Gov.br sem depender da cadeia background→sendMessage.
+    // DOMInjector.waitForElement só busca no frame principal; o botão pode estar em subframe
+    // ou a sequência de mensagens pode ter timing issue. O content script (all_frames) clica
+    // diretamente via injeção de <script> no mundo principal de cada frame.
+    const isEcacAuth = host.includes('cav.receita.fazenda.gov.br') && url.includes('autenticacao');
+    if (isEcacAuth && _cadastroSessionActive && !_ecacClickAttempted) {
+      _ecacClickAttempted = true;
+      const clickGovBr = () => {
+        const s = document.createElement('script');
+        s.textContent = `
+          (function tryClickEcac(n) {
+            if (n <= 0) return;
+            var btn = document.querySelector("input[type='image']");
+            if (!btn) { setTimeout(function() { tryClickEcac(n - 1); }, 500); return; }
+            if (typeof hcaptcha === 'undefined') { setTimeout(function() { tryClickEcac(n - 1); }, 500); return; }
+            if (!document.querySelector('iframe[src*="hcaptcha"]')) { setTimeout(function() { tryClickEcac(n - 1); }, 500); return; }
+            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          })(30);
+        `;
+        (document.head || document.documentElement).appendChild(s);
+        s.remove();
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', clickGovBr, { once: true });
+      } else {
+        clickGovBr();
       }
     }
 
@@ -264,27 +304,71 @@ async function initMain() {
         hasData: !!(newVal.pessoaData && Object.keys(newVal.pessoaData).length > 0)
       });
 
-      // Atualiza cache de ativação
-      _autoEnabled = !!newVal.autoRegistrationEnabled;
+      const cadastroActive = (globalThis.browser || globalThis.chrome).storage.local
+        .get("sigessActiveCadastro")
+        .then((r: any) => r?.sigessActiveCadastro?.sessionState === "active")
+        .catch(() => false);
 
-      // Se o recurso foi desativado completamente
-      if (oldVal.autoRegistrationEnabled === true && newVal.autoRegistrationEnabled === false) {
-        console.log("SIGESS: Captura desativada via popup. Ocultando UI.");
-        removeAssistantUI();
-        return;
+      cadastroActive.then((cadastroIsActive: boolean) => {
+        _autoEnabled = !!newVal.autoRegistrationEnabled || cadastroIsActive;
+
+        if (oldVal.autoRegistrationEnabled === true && newVal.autoRegistrationEnabled === false && !cadastroIsActive) {
+          console.log("SIGESS: Captura desativada via popup. Ocultando UI.");
+          removeAssistantUI();
+          return;
+        }
+
+        if (!oldVal.autoRegistrationEnabled && newVal.autoRegistrationEnabled) {
+          initEnabledFeatures(newVal);
+        }
+
+        updateAssistantStatus();
+      });
+    }
+
+    if (changes.sigessActiveCadastro) {
+      const newSession = changes.sigessActiveCadastro.newValue;
+      const wasActive = !!changes.sigessActiveCadastro.oldValue;
+      const isActive = newSession?.sessionState === "active";
+      _cadastroSessionActive = isActive;
+
+      if (isActive && !_autoEnabled) {
+        _autoEnabled = true;
+        (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings").then((r: any) => {
+          initEnabledFeatures(r?.sigessSettings || {});
+        });
+      } else if (!isActive && wasActive) {
+        (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings").then((r: any) => {
+          _autoEnabled = !!r?.sigessSettings?.autoRegistrationEnabled;
+        });
       }
-
-      // Se ativou agora, tenta inicializar bridges
-      if (!oldVal.autoRegistrationEnabled && newVal.autoRegistrationEnabled) {
-        initEnabledFeatures(newVal);
-      }
-
-      // Sempre atualiza o assistente para refletir novos dados (ou a falta deles)
-      updateAssistantStatus();
     }
   });
 
   globalThis.addEventListener('SIGESS_DATA_UPDATED', updateAssistantStatus);
+
+  // Comando do background para clicar no botão Gov.br do eCAC.
+  // DOMInjector (mundo isolado) gera isTrusted=false, que validarHcaptcha rejeita.
+  // Injetar <script> executa validarHcaptcha no mundo principal da página.
+  (globalThis.browser || globalThis.chrome).runtime.onMessage.addListener((message: any) => {
+    if (message?.action === "clickEcacGovBrButton") {
+      const s = document.createElement('script');
+      // validarHcaptcha('govBr') usa window.event internamente; chamada direta sem evento real
+      // causa "event is undefined". dispatchEvent seta window.event corretamente durante o onclick.
+      s.textContent = `
+        (function tryClickEcac(n) {
+          if (n <= 0) return;
+          var btn = document.querySelector("input[type='image']");
+          if (!btn) { setTimeout(function() { tryClickEcac(n - 1); }, 500); return; }
+          if (typeof hcaptcha === 'undefined') { setTimeout(function() { tryClickEcac(n - 1); }, 500); return; }
+          if (!document.querySelector('iframe[src*="hcaptcha"]')) { setTimeout(function() { tryClickEcac(n - 1); }, 500); return; }
+          btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        })(30);
+      `;
+      (document.head || document.documentElement).appendChild(s);
+      s.remove();
+    }
+  });
 
   startAutomation();
 }

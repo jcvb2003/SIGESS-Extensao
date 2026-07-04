@@ -1,9 +1,30 @@
+export interface CadastroPortalEntry {
+  status: "aguardando" | "abrindo" | "coletando" | "concluido" | "erro" | "timeout";
+  tabId?: number;
+}
+
+export interface CadastroSession {
+  sessionId: string;
+  cookieStoreId: string;
+  sessionState: "active" | "complete" | "error";
+  startedAt: number;
+  portais: {
+    cadunico: CadastroPortalEntry;
+    pesqbrasil: CadastroPortalEntry;
+    ecac: CadastroPortalEntry;
+    tse?: CadastroPortalEntry;
+  };
+  mergeRequest?: { raw: Record<string, Partial<PessoaData>> };
+}
+
 export interface UserCredentials {
   cpf: string;
   senha: string;
   nome?: string;
   valorComercializado?: string;
-  portalType?: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss";
+  isCadastroAutomatico?: boolean;
+  cadastroSessionId?: string;
+  portalType?: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss" | "cadunico" | "ecac" | "tse";
   gerarGps?: boolean;
   consultarGuias?: boolean;
   selectedYear?: string;

@@ -9,6 +9,8 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   "getAutoRegistrationSnapshot",
   "abrirAbaContainer",
   "updateESocialSettings",
+  "iniciarCadastroAutomatico",
+  "cancelarCadastroAutomatico",
 ]);
 
 const UPDATE_ALLOWED_MESSAGE_TYPES = new Set([
@@ -148,10 +150,22 @@ const browserAPI =
 
 if (browserAPI?.storage?.onChanged) {
   browserAPI.storage.onChanged.addListener((changes: Record<string, { newValue?: unknown }>, areaName: string) => {
-    if (areaName !== "local" || !changes.sigessSettings?.newValue) {
-      return;
+    if (areaName !== "local") return;
+
+    if (changes.sigessSettings?.newValue) {
+      emitESocialAutomationSettingsChanged(changes.sigessSettings.newValue as Record<string, unknown>);
     }
 
-    emitESocialAutomationSettingsChanged(changes.sigessSettings.newValue as Record<string, unknown>);
+    if ("sigessActiveCadastro" in changes) {
+      const newSession = changes.sigessActiveCadastro?.newValue as Record<string, unknown> | undefined;
+      window.postMessage(
+        {
+          type: EXTENSION_EVENT_TYPE,
+          eventName: "cadastroAutomaticoAtualizado",
+          data: newSession ?? null,
+        },
+        window.location.origin,
+      );
+    }
   });
 }

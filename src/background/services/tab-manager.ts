@@ -1,4 +1,5 @@
 import { StorageService } from "./storage";
+import { CadastroSession, UserCredentials } from "../../shared/types";
 import {
   AuthStrategy,
   PesqBrasilStrategy,
@@ -6,6 +7,8 @@ import {
   MTEStrategy,
   INSSStrategy,
   ESocialStrategy,
+  CadUnicoStrategy,
+  EcacStrategy,
 } from "./auth-strategy";
 
 export class TabManager {
@@ -17,7 +20,15 @@ export class TabManager {
   private readonly processingTabs = new Set<number>();
 
   constructor() {
-    this.strategies = [new PesqBrasilStrategy(), new PesqBrasilMPAStrategy(), new MTEStrategy(), new INSSStrategy(), new ESocialStrategy()];
+    this.strategies = [
+      new PesqBrasilStrategy(),
+      new PesqBrasilMPAStrategy(),
+      new MTEStrategy(),
+      new INSSStrategy(),
+      new ESocialStrategy(),
+      new CadUnicoStrategy(),
+      new EcacStrategy(),
+    ];
   }
 
   private enqueueContainerOp(fn: () => Promise<void>): Promise<void> {
@@ -127,6 +138,42 @@ export class TabManager {
     }
   }
 
+  async createSessionInContainer(
+    url: string,
+    cpf: string,
+    senha: string,
+    cookieStoreId: string,
+    nome?: string,
+    portalType?: "cadunico" | "ecac" | "tse" | "pesqbrasil_mpa",
+    cadastroSessionId?: string,
+  ): Promise<number | null> {
+    try {
+      const tab = await browser.tabs.create({ url, cookieStoreId, active: false });
+      if (!tab.id) return null;
+
+      await this.saveTabContainer(tab.id, cookieStoreId);
+      await StorageService.saveCredentials(tab.id, {
+        cpf,
+        senha,
+        nome,
+        portalType: portalType as UserCredentials["portalType"],
+        isCadastroAutomatico: true,
+        cadastroSessionId,
+        loginConcluido: false,
+        govBrCpfSubmitted: false,
+        govBrPasswordSubmitted: false,
+        status: "abrindo_em_lote",
+        statusTitle: "Abrindo",
+        statusDescription: "Abrindo aba de cadastro automático...",
+        lastUpdatedAt: Date.now(),
+      });
+      return tab.id;
+    } catch (error) {
+      console.error("[SIGESS] Erro ao criar sessão no container:", error);
+      return null;
+    }
+  }
+
   async handleTabUpdate(
     tabId: number,
     changeInfo: browser.tabs._OnUpdatedChangeInfo,
@@ -135,7 +182,17 @@ export class TabManager {
     if (!tab.url) return;
 
     const credentials = await StorageService.getCredentials(tabId);
-    if (!credentials || credentials.loginConcluido) return;
+    if (!credentials) return;
+
+    // Hook de pós-login para tabs de cadastro automático
+    if (credentials.loginConcluido && credentials.isCadastroAutomatico) {
+      if (changeInfo.status === "complete") {
+        await this.handleCadastroPostLoginNav(tabId, tab.url, credentials);
+      }
+      return;
+    }
+
+    if (credentials.loginConcluido) return;
 
     if (changeInfo.status === "loading" || changeInfo.url) {
       await this.markTabAsAwaitingPage(tabId, tab.url);
@@ -300,10 +357,95 @@ export class TabManager {
     }
   }
 
+  private async handleCadastroPostLoginNav(
+    tabId: number,
+    tabUrl: string,
+    creds: UserCredentials,
+  ): Promise<void> {
+    const key = "sigessActiveCadastro";
+    const result = await StorageService.get<CadastroSession>(key);
+    const session: CadastroSession | undefined = (result as any)[key];
+    if (!session || session.sessionState !== "active") return;
+
+    if (creds.portalType === "ecac") {
+      // Navega para a página CAEPF se ainda não estiver lá
+      if (
+        tabUrl.includes("cav.receita.fazenda.gov.br") &&
+        !tabUrl.includes("id=89")
+      ) {
+        await browser.tabs.update(tabId, {
+          url: "https://cav.receita.fazenda.gov.br/ecac/Aplicacao.aspx?id=89&origem=menu",
+        });
+      }
+    } else if (creds.portalType === "cadunico") {
+      // Abre tabs filhas somente uma vez (pesqbrasil ainda aguardando = não abertas)
+      if (
+        tabUrl.includes("cadunico.dataprev.gov.br") &&
+        session.portais.pesqbrasil.status === "aguardando"
+      ) {
+        await this.openCadastroSiblings(session, tabId, creds);
+      }
+    }
+  }
+
+  private async openCadastroSiblings(
+    session: CadastroSession,
+    _cadUnicoTabId: number,
+    creds: UserCredentials,
+  ): Promise<void> {
+    const { cookieStoreId } = session;
+    const { cpf, senha, nome, cadastroSessionId } = creds;
+    if (!cpf || !senha) return;
+
+    const key = "sigessActiveCadastro";
+
+    // Marca os portais como "abrindo" antes de abrir as tabs
+    session.portais.pesqbrasil = { status: "abrindo" };
+    session.portais.ecac = { status: "abrindo" };
+    await StorageService.set({ [key]: session });
+
+    const [pesqTabId, ecacTabId] = await Promise.all([
+      this.createSessionInContainer(
+        "https://pesqbrasil-pescadorprofissional.mpa.gov.br/",
+        cpf, senha, cookieStoreId, nome, "pesqbrasil_mpa", cadastroSessionId,
+      ),
+      this.createSessionInContainer(
+        "https://cav.receita.fazenda.gov.br/autenticacao/login",
+        cpf, senha, cookieStoreId, nome, "ecac", cadastroSessionId,
+      ),
+    ]);
+
+    if (pesqTabId) session.portais.pesqbrasil.tabId = pesqTabId;
+    if (ecacTabId) session.portais.ecac.tabId = ecacTabId;
+    await StorageService.set({ [key]: session });
+  }
+
   async handleTabRemoval(
     tabId: number,
     _removeInfo: browser.tabs._OnRemovedRemoveInfo,
   ) {
+    // Detecta fechamento inesperado de tab de cadastro automático
+    const creds = await StorageService.getCredentials(tabId);
+    if (creds?.isCadastroAutomatico && creds.portalType) {
+      const key = "sigessActiveCadastro";
+      const result = await StorageService.get<CadastroSession>(key);
+      const session: CadastroSession | undefined = (result as any)[key];
+      if (session?.sessionState === "active") {
+        const portalMap: Record<string, keyof typeof session.portais> = {
+          cadunico: "cadunico",
+          ecac: "ecac",
+          pesqbrasil_mpa: "pesqbrasil",
+          tse: "tse",
+        };
+        const portalKey = portalMap[creds.portalType];
+        const portal = portalKey ? session.portais[portalKey] : undefined;
+        if (portal && portal.status !== "concluido" && portal.status !== "timeout") {
+          portal.status = "erro";
+          await StorageService.set({ [key]: session });
+        }
+      }
+    }
+
     await StorageService.clearCredentials(tabId);
     const containerId = await this.getTabContainer(tabId);
     await this.clearTabContainer(tabId);
