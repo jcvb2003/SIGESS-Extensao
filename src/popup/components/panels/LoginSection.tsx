@@ -8,8 +8,8 @@ interface LoginSectionProps {
   loading: boolean;
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void;
-  onShowModal: (type: "pesqbrasil" | "esocial") => void;
-  onOpenBatch: (type: "pesqbrasil" | "esocial") => void;
+  onShowModal: (type: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss") => void;
+  onOpenBatch: (type: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss") => void;
 }
 
 export const LoginSection: React.FC<LoginSectionProps> = ({
@@ -71,21 +71,37 @@ export const LoginSection: React.FC<LoginSectionProps> = ({
             </div>
 
             {/* BOTÕES DE AÇÃO */}
-            <div className="button-group">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
               <button
                 className="btn btn-primary"
                 onClick={() =>
                   settings.multiLoginEnabled
-                    ? onOpenBatch("pesqbrasil")
-                    : onShowModal("pesqbrasil")
+                    ? onOpenBatch("pesqbrasil_agro")
+                    : onShowModal("pesqbrasil_agro")
                 }
                 disabled={loading}
               >
                 <GlobeIcon />
                 <span className="btn-text">
                   {settings.multiLoginEnabled
-                    ? `Abrir PesqBrasil (${queue.filter((i) => i.type === "pesqbrasil").length})`
-                    : "PesqBrasil"}
+                    ? `PesqBrasil Agro (${queue.filter((i) => i.type === "pesqbrasil_agro").length})`
+                    : "PesqBrasil Agro"}
+                </span>
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() =>
+                  settings.multiLoginEnabled
+                    ? onOpenBatch("pesqbrasil_mpa")
+                    : onShowModal("pesqbrasil_mpa")
+                }
+                disabled={loading}
+              >
+                <GlobeIcon />
+                <span className="btn-text">
+                  {settings.multiLoginEnabled
+                    ? `PesqBrasil MPA (${queue.filter((i) => i.type === "pesqbrasil_mpa").length})`
+                    : "PesqBrasil MPA"}
                 </span>
               </button>
               <button
@@ -100,8 +116,24 @@ export const LoginSection: React.FC<LoginSectionProps> = ({
                 <ClipboardIcon />
                 <span className="btn-text">
                   {settings.multiLoginEnabled
-                    ? `Abrir eSocial (${queue.filter((i) => i.type === "esocial").length})`
+                    ? `eSocial (${queue.filter((i) => i.type === "esocial").length})`
                     : "eSocial"}
+                </span>
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() =>
+                  settings.multiLoginEnabled
+                    ? onOpenBatch("inss")
+                    : onShowModal("inss")
+                }
+                disabled={loading}
+              >
+                <GlobeIcon />
+                <span className="btn-text">
+                  {settings.multiLoginEnabled
+                    ? `INSS (${queue.filter((i) => i.type === "inss").length})`
+                    : "INSS"}
                 </span>
               </button>
             </div>
@@ -152,7 +184,10 @@ export const LoginSection: React.FC<LoginSectionProps> = ({
                             height: "6px",
                             borderRadius: "50%",
                             background:
-                              item.type === "pesqbrasil" ? "#0f766e" : "#2563eb",
+                              item.type === "esocial" ? "#2563eb"
+                              : item.type === "inss" ? "#7c3aed"
+                              : item.type === "pesqbrasil_mpa" ? "#0284c7"
+                              : "#0f766e",
                           }}
                         />
                         <span style={{ fontWeight: "600", textTransform: "uppercase" }}>

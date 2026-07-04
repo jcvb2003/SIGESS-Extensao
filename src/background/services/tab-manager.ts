@@ -2,6 +2,8 @@ import { StorageService } from "./storage";
 import {
   AuthStrategy,
   PesqBrasilStrategy,
+  PesqBrasilMPAStrategy,
+  INSSStrategy,
   ESocialStrategy,
 } from "./auth-strategy";
 
@@ -14,7 +16,7 @@ export class TabManager {
   private readonly processingTabs = new Set<number>();
 
   constructor() {
-    this.strategies = [new PesqBrasilStrategy(), new ESocialStrategy()];
+    this.strategies = [new PesqBrasilStrategy(), new PesqBrasilMPAStrategy(), new INSSStrategy(), new ESocialStrategy()];
   }
 
   private enqueueContainerOp(fn: () => Promise<void>): Promise<void> {
@@ -59,7 +61,7 @@ export class TabManager {
     senha: string,
     index: number,
     nome?: string,
-    portalType?: "pesqbrasil" | "esocial",
+    portalType?: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss",
     valorComercializado?: string,
     gerarGps?: boolean,
     consultarGuias?: boolean,
@@ -69,7 +71,10 @@ export class TabManager {
     try {
       const resolvedPortalType =
         portalType ||
-        (url.includes("esocial") ? "esocial" : "pesqbrasil");
+        (url.includes("esocial") ? "esocial"
+          : url.includes("meu.inss.gov.br") ? "inss"
+          : url.includes("mpa.gov.br") ? "pesqbrasil_mpa"
+          : "pesqbrasil_agro");
 
       let tab: browser.tabs.Tab;
 
@@ -275,10 +280,12 @@ export class TabManager {
     const credentials = await StorageService.getCredentials(tabId);
     if (!credentials) return;
 
-    const portalType = credentials.portalType || "pesqbrasil";
-    const strategy = this.strategies.find((s) =>
-      portalType === "esocial" ? s.name === "eSocial" : s.name === "PesqBrasil",
-    );
+    const portalType = credentials.portalType || "pesqbrasil_agro";
+    const strategyName = portalType === "esocial" ? "eSocial"
+      : portalType === "inss" ? "INSS"
+      : portalType === "pesqbrasil_mpa" ? "PesqBrasilMPA"
+      : "PesqBrasil";
+    const strategy = this.strategies.find((s) => s.name === strategyName);
     if (!strategy) return;
 
     await this.executeWithRetry(tabId, tab.url, credentials, strategy);

@@ -177,6 +177,64 @@ export class PesqBrasilStrategy extends BaseAuthStrategy {
   }
 }
 
+export class INSSStrategy extends BaseAuthStrategy {
+  name = "INSS";
+  urlTrigger = "meu.inss.gov.br";
+
+  async execute(
+    tabId: number,
+    tabUrl: string,
+    credentials: UserCredentials,
+  ): Promise<void> {
+    if (
+      tabUrl.includes("meu.inss.gov.br") &&
+      !tabUrl.includes("sso.acesso.gov.br") &&
+      credentials.status !== "fazendo_login"
+    ) {
+      try {
+        await DOMInjector.waitForElement(tabId, "#main-content", 5000);
+        await DOMInjector.clickElement(tabId, "#main-content");
+        await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
+      } catch (e) {
+        console.log("Botao INSS nao encontrado ou ja clicado");
+      }
+    }
+
+    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+      await this.handleGovBrLogin(tabId, credentials);
+    }
+  }
+}
+
+export class PesqBrasilMPAStrategy extends BaseAuthStrategy {
+  name = "PesqBrasilMPA";
+  urlTrigger = "pesqbrasil-pescadorprofissional.mpa.gov.br";
+
+  async execute(
+    tabId: number,
+    tabUrl: string,
+    credentials: UserCredentials,
+  ): Promise<void> {
+    if (
+      tabUrl.includes("pesqbrasil-pescadorprofissional.mpa.gov.br") &&
+      !tabUrl.includes("sso.acesso.gov.br") &&
+      credentials.status !== "fazendo_login"
+    ) {
+      try {
+        await DOMInjector.waitForElement(tabId, "#button_____r0", 5000);
+        await DOMInjector.clickElement(tabId, "#button_____r0");
+        await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
+      } catch (e) {
+        console.log("Botao PesqBrasil MPA nao encontrado ou ja clicado");
+      }
+    }
+
+    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+      await this.handleGovBrLogin(tabId, credentials);
+    }
+  }
+}
+
 export class ESocialStrategy extends BaseAuthStrategy {
   name = "eSocial";
   urlTrigger = "login.esocial.gov.br";

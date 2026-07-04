@@ -3,7 +3,7 @@ export interface UserCredentials {
   senha: string;
   nome?: string;
   valorComercializado?: string;
-  portalType?: "pesqbrasil" | "esocial";
+  portalType?: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss";
   gerarGps?: boolean;
   consultarGuias?: boolean;
   selectedYear?: string;
@@ -57,7 +57,7 @@ export interface MultiLoginItem {
   consultarGuias?: boolean;
   selectedYear?: string;
   selectedMonth?: string;
-  type: 'pesqbrasil' | 'esocial';
+  type: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss";
   timestamp: number;
 }
 

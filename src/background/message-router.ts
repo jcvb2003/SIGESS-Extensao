@@ -224,11 +224,13 @@ async function handleStartBatchLogin(
   if (!credentials || !Array.isArray(credentials) || credentials.length === 0) {
     return { success: false, error: "Lista de credenciais vazia" };
   }
-  const urlMap = {
-    pesqbrasil: "https://pesqbrasil-pescadorprofissional.agro.gov.br/",
+  const urlMap: Record<string, string> = {
+    pesqbrasil_agro: "https://pesqbrasil-pescadorprofissional.agro.gov.br/",
+    pesqbrasil_mpa: "https://pesqbrasil-pescadorprofissional.mpa.gov.br/",
     esocial: "https://login.esocial.gov.br/",
+    inss: "https://meu.inss.gov.br/#/login",
   };
-  const targetUrl = urlMap[type as keyof typeof urlMap];
+  const targetUrl = urlMap[type as string];
   if (!targetUrl) return { success: false, error: "Tipo de login inválido" };
 
   const capturedSettings = await StorageService.getSettings();
@@ -254,7 +256,7 @@ async function handleStartBatchLogin(
         cred.senha,
         index + 1,
         cred.nome || formatCpf(cred.cpf),
-        type as "pesqbrasil" | "esocial",
+        type as "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss",
         cred.valorComercializado,
         cred.gerarGps,
         cred.consultarGuias,
@@ -323,7 +325,10 @@ async function handleAbrirAbaContainer(
       senha,
       url,
       valorComercializado,
-      type: url.includes("esocial") ? "esocial" : "pesqbrasil",
+      type: url.includes("esocial") ? "esocial"
+        : url.includes("meu.inss.gov.br") ? "inss"
+        : url.includes("mpa.gov.br") ? "pesqbrasil_mpa"
+        : "pesqbrasil_agro",
       timestamp: Date.now(),
     };
 
@@ -335,14 +340,16 @@ async function handleAbrirAbaContainer(
   }
 
   const randIndex = Math.floor(Math.random() * 1000);
-  const isEsocial = url.includes("esocial");
   await getTabManager().createSession(
     url,
     cpf,
     senha,
     randIndex,
     nome,
-    isEsocial ? "esocial" : "pesqbrasil",
+    url.includes("esocial") ? "esocial"
+      : url.includes("meu.inss.gov.br") ? "inss"
+      : url.includes("mpa.gov.br") ? "pesqbrasil_mpa"
+      : "pesqbrasil_agro",
     valorComercializado,
   );
   return { success: true };

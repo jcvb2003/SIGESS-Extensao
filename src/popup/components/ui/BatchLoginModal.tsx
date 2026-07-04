@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { UserCredentials } from "../../../shared/types";
 interface BatchLoginModalProps {
-  type: "pesqbrasil" | "esocial";
+  type: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss";
   onConfirm: (creds: UserCredentials[]) => void;
   onCancel: () => void;
 }
@@ -41,7 +41,7 @@ const BatchLoginModal: React.FC<BatchLoginModalProps> = ({
       <div className="section modal-card fade-in">
         <div className="modal-header">
           <h3 className="section-title">
-            Login em Lote {type === "pesqbrasil" ? "PesqBrasil" : "eSocial"}
+            Login em Lote {{ pesqbrasil_agro: "PesqBrasil (Agro)", pesqbrasil_mpa: "PesqBrasil (MPA)", esocial: "eSocial", inss: "INSS" }[type]}
           </h3>
           <p className="section-description">Importação de credenciais</p>
         </div>
