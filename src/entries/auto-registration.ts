@@ -313,6 +313,21 @@ async function initMain() {
       }
     }
 
+    // Tela de consentimento OAuth do Gov.br — aparece após login bem-sucedido em alguns portais.
+    // Clica automaticamente em "Autorizar" para não bloquear o fluxo.
+    if (_cadastroSessionActive) {
+      const clickAuthorize = () => {
+        const btn = document.querySelector<HTMLButtonElement>('button[name="user_oauth_approval"][value="true"]');
+        if (btn) { btn.click(); return true; }
+        return false;
+      };
+      if (!clickAuthorize()) {
+        const obs = new MutationObserver(() => { if (clickAuthorize()) obs.disconnect(); });
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+        setTimeout(() => obs.disconnect(), 30000);
+      }
+    }
+
     // Preenchimento automático para o TSE (Portal de Atendimento)
     if (url.includes('tse.jus.br') && url.includes('atendimento-eleitor')) {
       const data = settings.pessoaData as PessoaData;
