@@ -9,6 +9,7 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   "getAutoRegistrationSnapshot",
   "abrirAbaContainer",
   "updateESocialSettings",
+  "updateSettings",
   "iniciarCadastroAutomatico",
   "cancelarCadastroAutomatico",
 ]);
@@ -18,6 +19,7 @@ const UPDATE_ALLOWED_MESSAGE_TYPES = new Set([
   "getESocialAutomationSettings",
   "getAutoRegistrationSnapshot",
   "updateESocialSettings",
+  "updateSettings",
 ]);
 const EXTENSION_EVENT_TYPE = "SIGESS_EXTENSION_EVENT";
 const ESOCIAL_SETTINGS_EVENT_NAME = "esocialAutomationSettingsChanged";
