@@ -77,9 +77,9 @@ function mapDefaultValuesToPessoaData(dv: any): Partial<PessoaData> {
     mae: dp.nomeMae || dp.mae || dp.nomeMaePessoa || undefined,
     pai: dp.possuiNomePai ? (dp.nomePai || dp.pai || dp.nomePaiPessoa || undefined) : undefined,
     escolaridade: mapEscolaridade(dp.escolaridade),
-    alfabetizado: (Number(dp.escolaridade) === 1) ? "NÃO" : (Number(dp.escolaridade) >= 2 ? "SIM" : undefined),
+    alfabetizado: mapAlfabetizado(dp.escolaridade),
     estadoCivil: mapEstadoCivil(dp.estadoCivil),
-    nacionalidade: dp.nacionalidade || undefined,
+    nacionalidade: mapNacionalidade(dp.nacionalidade),
     naturalidade: dp.naturalidade || undefined,
     ufNaturalidade: resolveUF(dp.ufNaturalidade),
 
@@ -162,18 +162,42 @@ function resolveMunicipio(id: any): string | undefined {
   return MUNICIPIOS_LIST.find(m => m.id === numId)?.nome ?? undefined;
 }
 
+// TipoEscolaridade do PesqBrasil → valores reais do select do SIGESS
 function mapEscolaridade(code: any): string | undefined {
+  if (code === null || code === undefined || code === '') return undefined;
+  const map: Record<number, string> = {
+    1:  "FUNDAMENTAL I COMPLETO",    // 1ª a 4ª Série completa
+    2:  "FUNDAMENTAL I INCOMPLETO",  // 1ª a 4ª Série incompleta
+    3:  "MÉDIO COMPLETO",            // 2º Grau completo
+    4:  "MÉDIO INCOMPLETO",          // 2º Grau incompleto
+    5:  "FUNDAMENTAL II COMPLETO",   // 5ª a 9ª Série completa
+    6:  "FUNDAMENTAL II INCOMPLETO", // 5ª a 9ª Série incompleta
+    7:  "SUPERIOR COMPLETO",         // Ensino superior completo
+    8:  "SUPERIOR INCOMPLETO",       // Ensino superior incompleto
+    9:  "OUTRO",                     // Ensino técnico completo
+    10: "OUTRO",                     // Ensino técnico incompleto
+    // 11 = Sem escolaridade → alfabetizado=NÃO, escolaridade não mapeada (A ROGO ou SOMENTE ASSINA são distintos)
+  };
+  const n = Number(code);
+  if (n === 11 || n === 12 || n === -1) return undefined;
+  return (n in map) ? map[n] : (typeof code === 'string' ? code : undefined);
+}
+
+function mapAlfabetizado(code: any): "SIM" | "NÃO" | undefined {
+  if (code === null || code === undefined || code === '') return undefined;
+  const n = Number(code);
+  if (n === 11) return "NÃO";            // Sem escolaridade
+  if (n === 12 || n === -1) return undefined; // Não informado
+  if (n >= 1 && n <= 10) return "SIM";
+  return undefined;
+}
+
+function mapNacionalidade(code: any): string | undefined {
   if (!code) return undefined;
   const map: Record<number, string> = {
-    1: "ANALFABETO",
-    2: "LÊ E ESCREVE",
-    3: "ENSINO FUNDAMENTAL INCOMPLETO",
-    4: "ENSINO FUNDAMENTAL COMPLETO",
-    5: "ENSINO MÉDIO INCOMPLETO",
-    6: "ENSINO MÉDIO COMPLETO",
-    7: "ENSINO SUPERIOR INCOMPLETO",
-    8: "ENSINO SUPERIOR COMPLETO",
-    9: "ENSINO SUPERIOR COMPLETO", // pós-grad
+    1: "BRASILEIRO(A)",
+    2: "ESTRANGEIRO(A)",
+    3: "NATURALIZADO(A)",
   };
   return map[Number(code)] ?? (typeof code === 'string' ? code : undefined);
 }

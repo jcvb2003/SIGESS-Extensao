@@ -29,6 +29,10 @@ async function initMain() {
   let _cadastroSessionActive = false;
   /** Evita disparar o click do Gov.br no eCAC mais de uma vez por ciclo de vida do content script. */
   let _ecacClickAttempted = false;
+  /** Evita disparar o click do Gov.br no CadÚnico mais de uma vez por ciclo de vida. */
+  let _cadUnicoClickAttempted = false;
+  /** Evita disparar o click do Gov.br no PesqBrasil MPA mais de uma vez por ciclo de vida. */
+  let _pesqBrasilMpaClickAttempted = false;
 
   // ── Inicialização ────────────────────────────────────────────────────────
 
@@ -154,18 +158,50 @@ async function initMain() {
     const isEcacCpf = url.includes('id=15') || url.includes('ConsultarCPF');
     const isEcacCaepf = url.includes('id=89');
 
-    if (isEcacCpf || isEcacCaepf) {
+    if (isEcacCpf) {
       const runScrape = () => {
-        const data = isEcacCpf ? scrapeEcacCpfData() : scrapeEcacCaepfTable();
-        // Sempre sinaliza conclusão, mesmo sem dados — marca portal ecac como concluido
-        // para que a sessão não fique bloqueada quando a pessoa não tem CAEPF inscrito.
-        saveData(data ?? {}, isEcacCpf ? "ecac_cpf" : "ecac_caepf");
+        const data = scrapeEcacCpfData();
+        saveData(data ?? {}, "ecac_cpf");
       };
-
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', runScrape, { once: true });
       } else {
         runScrape();
+      }
+    }
+
+    if (isEcacCaepf) {
+      // O eCAC renderiza a tabela CAEPF via JS após o status "complete".
+      // Na navegação automática o scraper disparava antes da tabela aparecer.
+      // MutationObserver espera a tabela chegar; timeout de 15s para quem não tem CAEPF.
+      const runCaepfScrape = () => {
+        const data = scrapeEcacCaepfTable();
+        saveData(data ?? {}, "ecac_caepf");
+      };
+
+      const waitForCaepfTable = () => {
+        if (document.querySelector('table.tabela')) {
+          runCaepfScrape();
+          return;
+        }
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          obs.disconnect();
+          runCaepfScrape();
+        };
+        const obs = new MutationObserver(() => {
+          if (document.querySelector('table.tabela')) finish();
+        });
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+        setTimeout(finish, 15000);
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', waitForCaepfTable, { once: true });
+      } else {
+        waitForCaepfTable();
       }
     }
 
@@ -195,6 +231,85 @@ async function initMain() {
         document.addEventListener('DOMContentLoaded', clickGovBr, { once: true });
       } else {
         clickGovBr();
+      }
+    }
+
+    // CadÚnico: MutationObserver no mundo principal aguarda o botão Gov.br aparecer
+    // e clica imediatamente — mais confiável que polling via executeScript do background,
+    // especialmente quando o SPA demora a renderizar a rota #/home.
+    const isCadUnico = host.includes('cadunico.dataprev.gov.br') && !url.includes('successLogin');
+    if (isCadUnico && _cadastroSessionActive && !_cadUnicoClickAttempted) {
+      _cadUnicoClickAttempted = true;
+      const clickCadUnicoGovBr = () => {
+        const s = document.createElement('script');
+        s.textContent = `
+          (function() {
+            var SELECTORS = [
+              "button.br-button[class*='botaoGovBr']",
+              ".br-button.botaoGovBr"
+            ];
+            var obs;
+            function findBtn() {
+              for (var i = 0; i < SELECTORS.length; i++) {
+                var b = document.querySelector(SELECTORS[i]);
+                if (b && b.offsetParent !== null) return b;
+              }
+              return null;
+            }
+            function tryClick() {
+              var b = findBtn();
+              if (!b) return false;
+              if (obs) obs.disconnect();
+              b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              return true;
+            }
+            if (!tryClick()) {
+              obs = new MutationObserver(function() { tryClick(); });
+              obs.observe(document.documentElement, { childList: true, subtree: true });
+              setTimeout(function() { if (obs) obs.disconnect(); }, 20000);
+            }
+          })();
+        `;
+        (document.head || document.documentElement).appendChild(s);
+        s.remove();
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', clickCadUnicoGovBr, { once: true });
+      } else {
+        clickCadUnicoGovBr();
+      }
+    }
+
+    // PesqBrasil MPA: mesma abordagem — MutationObserver aguarda #button_____r0
+    const isPesqBrasilMPA = host.includes('pesqbrasil-pescadorprofissional.mpa.gov.br');
+    if (isPesqBrasilMPA && _cadastroSessionActive && !_pesqBrasilMpaClickAttempted) {
+      _pesqBrasilMpaClickAttempted = true;
+      const clickPesqBrasilMpaGovBr = () => {
+        const s = document.createElement('script');
+        s.textContent = `
+          (function() {
+            var obs;
+            function tryClick() {
+              var b = document.querySelector('#button_____r0');
+              if (!b || b.offsetParent === null) return false;
+              if (obs) obs.disconnect();
+              b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              return true;
+            }
+            if (!tryClick()) {
+              obs = new MutationObserver(function() { tryClick(); });
+              obs.observe(document.documentElement, { childList: true, subtree: true });
+              setTimeout(function() { if (obs) obs.disconnect(); }, 20000);
+            }
+          })();
+        `;
+        (document.head || document.documentElement).appendChild(s);
+        s.remove();
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', clickPesqBrasilMpaGovBr, { once: true });
+      } else {
+        clickPesqBrasilMpaGovBr();
       }
     }
 
