@@ -281,7 +281,8 @@ async function initMain() {
     }
 
     // PesqBrasil MPA: mesma abordagem — MutationObserver aguarda #button_____r0
-    const isPesqBrasilMPA = host.includes('pesqbrasil-pescadorprofissional.mpa.gov.br');
+    const isPesqBrasilMPA = host.includes('pesqbrasil-pescadorprofissional.mpa.gov.br') ||
+                            host.includes('pesqbrasil-pescadorprofissional.agro.gov.br');
     if (isPesqBrasilMPA && _cadastroSessionActive && !_pesqBrasilMpaClickAttempted) {
       _pesqBrasilMpaClickAttempted = true;
       const clickPesqBrasilMpaGovBr = () => {
@@ -310,6 +311,21 @@ async function initMain() {
         document.addEventListener('DOMContentLoaded', clickPesqBrasilMpaGovBr, { once: true });
       } else {
         clickPesqBrasilMpaGovBr();
+      }
+    }
+
+    // PesqBrasil MPA: após login, aparece menu de cards. Clica em #card_____ra
+    // ("Registro de pescador(a) profissional") para acessar os dados do pescador.
+    if (isPesqBrasilMPA && _cadastroSessionActive) {
+      const clickPesqBrasilCard = () => {
+        const card = document.querySelector<HTMLElement>('#card_____ra');
+        if (card) { card.click(); return true; }
+        return false;
+      };
+      if (!clickPesqBrasilCard()) {
+        const obs = new MutationObserver(() => { if (clickPesqBrasilCard()) obs.disconnect(); });
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+        setTimeout(() => obs.disconnect(), 30000);
       }
     }
 
