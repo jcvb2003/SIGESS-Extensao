@@ -98,6 +98,29 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   }
 });
 
+// Recarrega automaticamente tabs do eCAC com sessão de cadastro ativa quando
+// ocorre erro de rede (ex: timeout, falha de conexão).
+const ECAC_HOSTS = ["cav.receita.fazenda.gov.br", "www3.cav.receita.fazenda.gov.br"];
+const ecacReloadAttempts = new Map<number, number>();
+
+(browser as any).webNavigation?.onErrorOccurred?.addListener(async (details: any) => {
+  try {
+    if (details.frameId !== 0) return; // só frame principal
+    const url: string = details.url ?? "";
+    const isEcac = ECAC_HOSTS.some(h => url.includes(h));
+    if (!isEcac) return;
+    const creds = await StorageService.getCredentials(details.tabId);
+    if (!creds?.isCadastroAutomatico) return;
+    const attempts = ecacReloadAttempts.get(details.tabId) ?? 0;
+    if (attempts >= 3) return;
+    ecacReloadAttempts.set(details.tabId, attempts + 1);
+    await new Promise(r => setTimeout(r, 2000));
+    await browser.tabs.reload(details.tabId);
+  } catch (e) {
+    console.error("eCAC network error reload:", e);
+  }
+});
+
 setInterval(() => {
   void getTabManager().recheckPendingTabs().catch((error) => {
     console.error("TabManager watchdog error:", error);
