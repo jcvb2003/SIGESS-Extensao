@@ -77,6 +77,29 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     return !!creds?.loginConcluido;
   }
 
+  /**
+   * O Gov.br roda hcaptcha invisível antes de transitar CPF→senha.
+   * Quando a tab está em background, o hcaptcha não inicializa e a transição
+   * trava. Aguardamos o iframe do widget aparecer antes de clicar.
+   */
+  private async waitForHcaptchaReady(tabId: number, maxWaitMs = 12000): Promise<void> {
+    const pollMs = 400;
+    const maxAttempts = Math.ceil(maxWaitMs / pollMs);
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const ready = await DOMInjector.execute(
+          tabId,
+          () => !!document.querySelector('iframe[src*="hcaptcha"]'),
+        );
+        if (ready) return;
+      } catch {
+        return; // tab navegou ou erro — prossegue sem esperar
+      }
+      await new Promise(r => setTimeout(r, pollMs));
+    }
+    // Timeout — prossegue mesmo assim (captcha pode não ser obrigatório no fluxo)
+  }
+
   protected async handleGovBrLogin(
     tabId: number,
     creds: UserCredentials,
@@ -106,6 +129,9 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
         });
 
         await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
+        // Aguarda hcaptcha inicializar antes de clicar — sem isso a transição
+        // CPF→senha trava quando a tab está em background
+        await this.waitForHcaptchaReady(tabId);
         await DOMInjector.clickElement(tabId, "#enter-account-id");
         await StorageService.updateCredentials(tabId, {
           govBrCpfSubmitted: true,
@@ -143,9 +169,24 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     await DOMInjector.waitForElement(tabId, "#password", 1200);
     await DOMInjector.setInputValue(tabId, "#password", senha);
     await DOMInjector.clickElement(tabId, "#submit-button");
-    await StorageService.updateCredentials(tabId, {
-      govBrPasswordSubmitted: true,
-    });
+    await StorageService.updateCredentials(tabId, { govBrPasswordSubmitted: true });
+
+    // Aguarda até 3s para detectar mensagem de senha inválida antes de marcar login completo.
+    // Se a tab navegar (login bem-sucedido), DOMInjector lança e saímos do loop.
+    for (let i = 0; i < 6; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      try {
+        const hasError = await DOMInjector.execute(
+          tabId,
+          () => !!document.querySelector(".br-message.warning"),
+        );
+        if (hasError) throw new Error("govbr_senha_invalida");
+      } catch (e: any) {
+        if (e?.message === "govbr_senha_invalida") throw e;
+        break; // tab navegou ou erro de scripting → assume sucesso
+      }
+    }
+
     await this.markLoginComplete(tabId);
   }
 }
@@ -165,7 +206,8 @@ export class PesqBrasilStrategy extends BaseAuthStrategy {
       credentials.status !== "fazendo_login"
     ) {
       try {
-        await DOMInjector.waitForElement(tabId, "#button_____3", 5000);
+        await DOMInjector.waitForElement(tabId, "#button_____3", 12000);
+        await new Promise(r => setTimeout(r, 500));
         await DOMInjector.clickElement(tabId, "#button_____3");
         await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
       } catch (e) {
@@ -252,7 +294,9 @@ export class PesqBrasilMPAStrategy extends BaseAuthStrategy {
       credentials.status !== "fazendo_login"
     ) {
       try {
-        await DOMInjector.waitForElement(tabId, "#button_____r0", 5000);
+        await DOMInjector.waitForElement(tabId, "#button_____r0", 12000);
+        // Aguarda framework conectar event handlers antes de clicar
+        await new Promise(r => setTimeout(r, 500));
         await DOMInjector.clickElement(tabId, "#button_____r0");
         await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
       } catch (e) {
@@ -307,9 +351,11 @@ export class CadUnicoStrategy extends BaseAuthStrategy {
         const selector = await DOMInjector.waitForAnyElement(
           tabId,
           ["button.br-button[class*='botaoGovBr']", ".br-button.primary", "button.br-button"],
-          8000,
+          12000,
         );
         if (selector) {
+          // Aguarda framework conectar event handlers antes de clicar
+          await new Promise(r => setTimeout(r, 500));
           await DOMInjector.clickElement(tabId, selector);
           await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
         }

@@ -15,6 +15,7 @@ export interface CadastroSession {
     tse?: CadastroPortalEntry;
   };
   mergeRequest?: { raw: Record<string, Partial<PessoaData>> };
+  errorMessage?: string;
 }
 
 export interface UserCredentials {

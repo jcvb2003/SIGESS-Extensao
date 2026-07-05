@@ -15,7 +15,7 @@ export class TabManager {
   private readonly strategies: AuthStrategy[] = [];
   private static readonly TAB_CONTAINER_PREFIX = "tab_container_";
   private static readonly RECENT_CONTAINERS_KEY = "sigessRecentContainers";
-  private static readonly PENDING_TAB_RECHECK_MS = 15000;
+  private static readonly PENDING_TAB_RECHECK_MS = 6000;
   private _containerQueueLock: Promise<void> = Promise.resolve();
   private readonly processingTabs = new Set<number>();
 
@@ -291,7 +291,11 @@ export class TabManager {
         try {
           await strategy.execute(tabId, tabUrl, credentials);
           return;
-        } catch (error) {
+        } catch (error: any) {
+          if (error?.message === "govbr_senha_invalida") {
+            await this.abortActiveCadastroSession("Usuário e/ou senha inválidos no Gov.br.");
+            return;
+          }
           if (attempt === maxRetries) {
             console.error(`[TabManager] Falha na execucao apos ${maxRetries} tentativas:`, error);
             await strategy.updateStatus(tabId, "erro", "Erro no Login", String(error));
@@ -304,6 +308,42 @@ export class TabManager {
       }
     } finally {
       this.processingTabs.delete(tabId);
+    }
+  }
+
+  private async abortActiveCadastroSession(errorMessage: string): Promise<void> {
+    const CADASTRO_SESSION_KEY = "sigessActiveCadastro";
+    try {
+      const result = await StorageService.get<CadastroSession>(CADASTRO_SESSION_KEY);
+      const session: CadastroSession | undefined = (result as any)[CADASTRO_SESSION_KEY];
+      if (!session || session.sessionState !== "active") return;
+
+      // Marca todos os portais como erro e seta o estado da sessão
+      for (const key of Object.keys(session.portais) as (keyof typeof session.portais)[]) {
+        const portal = session.portais[key];
+        if (portal) portal.status = "erro";
+      }
+      session.sessionState = "error";
+      session.errorMessage = errorMessage;
+      await StorageService.set({ [CADASTRO_SESSION_KEY]: session });
+
+      // Fecha tabs dos portais
+      const tabIds = [
+        session.portais.cadunico.tabId,
+        session.portais.pesqbrasil?.tabId,
+        session.portais.ecac?.tabId,
+        session.portais.tse?.tabId,
+      ].filter((id): id is number => typeof id === "number");
+      if (tabIds.length > 0) {
+        try { await browser.tabs.remove(tabIds); } catch { /* já fechadas */ }
+      }
+
+      // Remove container com delay
+      setTimeout(async () => {
+        try { await (browser as any).contextualIdentities.remove(session.cookieStoreId); } catch { }
+      }, 1500);
+    } catch (e) {
+      console.error("[TabManager] Erro ao abortar sessão de cadastro:", e);
     }
   }
 
