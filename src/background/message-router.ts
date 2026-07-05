@@ -74,6 +74,7 @@ export async function routeMessage(
         return { success: lic.ok, ...lic };
       }
       case "updateESocialSettings":
+      case "updateSettings":
         return await handleUpdateSettings(message);
       case "startBatchLogin":
         return await handleStartBatchLogin(message, getTabManager);
