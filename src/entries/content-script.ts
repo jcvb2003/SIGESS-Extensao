@@ -169,5 +169,12 @@ if (browserAPI?.storage?.onChanged) {
         window.location.origin,
       );
     }
+
+    if (changes.sigessSettings?.newValue && "pessoaData_raw" in (changes.sigessSettings.newValue as Record<string, unknown>)) {
+      window.postMessage(
+        { type: EXTENSION_EVENT_TYPE, eventName: "pessoaDataAtualizada" },
+        window.location.origin,
+      );
+    }
   });
 }
