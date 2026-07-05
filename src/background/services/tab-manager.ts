@@ -229,6 +229,9 @@ export class TabManager {
   }
 
   async recheckPendingTabs(): Promise<void> {
+    // Watchdog: recupera caso o evento tabs.onUpdated seja perdido após login do CadÚnico
+    await this.recheckCadastroSiblings();
+
     const allCredentials = await StorageService.getAllCredentials();
     const now = Date.now();
 
@@ -426,6 +429,27 @@ export class TabManager {
         await this.openCadastroSiblings(session, tabId, creds);
       }
     }
+  }
+
+  private async recheckCadastroSiblings(): Promise<void> {
+    const key = "sigessActiveCadastro";
+    const result = await StorageService.get<CadastroSession>(key);
+    const session: CadastroSession | undefined = (result as any)[key];
+
+    if (!session || session.sessionState !== "active") return;
+    if (session.portais.pesqbrasil.status !== "aguardando") return;
+
+    // Aguarda mínimo de 30s desde o início da sessão — CadÚnico pode ainda estar fazendo login
+    if (Date.now() - session.startedAt < 30_000) return;
+
+    const cadUnicoTabId = session.portais.cadunico.tabId;
+    if (!cadUnicoTabId) return;
+
+    const creds = await StorageService.getCredentials(cadUnicoTabId);
+    if (!creds?.loginConcluido || !creds.isCadastroAutomatico) return;
+
+    console.log("[TabManager] Watchdog: abrindo siblings que nao foram abertos pelo evento de navegacao.");
+    await this.openCadastroSiblings(session, cadUnicoTabId, creds);
   }
 
   private async openCadastroSiblings(
