@@ -129,12 +129,16 @@ mpaMunicipio?: number;
 
   mpaMascProdMin?: string;
   mpaMascProdMax?: string;
+  mpaMascProdAnnualMin?: number;
+  mpaMascProdAnnualMax?: number;
   mpaMascDaysMin?: string;
   mpaMascDaysMax?: string;
   mpaMascAnnualMin?: number;
   mpaMascAnnualMax?: number;
   mpaFemProdMin?: string;
   mpaFemProdMax?: string;
+  mpaFemProdAnnualMin?: number;
+  mpaFemProdAnnualMax?: number;
   mpaFemDaysMin?: string;
   mpaFemDaysMax?: string;
   mpaFemAnnualMin?: number;

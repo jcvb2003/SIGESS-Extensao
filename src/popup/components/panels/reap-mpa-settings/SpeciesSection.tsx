@@ -143,13 +143,21 @@ function AnnualRangeSlider({
 }
 
 function ProductionRangeSlice({
-  min,
-  max,
+  absMin,
+  absMax,
+  value,
+  onChange,
 }: {
-  min: number;
-  max: number;
+  absMin: number;
+  absMax: number;
+  value: [number, number];
+  onChange: (v: [number, number]) => void;
 }) {
-  if (min <= 0 || max <= 0) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef<"lo" | "hi" | null>(null);
+  const [lo, hi] = value;
+
+  if (absMin <= 0 || absMax <= 0) {
     return (
       <div style={{ fontSize: "10px", color: "var(--color-muted)", marginTop: "4px", textAlign: "center" }}>
         Preencha kg/preco das especies
@@ -157,22 +165,75 @@ function ProductionRangeSlice({
     );
   }
 
+  if (absMin >= absMax) {
+    return (
+      <div style={{ fontSize: "10px", color: "var(--color-muted)", marginTop: "4px", textAlign: "center" }}>
+        Total/ano: {formatCurrency(absMin)}
+      </div>
+    );
+  }
+
+  const valueFromPointer = (e: React.PointerEvent) => {
+    const rect = trackRef.current!.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    return Math.round(absMin + pct * (absMax - absMin));
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const v = valueFromPointer(e);
+    draggingRef.current = Math.abs(v - lo) <= Math.abs(v - hi) ? "lo" : "hi";
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    if (draggingRef.current === "lo") onChange([Math.min(v, hi), hi]);
+    else onChange([lo, Math.max(v, lo)]);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const v = valueFromPointer(e);
+    if (draggingRef.current === "lo") onChange([Math.min(v, hi), hi]);
+    else onChange([lo, Math.max(v, lo)]);
+  };
+
+  const onPointerUp = () => { draggingRef.current = null; };
+
+  const pctLo = ((lo - absMin) / (absMax - absMin)) * 100;
+  const pctHi = ((hi - absMin) / (absMax - absMin)) * 100;
+
+  const handle = (pct: number): React.CSSProperties => ({
+    position: "absolute",
+    top: "50%",
+    left: `${pct}%`,
+    transform: "translate(-50%, -50%)",
+    width: "12px",
+    height: "12px",
+    borderRadius: "50%",
+    background: "var(--color-accent)",
+    border: "2px solid var(--color-page)",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
+    cursor: "grab",
+    pointerEvents: "none",
+  });
+
   return (
     <div style={{ marginTop: "6px" }}>
       <div style={{ fontSize: "10px", color: "var(--color-muted)", textAlign: "center", marginBottom: "4px" }}>
-        Total/ano:{" "}
-        <strong style={{ color: "var(--color-accent)" }}>
-          {formatCurrency(min)} - {formatCurrency(max)}
-        </strong>
+        Total/ano: <strong style={{ color: "var(--color-accent)" }}>{formatCurrency(lo)}–{formatCurrency(hi)}</strong>
       </div>
-      <div style={{ position: "relative", height: "18px", userSelect: "none" }}>
+      <div
+        ref={trackRef}
+        style={{ position: "relative", height: "18px", cursor: "pointer", userSelect: "none" }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
         <div style={{ position: "absolute", top: "7px", left: 0, right: 0, height: "3px", background: "var(--color-border)", borderRadius: "2px" }} />
-        <div style={{ position: "absolute", top: "7px", left: 0, right: 0, height: "3px", background: "var(--color-accent)", borderRadius: "2px" }} />
-        <div style={{ position: "absolute", top: "50%", left: 0, transform: "translate(-50%, -50%)", width: "12px", height: "12px", borderRadius: "50%", background: "var(--color-accent)", border: "2px solid var(--color-page)", boxShadow: "0 1px 4px rgba(0,0,0,0.5)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", top: "50%", left: "100%", transform: "translate(-50%, -50%)", width: "12px", height: "12px", borderRadius: "50%", background: "var(--color-accent)", border: "2px solid var(--color-page)", boxShadow: "0 1px 4px rgba(0,0,0,0.5)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: "7px", left: `${pctLo}%`, width: `${pctHi - pctLo}%`, height: "3px", background: "var(--color-accent)", borderRadius: "2px" }} />
+        <div style={handle(pctLo)} />
+        <div style={handle(pctHi)} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--color-muted)", marginTop: "1px" }}>
-        <span>{formatCurrency(min)}</span><span>{formatCurrency(max)}</span>
+        <span>{formatCurrency(absMin)}</span><span>{formatCurrency(absMax)}</span>
       </div>
     </div>
   );
@@ -332,6 +393,13 @@ export function ReapSpeciesSection({
           const hasMasc = mascMin > 0 && mascMax > 0 && fishingCount > 0;
           const hasFem = femMin > 0 && femMax > 0 && fishingCount > 0;
 
+          const prodAbsMin = productionSlice.min;
+          const prodAbsMax = productionSlice.max;
+          const mascProdAnnualMin = settings.mpaMascProdAnnualMin ?? prodAbsMin;
+          const mascProdAnnualMax = settings.mpaMascProdAnnualMax ?? prodAbsMax;
+          const femProdAnnualMin = settings.mpaFemProdAnnualMin ?? prodAbsMin;
+          const femProdAnnualMax = settings.mpaFemProdAnnualMax ?? prodAbsMax;
+
           const panelColors: Record<string, { accent: string; soft: string }> = {
             MASCULINO: { accent: "#2563eb", soft: "rgba(37,99,235,0.08)" },
             FEMININO:  { accent: "#db2777", soft: "rgba(219,39,119,0.08)" },
@@ -377,6 +445,11 @@ export function ReapSpeciesSection({
                   onDaysMaxChange: (v: string) => onUpdate({ mpaMascDaysMax: v, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined }),
                   daysMinVal: settings.mpaMascDaysMin || "",
                   daysMaxVal: settings.mpaMascDaysMax || "",
+                  prodAbsMin,
+                  prodAbsMax,
+                  prodAnnualMin: mascProdAnnualMin,
+                  prodAnnualMax: mascProdAnnualMax,
+                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({ mpaMascProdAnnualMin: lo, mpaMascProdAnnualMax: hi }),
                 },
                 {
                   label: "FEMININO",
@@ -394,6 +467,11 @@ export function ReapSpeciesSection({
                   onDaysMaxChange: (v: string) => onUpdate({ mpaFemDaysMax: v, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined }),
                   daysMinVal: settings.mpaFemDaysMin || "",
                   daysMaxVal: settings.mpaFemDaysMax || "",
+                  prodAbsMin,
+                  prodAbsMax,
+                  prodAnnualMin: femProdAnnualMin,
+                  prodAnnualMax: femProdAnnualMax,
+                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({ mpaFemProdAnnualMin: lo, mpaFemProdAnnualMax: hi }),
                 },
               ].map((panel) => (
                 <div key={panel.label} style={panelStyle(panel.label)}>
@@ -415,8 +493,10 @@ export function ReapSpeciesSection({
                         Produção (R$)
                       </label>
                       <ProductionRangeSlice
-                        min={productionSlice.min}
-                        max={productionSlice.max}
+                        absMin={panel.prodAbsMin}
+                        absMax={panel.prodAbsMax}
+                        value={[panel.prodAnnualMin, panel.prodAnnualMax]}
+                        onChange={panel.onProdChange}
                       />
                     </div>
                     <div>
