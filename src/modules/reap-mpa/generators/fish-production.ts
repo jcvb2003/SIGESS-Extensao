@@ -10,19 +10,17 @@ export const ProductionGenerator: any = {
     settings?: any
   ): FishProduction[] {
     const fishingMonths = getFishingMonthIndexes(settings || {});
+    const productiveMonths = fishingMonths.length;
     const currentFishTable = this.selectSpecies(settings);
     const { targetMin, targetMax } = this.getTargetRange(gender, settings);
-    const totalDays = fishingMonths.reduce((s, m) => s + (daysMap[m] || 0), 0);
 
-    let bestResult = this.tryGenerateIdeal(currentFishTable, daysMap, fishingMonths, totalDays, targetMin, targetMax);
-
-    if (!bestResult) {
-      console.warn("Não foi possível gerar produção ideal, usando fallback.");
-      bestResult = this.generateFallback(currentFishTable, fishingMonths);
+    if (productiveMonths === 0 || currentFishTable.length === 0) {
+      return this.generateFallback(currentFishTable, fishingMonths);
     }
 
-    this.logFinalProduction(bestResult, gender);
-    return bestResult;
+    const result = this.resolve(currentFishTable, daysMap, fishingMonths, productiveMonths, targetMin, targetMax);
+    this.logFinalProduction(result, gender);
+    return result;
   },
 
   selectSpecies(settings?: any): FishData[] {
@@ -53,103 +51,204 @@ export const ProductionGenerator: any = {
     return mapped.length > 0 ? mapped : FISH_TABLE;
   },
 
-  getTargetRange(gender: string, settings?: any) {
-    let targetMin = gender === "MASCULINO" ? 2850 : 2550;
-    let targetMax = gender === "MASCULINO" ? 3075 : 2850;
+  getTargetRange(gender: string, settings?: any): { targetMin: number; targetMax: number } {
+    if (!settings) {
+      return { targetMin: 0, targetMax: 0 };
+    }
 
-    if (!settings) return { targetMin, targetMax };
-
-    const prefix = gender === "MASCULINO" ? "mpaMascProd" : "mpaFemProd";
-    if (settings[`${prefix}Min`]) targetMin = Number(settings[`${prefix}Min`]);
-    if (settings[`${prefix}Max`]) targetMax = Number(settings[`${prefix}Max`]);
+    const prefix = gender === "MASCULINO" ? "mpaMascProductionAnnual" : "mpaFemProductionAnnual";
+    const targetMin = Number(settings[`${prefix}Min`]) || 0;
+    const targetMax = Number(settings[`${prefix}Max`]) || 0;
 
     return { targetMin, targetMax };
   },
 
-  tryGenerateIdeal(table: FishData[], daysMap: Record<number, number>, fishingMonths: number[], totalDays: number, min: number, max: number) {
-    let attempts = 0;
-    while (attempts < 300) {
-      const result = this.generateInitialProduction(table, daysMap, fishingMonths, totalDays);
-      const totalValue = result.reduce((s: number, p: FishProduction) => s + p.totalKg * p.price, 0);
+  resolve(
+    table: FishData[],
+    daysMap: Record<number, number>,
+    fishingMonths: number[],
+    productiveMonths: number,
+    targetMin: number,
+    targetMax: number
+  ): FishProduction[] {
+    const minDias = Math.min(...fishingMonths.map((m) => daysMap[m] || 0));
+    const maxDias = Math.max(...fishingMonths.map((m) => daysMap[m] || 0));
 
-      if (totalValue >= min && totalValue <= max) return result;
+    const speciesMinAnnual = table.map((fish) => fish.kgMin * fish.priceMin * productiveMonths);
+    const speciesMaxAnnual = table.map((fish) => fish.kgMax * fish.priceMax * productiveMonths);
+    const totalMin = speciesMinAnnual.reduce((s, v) => s + v, 0);
+    const totalMax = speciesMaxAnnual.reduce((s, v) => s + v, 0);
 
-      this.adjustPricesToTarget(result, table, totalValue, min, max);
-      
-      const adjustedTotal = result.reduce((s: number, p: FishProduction) => s + p.totalKg * p.price, 0);
-      if (adjustedTotal >= min && adjustedTotal <= max) return result;
+    const effectiveMin = Math.max(targetMin, totalMin);
+    const effectiveMax = Math.min(targetMax, totalMax);
+    const target = effectiveMin + Math.random() * (effectiveMax - effectiveMin);
 
-      attempts++;
+    const contributions = this.distributeTarget(table, productiveMonths, speciesMinAnnual, speciesMaxAnnual, totalMin, totalMax, target);
+
+    const monthlyKgMap = this.generateAllMonthlyKg(table, daysMap, fishingMonths, minDias, maxDias);
+
+    const result: FishProduction[] = table.map((fish, i) => {
+      const monthlyKg = monthlyKgMap[i];
+      const annualKg = (Object.values(monthlyKg) as number[]).reduce((s, v) => s + v, 0);
+      return {
+        id: fish.id,
+        name: fish.name,
+        totalKg: annualKg,
+        price: 0,
+        monthlyKg,
+      };
+    });
+
+    this.resolvePrices(result, table, contributions);
+
+    const totalValue = result.reduce((s, p) => s + p.totalKg * p.price, 0);
+    if (totalValue < effectiveMin || totalValue > effectiveMax) {
+      this.adjustToTarget(result, table, contributions, effectiveMin, effectiveMax);
     }
-    return null;
-  },
 
-  generateInitialProduction(table: FishData[], daysMap: Record<number, number>, fishingMonths: number[], totalDays: number): FishProduction[] {
-    const result: FishProduction[] = table.map(fish => ({
-      id: fish.id,
-      name: fish.name,
-      totalKg: Math.floor(Math.random() * (fish.kgMax - fish.kgMin + 1)) + fish.kgMin,
-      price: 0,
-      monthlyKg: {},
-    }));
-
-    result.sort((a, b) => b.totalKg - a.totalKg);
-    this.assignPrices(result, table);
-    this.distributeMonthlyKg(result, daysMap, fishingMonths, totalDays);
-    
     return result;
   },
 
-  assignPrices(productions: FishProduction[], table: FishData[]) {
-    productions.forEach((prod, i) => {
-      const fish = table.find((f) => f.name === prod.name);
-      if (!fish) return;
-      
-      const range = fish.priceMax - fish.priceMin;
-      const factor = productions.length > 1 ? i / (productions.length - 1) : 0.5;
-      const price = fish.priceMin + (range * factor * 0.7) + (Math.random() * range * 0.3);
-      prod.price = Math.round(price);
+  distributeTarget(
+    table: FishData[],
+    _productiveMonths: number,
+    speciesMinAnnual: number[],
+    speciesMaxAnnual: number[],
+    totalMin: number,
+    _totalMax: number,
+    target: number
+  ): number[] {
+    const excess = target - totalMin;
+    const totalCapacity = speciesMaxAnnual.reduce((s, v, i) => s + (v - speciesMinAnnual[i]), 0);
+
+    if (totalCapacity <= 0) {
+      return [...speciesMinAnnual];
+    }
+
+    return table.map((_, i) => {
+      const capacity = speciesMaxAnnual[i] - speciesMinAnnual[i];
+      return speciesMinAnnual[i] + excess * (capacity / totalCapacity);
     });
   },
 
-  distributeMonthlyKg(productions: FishProduction[], daysMap: Record<number, number>, fishingMonths: number[], totalDays: number) {
-    if (totalDays === 0) {
-      throw new Error("SIGESS: totalDays é 0 — escala de dias inválida para distribuição de produção.");
+  generateAllMonthlyKg(
+    table: FishData[],
+    daysMap: Record<number, number>,
+    fishingMonths: number[],
+    minDias: number,
+    maxDias: number
+  ): Record<number, number>[] {
+    const sumMin = table.reduce((s, f) => s + f.kgMin, 0);
+    const sumMax = table.reduce((s, f) => s + f.kgMax, 0);
+
+    const monthlyConsolidated: Record<number, number> = {};
+    for (const m of fishingMonths) {
+      const dias = daysMap[m] || 0;
+      if (maxDias === minDias) {
+        monthlyConsolidated[m] = Math.round((sumMin + sumMax) / 2);
+      } else {
+        const intensity = (dias - minDias) / (maxDias - minDias);
+        monthlyConsolidated[m] = Math.round(sumMin + intensity * (sumMax - sumMin));
+      }
     }
 
-    for (const prod of productions) {
-      let remaining = prod.totalKg;
-      const monthlyRaw: Record<number, number> = {};
+    const results: Record<number, number>[] = table.map(() => {
+      const kg: Record<number, number> = {};
+      for (let i = 0; i < 12; i++) kg[i] = 0;
+      return kg;
+    });
 
-      for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
-        monthlyRaw[monthIndex] = 0;
+    for (const m of fishingMonths) {
+      const target = monthlyConsolidated[m];
+      const allocated: number[] = table.map((f) => f.kgMin);
+      let leftover = target - sumMin;
+
+      for (let i = 0; i < table.length; i++) {
+        const fish = table[i];
+        const capacity = fish.kgMax - fish.kgMin;
+        const totalCapacity = table.reduce((s, f) => s + (f.kgMax - f.kgMin), 0);
+
+        if (leftover > 0 && totalCapacity > 0) {
+          const share = Math.round((capacity / totalCapacity) * leftover);
+          const added = Math.min(share, capacity, leftover);
+          allocated[i] += added;
+          leftover -= added;
+        }
+
+        results[i][m] = allocated[i];
       }
 
-      for (const m of fishingMonths) {
-        const daysProportion = (daysMap[m] || 0) / totalDays;
-        const kgForMonth = Math.round(prod.totalKg * daysProportion);
-        monthlyRaw[m] = kgForMonth;
-        remaining -= kgForMonth;
+      if (leftover > 0) {
+        for (let i = 0; i < table.length && leftover > 0; i++) {
+          const fish = table[i];
+          const canAdd = fish.kgMax - results[i][m];
+          const add = Math.min(canAdd, leftover);
+          results[i][m] += add;
+          leftover -= add;
+        }
       }
-
-      const lastMonth = fishingMonths.at(-1);
-      if (lastMonth !== undefined) {
-        monthlyRaw[lastMonth] += remaining;
-      }
-      prod.monthlyKg = monthlyRaw;
     }
+
+    return results;
   },
 
-  adjustPricesToTarget(productions: FishProduction[], table: FishData[], totalValue: number, min: number, max: number) {
-    const isUnder = totalValue < min;
-    for (const prod of productions) {
+  resolvePrices(
+    productions: FishProduction[],
+    table: FishData[],
+    contributions: number[]
+  ) {
+    productions.forEach((prod, i) => {
       const fish = table.find((f) => f.name === prod.name);
-      if (!fish) continue;
+      if (!fish || prod.totalKg === 0) return;
 
-      if (isUnder) {
-        prod.price = Math.min(fish.priceMax, prod.price + 0.5);
-      } else if (totalValue > max) {
-        prod.price = Math.max(fish.priceMin, prod.price - 0.5);
+      const price = contributions[i] / prod.totalKg;
+      prod.price = Math.max(fish.priceMin, Math.min(fish.priceMax, Math.round(price)));
+    });
+  },
+
+  adjustToTarget(
+    productions: FishProduction[],
+    table: FishData[],
+    _contributions: number[],
+    targetMin: number,
+    targetMax: number
+  ) {
+    for (let iteration = 0; iteration < 10; iteration++) {
+      const total = productions.reduce((s, p) => s + p.totalKg * p.price, 0);
+      if (total >= targetMin && total <= targetMax) return;
+
+      const isUnder = total < targetMin;
+      for (const prod of productions) {
+        const fish = table.find((f) => f.name === prod.name);
+        if (!fish) continue;
+
+        if (isUnder && prod.price < fish.priceMax) {
+          prod.price = Math.min(fish.priceMax, prod.price + 1);
+        } else if (!isUnder && prod.price > fish.priceMin) {
+          prod.price = Math.max(fish.priceMin, prod.price - 1);
+        }
+      }
+    }
+
+    const total = productions.reduce((s, p) => s + p.totalKg * p.price, 0);
+    if (total < targetMin || total > targetMax) {
+      for (const prod of productions) {
+        const fish = table.find((f) => f.name === prod.name);
+        if (!fish) continue;
+
+        for (const m of Object.keys(prod.monthlyKg).map(Number)) {
+          if (prod.monthlyKg[m] <= 0) continue;
+
+          if (total < targetMin && prod.monthlyKg[m] < fish.kgMax) {
+            prod.monthlyKg[m] = Math.min(fish.kgMax, prod.monthlyKg[m] + 1);
+            prod.totalKg += 1;
+            break;
+          } else if (total > targetMax && prod.monthlyKg[m] > fish.kgMin) {
+            prod.monthlyKg[m] = Math.max(fish.kgMin, prod.monthlyKg[m] - 1);
+            prod.totalKg -= 1;
+            break;
+          }
+        }
       }
     }
   },

@@ -49,9 +49,9 @@ export function validateReapSettings(settings: any, gender: string): string | nu
     return `O valor minimo de "Dias/Mes" nao pode ser maior que o maximo para o genero ${gender}.`;
   }
 
-  const prodPrefix = gender === "MASCULINO" ? "mpaMascProd" : "mpaFemProd";
+  const prodPrefix = gender === "MASCULINO" ? "mpaMascProductionAnnual" : "mpaFemProductionAnnual";
   if (!settings[`${prodPrefix}Min`] || !settings[`${prodPrefix}Max`]) {
-    return `Por favor, preencha as metas (Min/Max) de "Producao (R$)" para o genero ${gender} no painel de configuracoes.`;
+    return `Por favor, ajuste o slider de "Producao (R$)" para o genero ${gender} no painel de configuracoes.`;
   }
 
   return null;

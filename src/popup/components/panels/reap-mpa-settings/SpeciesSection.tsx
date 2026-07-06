@@ -336,8 +336,8 @@ export function ReapSpeciesSection({
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px" }}>
                   {[
-                    { key: "kgMin", label: "KG MÍN" },
-                    { key: "kgMax", label: "KG MÁX" },
+                    { key: "kgMin", label: "KG MÍN/MÊS" },
+                    { key: "kgMax", label: "KG MÁX/MÊS" },
                     { key: "priceMin", label: "R$ MÍN" },
                     { key: "priceMax", label: "R$ MÁX" },
                   ].map(({ key, label }) => (
@@ -395,10 +395,10 @@ export function ReapSpeciesSection({
 
           const prodAbsMin = productionSlice.min;
           const prodAbsMax = productionSlice.max;
-          const mascProdAnnualMin = settings.mpaMascProdAnnualMin ?? prodAbsMin;
-          const mascProdAnnualMax = settings.mpaMascProdAnnualMax ?? prodAbsMax;
-          const femProdAnnualMin = settings.mpaFemProdAnnualMin ?? prodAbsMin;
-          const femProdAnnualMax = settings.mpaFemProdAnnualMax ?? prodAbsMax;
+          const mascProdAnnualMin = settings.mpaMascProductionAnnualMin ?? prodAbsMin;
+          const mascProdAnnualMax = settings.mpaMascProductionAnnualMax ?? prodAbsMax;
+          const femProdAnnualMin = settings.mpaFemProductionAnnualMin ?? prodAbsMin;
+          const femProdAnnualMax = settings.mpaFemProductionAnnualMax ?? prodAbsMax;
 
           const panelColors: Record<string, { accent: string; soft: string }> = {
             MASCULINO: { accent: "#2563eb", soft: "rgba(37,99,235,0.08)" },
@@ -449,7 +449,7 @@ export function ReapSpeciesSection({
                   prodAbsMax,
                   prodAnnualMin: mascProdAnnualMin,
                   prodAnnualMax: mascProdAnnualMax,
-                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({ mpaMascProdAnnualMin: lo, mpaMascProdAnnualMax: hi }),
+                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({ mpaMascProductionAnnualMin: lo, mpaMascProductionAnnualMax: hi }),
                 },
                 {
                   label: "FEMININO",
@@ -471,7 +471,7 @@ export function ReapSpeciesSection({
                   prodAbsMax,
                   prodAnnualMin: femProdAnnualMin,
                   prodAnnualMax: femProdAnnualMax,
-                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({ mpaFemProdAnnualMin: lo, mpaFemProdAnnualMax: hi }),
+                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({ mpaFemProductionAnnualMin: lo, mpaFemProductionAnnualMax: hi }),
                 },
               ].map((panel) => (
                 <div key={panel.label} style={panelStyle(panel.label)}>
