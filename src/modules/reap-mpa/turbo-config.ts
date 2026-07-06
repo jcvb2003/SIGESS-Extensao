@@ -17,8 +17,8 @@ export function validateReapSettings(settings: any, gender: string): string | nu
   }
 
   const filled = (settings.mpaSpecies || []).filter((s: any) => s?.id);
-  if (filled.length < 4) {
-    return "Por favor, preencha pelo menos 4 especies no painel de configuracoes do REAP MPA.";
+  if (filled.length < 3) {
+    return "Por favor, preencha pelo menos 3 especies no painel de configuracoes do REAP MPA.";
   }
 
   for (const s of filled) {

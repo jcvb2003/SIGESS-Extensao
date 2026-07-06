@@ -1,6 +1,57 @@
 import { useRef } from "react";
 import { AppSettings } from "../../../../shared/types";
-import { CurrencyInput, SpeciesSearch } from "./SharedFields";
+import { SpeciesSearch } from "./SharedFields";
+
+function parsePositiveNumber(value?: string) {
+  const parsed = Number(String(value ?? "").replace(",", "."));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function formatCurrency(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function calculateProductionSlice(settings: AppSettings) {
+  const productiveMonths = 12 - new Set(
+    (settings.mpaDefesoMonths || []).filter((month) => Number.isInteger(month) && month >= 1 && month <= 12),
+  ).size;
+
+  const species = (settings.mpaSpecies || [])
+    .map((item) => {
+      const kgMin = parsePositiveNumber(item.kgMin);
+      const kgMax = parsePositiveNumber(item.kgMax);
+      const priceMin = parsePositiveNumber(item.priceMin);
+      const priceMax = parsePositiveNumber(item.priceMax);
+
+      if (!item.id || kgMin == null || kgMax == null || priceMin == null || priceMax == null) return null;
+      if (kgMin > kgMax || priceMin > priceMax) return null;
+
+      return {
+        min: kgMin * priceMin * productiveMonths,
+        max: kgMax * priceMax * productiveMonths,
+      };
+    })
+    .filter((item): item is { min: number; max: number } => item !== null);
+
+  const requestedCount = Math.min(settings.mpaSpeciesCount ?? 5, 10);
+  const usableCount = Math.min(requestedCount, species.length);
+  const min = [...species]
+    .sort((a, b) => a.min - b.min)
+    .slice(0, usableCount)
+    .reduce((total, item) => total + item.min, 0);
+  const max = [...species]
+    .sort((a, b) => b.max - a.max)
+    .slice(0, usableCount)
+    .reduce((total, item) => total + item.max, 0);
+
+  return {
+    min,
+    max,
+    usableCount,
+    productiveMonths,
+    isReady: productiveMonths > 0 && usableCount > 0,
+  };
+}
 
 function AnnualRangeSlider({
   absMin,
@@ -91,6 +142,42 @@ function AnnualRangeSlider({
   );
 }
 
+function ProductionRangeSlice({
+  min,
+  max,
+}: {
+  min: number;
+  max: number;
+}) {
+  if (min <= 0 || max <= 0) {
+    return (
+      <div style={{ fontSize: "10px", color: "var(--color-muted)", marginTop: "4px", textAlign: "center" }}>
+        Preencha kg/preco das especies
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: "6px" }}>
+      <div style={{ fontSize: "10px", color: "var(--color-muted)", textAlign: "center", marginBottom: "4px" }}>
+        Total/ano:{" "}
+        <strong style={{ color: "var(--color-accent)" }}>
+          {formatCurrency(min)} - {formatCurrency(max)}
+        </strong>
+      </div>
+      <div style={{ position: "relative", height: "18px", userSelect: "none" }}>
+        <div style={{ position: "absolute", top: "7px", left: 0, right: 0, height: "3px", background: "var(--color-border)", borderRadius: "2px" }} />
+        <div style={{ position: "absolute", top: "7px", left: 0, right: 0, height: "3px", background: "var(--color-accent)", borderRadius: "2px" }} />
+        <div style={{ position: "absolute", top: "50%", left: 0, transform: "translate(-50%, -50%)", width: "12px", height: "12px", borderRadius: "50%", background: "var(--color-accent)", border: "2px solid var(--color-page)", boxShadow: "0 1px 4px rgba(0,0,0,0.5)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: "50%", left: "100%", transform: "translate(-50%, -50%)", width: "12px", height: "12px", borderRadius: "50%", background: "var(--color-accent)", border: "2px solid var(--color-page)", boxShadow: "0 1px 4px rgba(0,0,0,0.5)", pointerEvents: "none" }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--color-muted)", marginTop: "1px" }}>
+        <span>{formatCurrency(min)}</span><span>{formatCurrency(max)}</span>
+      </div>
+    </div>
+  );
+}
+
 export function ReapSpeciesSection({
   settings,
   onUpdate,
@@ -102,6 +189,7 @@ export function ReapSpeciesSection({
     settings.mpaSpecies?.map((s) => s.id).filter((id): id is number => id !== undefined) || [];
   const filled = settings.mpaSpecies?.filter((s) => s?.id).length ?? 0;
   const count = settings.mpaSpeciesCount ?? 5;
+  const productionSlice = calculateProductionSlice(settings);
 
   const updateSpecie = (index: number, data: any) => {
     const current = settings.mpaSpecies || [];
@@ -132,7 +220,7 @@ export function ReapSpeciesSection({
             value={settings.mpaSpeciesCount ?? 5}
             onChange={(e) => onUpdate({ mpaSpeciesCount: Number(e.target.value) })}
           >
-            {[4, 5, 6, 7, 8, 9, 10].map((n) => (
+            {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
               <option key={n} value={n}>{n} espécies</option>
             ))}
           </select>
@@ -213,9 +301,9 @@ export function ReapSpeciesSection({
           })}
         </div>
 
-        {filled < 4 && (
+        {filled < 3 && (
           <p style={{ fontSize: "11px", color: "var(--color-danger)", textAlign: "center", margin: 0 }}>
-            Preencha ao menos 4 espécies.
+            Preencha ao menos 3 espécies.
           </p>
         )}
         {filled >= 4 && filled < count && (
@@ -275,8 +363,6 @@ export function ReapSpeciesSection({
               {[
                 {
                   label: "MASCULINO",
-                  prodMinKey: "mpaMascProdMin" as const,
-                  prodMaxKey: "mpaMascProdMax" as const,
                   daysMinKey: "mpaMascDaysMin" as const,
                   daysMaxKey: "mpaMascDaysMax" as const,
                   daysMinId: "mpaMascDaysMin",
@@ -289,17 +375,11 @@ export function ReapSpeciesSection({
                   onAnnualChange: ([lo, hi]: [number, number]) => onUpdate({ mpaMascAnnualMin: lo, mpaMascAnnualMax: hi }),
                   onDaysMinChange: (v: string) => onUpdate({ mpaMascDaysMin: v, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined }),
                   onDaysMaxChange: (v: string) => onUpdate({ mpaMascDaysMax: v, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined }),
-                  onProdMinChange: (v: string) => onUpdate({ mpaMascProdMin: v }),
-                  onProdMaxChange: (v: string) => onUpdate({ mpaMascProdMax: v }),
-                  prodMinVal: settings.mpaMascProdMin || "",
-                  prodMaxVal: settings.mpaMascProdMax || "",
                   daysMinVal: settings.mpaMascDaysMin || "",
                   daysMaxVal: settings.mpaMascDaysMax || "",
                 },
                 {
                   label: "FEMININO",
-                  prodMinKey: "mpaFemProdMin" as const,
-                  prodMaxKey: "mpaFemProdMax" as const,
                   daysMinKey: "mpaFemDaysMin" as const,
                   daysMaxKey: "mpaFemDaysMax" as const,
                   daysMinId: "mpaFemDaysMin",
@@ -312,10 +392,6 @@ export function ReapSpeciesSection({
                   onAnnualChange: ([lo, hi]: [number, number]) => onUpdate({ mpaFemAnnualMin: lo, mpaFemAnnualMax: hi }),
                   onDaysMinChange: (v: string) => onUpdate({ mpaFemDaysMin: v, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined }),
                   onDaysMaxChange: (v: string) => onUpdate({ mpaFemDaysMax: v, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined }),
-                  onProdMinChange: (v: string) => onUpdate({ mpaFemProdMin: v }),
-                  onProdMaxChange: (v: string) => onUpdate({ mpaFemProdMax: v }),
-                  prodMinVal: settings.mpaFemProdMin || "",
-                  prodMaxVal: settings.mpaFemProdMax || "",
                   daysMinVal: settings.mpaFemDaysMin || "",
                   daysMaxVal: settings.mpaFemDaysMax || "",
                 },
@@ -338,20 +414,10 @@ export function ReapSpeciesSection({
                       <label htmlFor={`${panel.daysMinId}-prod`} className="reap-label" style={{ marginBottom: "4px" }}>
                         Produção (R$)
                       </label>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                        <CurrencyInput
-                          id={`${panel.daysMinId}-prod`}
-                          placeholder="Mín"
-                          value={panel.prodMinVal}
-                          onChange={panel.onProdMinChange}
-                        />
-                        <CurrencyInput
-                          ariaLabel={`Produção Máxima ${panel.label}`}
-                          placeholder="Máx"
-                          value={panel.prodMaxVal}
-                          onChange={panel.onProdMaxChange}
-                        />
-                      </div>
+                      <ProductionRangeSlice
+                        min={productionSlice.min}
+                        max={productionSlice.max}
+                      />
                     </div>
                     <div>
                       <label htmlFor={panel.daysMinId} className="reap-label" style={{ marginBottom: "4px" }}>
