@@ -312,16 +312,6 @@ class ReapTurbo {
 
         this.debugLogger.log(`Upload do documento para ${nonFishingMonths.length} mês(es) pendente(s): [${nonFishingMonths.join(", ")}] (${nonFishingFromConfig.length - nonFishingMonths.length} já preenchidos)`);
 
-        // Tenta upload único (usando o ID do primeiro mês pendente) e reutiliza o objeto nos demais
-        const firstMesNum = nonFishingMonths[0];
-        const firstInformeMensalId = freshState?.informesMensais?.find((m: any) => m.mes === firstMesNum)?.id;
-        const docObj = await this.uploadDocument(pdfB64, filename, firstMesNum, firstInformeMensalId);
-        if (!docObj?.id) {
-            this.debugLogger.log("Upload do documento falhou — meses sem pesca ficam pendentes.", "error");
-            return;
-        }
-        this.debugLogger.log(`Documento enviado: id=${docObj.id} — re-salvando meses ${nonFishingMonths.join(", ")}...`);
-
         let currentState = freshState;
         if (!currentState) {
             this.debugLogger.log("Falha ao obter estado fresco para aplicar documentos.", "error");
@@ -330,6 +320,13 @@ class ReapTurbo {
 
         for (const mesNum of nonFishingMonths) {
             if (State.stopRequested) break;
+
+            const informeMensalId = currentState.informesMensais?.find((m: any) => m.mes === mesNum)?.id;
+            const docObj = await this.uploadDocument(pdfB64, filename, mesNum, informeMensalId);
+            if (!docObj?.id) {
+                this.debugLogger.log(`Upload do documento falhou para o mês ${mesNum}.`, "error");
+                continue;
+            }
 
             currentState = this.updateStateWithMonth(currentState, mesNum, config);
             // Injeta o documento no mês alvo dentro do estado
@@ -348,24 +345,7 @@ class ReapTurbo {
                 this.debugLogger.log(`✅ Mês ${mesNum} concluído com documento.`, "success");
                 State.monthlyProgress[mesNum - 1] = "done";
             } else {
-                // Fallback: tenta upload individual para este mês
-                this.debugLogger.log(`Mês ${mesNum}: upload único não funcionou, tentando upload individual...`, "warn");
-                const individualInformeMensalId = freshState?.informesMensais?.find((m: any) => m.mes === mesNum)?.id;
-                const docObjIndividual = await this.uploadDocument(pdfB64, filename, mesNum, individualInformeMensalId);
-                if (docObjIndividual?.id) {
-                    const mesRef2 = updatedState.informesMensais.find((m: any) => m.mes === mesNum);
-                    if (mesRef2) mesRef2.documentoJustificativaNaoDeclaracao = docObjIndividual;
-                    const payload2 = [String(updatedState.id), { informesMensais: updatedState.informesMensais, concordaComDeclaracaoResponsabilidade: true }, 3];
-                    const updatedState2 = await this.submitMonth(mesNum, payload2);
-                    const persisted2 = updatedState2 ? this.getMonthState(updatedState2, mesNum) : null;
-                    if (persisted2?.preenchido) {
-                        this.debugLogger.log(`✅ Mês ${mesNum} concluído com upload individual.`, "success");
-                        State.monthlyProgress[mesNum - 1] = "done";
-                        currentState = updatedState2;
-                        continue;
-                    }
-                }
-                this.debugLogger.log(`Mês ${mesNum}: documento não persistiu após fallback.`, "error");
+                this.debugLogger.log(`Mês ${mesNum}: documento não persistiu após upload individual.`, "error");
             }
 
             currentState = updatedState;
