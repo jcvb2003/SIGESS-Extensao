@@ -202,7 +202,7 @@ export const ProductionGenerator: any = {
       if (!fish || prod.totalKg === 0) return;
 
       const price = contributions[i] / prod.totalKg;
-      prod.price = Math.max(fish.priceMin, Math.min(fish.priceMax, Math.round(price)));
+      prod.price = Math.max(fish.priceMin, Math.min(fish.priceMax, Math.round(price * 2) / 2));
     });
   },
 
@@ -223,9 +223,9 @@ export const ProductionGenerator: any = {
         if (!fish) continue;
 
         if (isUnder && prod.price < fish.priceMax) {
-          prod.price = Math.min(fish.priceMax, prod.price + 1);
+          prod.price = Math.min(fish.priceMax, prod.price + 0.5);
         } else if (!isUnder && prod.price > fish.priceMin) {
-          prod.price = Math.max(fish.priceMin, prod.price - 1);
+          prod.price = Math.max(fish.priceMin, prod.price - 0.5);
         }
       }
     }
