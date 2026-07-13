@@ -9,19 +9,25 @@ import { LegacyWorkflowManager } from './legacy/workflow';
 
 const Draggable = {
   init(el: HTMLElement) {
-    let isDragging = false, startY = 0, startTop = 0;
+    let isDragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
     el.addEventListener("mousedown", (e) => {
-      if ((e.target as HTMLElement).tagName === "BUTTON" || (e.target as HTMLElement).tagName === "SELECT") return;
+      const target = e.target as HTMLElement;
+      if (target.closest("button, select, input, [data-sigess-control='true']")) return;
+      const rect = el.getBoundingClientRect();
       isDragging = true;
+      startX = e.clientX;
       startY = e.clientY;
-      startTop = el.offsetTop;
+      startLeft = rect.left;
+      startTop = rect.top;
+      el.style.left = `${startLeft}px`;
+      el.style.right = "auto";
       el.style.cursor = "grabbing";
       e.preventDefault();
     });
     globalThis.addEventListener("mousemove", (e) => {
       if (!isDragging) return;
+      el.style.left = `${startLeft + (e.clientX - startX)}px`;
       el.style.top = `${startTop + (e.clientY - startY)}px`;
-      el.style.bottom = "auto";
     });
     globalThis.addEventListener("mouseup", () => { isDragging = false; el.style.cursor = "move"; });
   },
@@ -34,8 +40,9 @@ const isV1Portal = () => /\/v1\//.test(globalThis.location.href);
 const UIComponents = {
   createGenderBtn(label: string, value: "MASCULINO" | "FEMININO", activeColor: string, refreshUI: () => void) {
     const b = document.createElement("div");
+    b.dataset.sigessControl = "true";
     b.innerText = label;
-    b.style.cssText = "flex: 1; text-align: center; font-size: 11px; padding: 6px 0; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-weight: bold;";
+    b.style.cssText = "flex: 1; text-align: center; font-size: 11px; padding: 5px 0; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-weight: bold;";
     const update = () => {
       if (State.gender === value) {
         b.style.background = activeColor; b.style.color = "white"; b.style.boxShadow = `0 2px 4px ${activeColor}4D`;
@@ -86,7 +93,7 @@ const UIComponents = {
 async function executeTurboApi() {
   try {
     const oBtn = document.getElementById("sigess-reap-turbo-btn");
-    if (oBtn) { oBtn.innerHTML = "⏳ Aguarde..."; oBtn.style.background = "#5a32a3"; }
+    if (oBtn) { oBtn.innerHTML = "Aguarde..."; oBtn.style.background = "#5a32a3"; }
 
     const storageResult = await browser.storage.local.get(["sigessSettings", "sigessReapPdfCache"]);
     const settings = storageResult.sigessSettings || {};
@@ -104,7 +111,7 @@ async function executeTurboApi() {
 
     if (response?.success) {
       if (oBtn) {
-        oBtn.innerHTML = "✅ Concluído!"; oBtn.style.background = "#28a745";
+        oBtn.innerHTML = "Concluído!"; oBtn.style.background = "#28a745";
         setTimeout(() => { oBtn.innerHTML = "Modo Turbo"; oBtn.style.background = "#6f42c1"; }, 3000);
       }
     } else {
@@ -131,12 +138,21 @@ const injectButton = async () => {
 
   container = document.createElement("div");
   container.id = "sigess-reap-container";
-  container.style.cssText = `position: fixed; top: 120px; right: 20px; z-index: 100000; background: white; border: 2px solid #007bff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 8px; padding: 12px; width: 180px; font-family: sans-serif; cursor: move;`;
+  container.style.cssText = `position: fixed; top: 120px; right: 20px; z-index: 100000; background: white; border: 2px solid #007bff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 8px; padding: 12px; width: 390px; font-family: sans-serif; cursor: move;`;
 
   const title = document.createElement("div");
-  title.innerText = "🤖 REAP 2025";
+  title.innerText = "REAP";
   title.style.cssText = "font-weight: bold; text-align: center; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 14px;";
   container.appendChild(title);
+
+  const columns = document.createElement("div");
+  columns.style.cssText = "display: grid; grid-template-columns: minmax(155px, 1.15fr) minmax(145px, 0.85fr); gap: 12px; align-items: start;";
+  const controlsColumn = document.createElement("div");
+  controlsColumn.style.cssText = "display: flex; flex-direction: column; gap: 6px;";
+  const monthsColumn = document.createElement("div");
+  monthsColumn.style.cssText = "display: flex; flex-direction: column; gap: 4px;";
+  columns.append(controlsColumn, monthsColumn);
+  container.appendChild(columns);
 
   // --- Gênero ---
   const genderRow = document.createElement("div");
@@ -161,11 +177,11 @@ const injectButton = async () => {
   };
   (globalThis as any).refreshSigessUI = refreshUI;
 
-  const male = UIComponents.createGenderBtn("🧔 Masc", "MASCULINO", "#007bff", refreshUI);
-  const female = UIComponents.createGenderBtn("👩 Fem", "FEMININO", "#e91e63", refreshUI);
+  const male = UIComponents.createGenderBtn("Masc", "MASCULINO", "#007bff", refreshUI);
+  const female = UIComponents.createGenderBtn("Fem", "FEMININO", "#e91e63", refreshUI);
   genderSeg.appendChild(male.btn); genderSeg.appendChild(female.btn);
   genderRow.appendChild(genderLbl); genderRow.appendChild(genderSeg);
-  container.appendChild(genderRow);
+  controlsColumn.appendChild(genderRow);
 
   // --- Modo Sequência / Parcial ---
   const modeRow = document.createElement("div");
@@ -177,6 +193,7 @@ const injectButton = async () => {
 
   const createModeBtn = (label: string, value: "sequencia" | "parcial") => {
     const b = document.createElement("div");
+    b.dataset.sigessControl = "true";
     b.innerText = label;
     b.style.cssText = "flex: 1; text-align: center; font-size: 11px; padding: 5px 0; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-weight: bold;";
     const update = () => {
@@ -198,7 +215,7 @@ const injectButton = async () => {
   modeSeqUpdate = modeSeq.update; modeParcialUpdate = modeParcial.update;
   modeSeg.appendChild(modeSeq.btn); modeSeg.appendChild(modeParcial.btn);
   modeRow.appendChild(modeLbl); modeRow.appendChild(modeSeg);
-  container.appendChild(modeRow);
+  monthsColumn.appendChild(modeRow);
 
   // --- Grid de meses ---
   const grid = document.createElement("div");
@@ -212,6 +229,7 @@ const injectButton = async () => {
 
   function createMonthItem(i: number, refresh: () => void) {
     const mBtn = document.createElement("div");
+    mBtn.dataset.sigessControl = "true";
     mBtn.innerText = String(i + 1);
     let bgColor = "#f0f0f0", textColor = "#666", border = "1px solid #ccc", opacity = "1";
 
@@ -244,7 +262,7 @@ const injectButton = async () => {
     };
     return mBtn;
   }
-  container.appendChild(grid);
+  monthsColumn.appendChild(grid);
 
   // --- Botão Iniciar ---
   (globalThis as any).startTurboApi = executeTurboApi;
@@ -266,7 +284,7 @@ const injectButton = async () => {
 
   const btn = document.createElement("button");
   btn.id = "sigess-reap-btn";
-  btn.style.cssText = "padding: 8px; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
+  btn.style.cssText = "padding: 5px 0; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
   btn.onclick = async (e) => {
     e.stopPropagation();
     if (State.isRunning) { activeManager.pause(); refreshUI(); return; }
@@ -289,12 +307,12 @@ const injectButton = async () => {
     activeManager.start();
     refreshUI();
   };
-  container.appendChild(btn);
+  controlsColumn.appendChild(btn);
 
   // --- Botão Turbo ---
   const btnTurbo = document.createElement("button");
   btnTurbo.id = "sigess-reap-turbo-btn";
-  btnTurbo.style.cssText = "padding: 8px; background: #6f42c1; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
+  btnTurbo.style.cssText = "padding: 5px 0; background: #6f42c1; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
   btnTurbo.innerHTML = `Modo Turbo`;
   btnTurbo.onclick = async (e) => {
     e.stopPropagation();
@@ -325,16 +343,16 @@ const injectButton = async () => {
     activeManager.start();
     refreshUI();
   };
-  container.appendChild(btnTurbo);
+  controlsColumn.appendChild(btnTurbo);
 
   refreshUI();
 
   // --- Botão Resetar ---
   const resetBtn = document.createElement("button");
-  resetBtn.innerHTML = `${Icons.refresh} Resetar`;
-  resetBtn.style.cssText = "padding: 6px; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;";
+  resetBtn.innerHTML = "Resetar";
+  resetBtn.style.cssText = "padding: 5px 0; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;";
   resetBtn.onclick = (e) => { e.stopPropagation(); State.clearData(); refreshUI(); };
-  container.appendChild(resetBtn);
+  controlsColumn.appendChild(resetBtn);
 
   Draggable.init(container);
   document.body.appendChild(container);

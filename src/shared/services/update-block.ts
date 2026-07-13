@@ -53,19 +53,6 @@ function ensureStyles() {
       text-align: center;
     }
 
-    #${OVERLAY_ID} .sigess-update-chip {
-      display: inline-flex;
-      padding: 6px 12px;
-      border-radius: 999px;
-      background: #fef3c7;
-      color: #92400e;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      margin-bottom: 14px;
-    }
-
     #${OVERLAY_ID} .sigess-update-title {
       margin: 0 0 10px;
       font-size: 28px;
@@ -143,7 +130,6 @@ export async function ensureUpdateRequiredOverlay(
     overlay.id = OVERLAY_ID;
     overlay.innerHTML = `
       <div class="sigess-update-card" role="alertdialog" aria-modal="true" aria-labelledby="sigess-update-title">
-        <div class="sigess-update-chip">Atualização obrigatória</div>
         <h1 id="sigess-update-title" class="sigess-update-title">Nova versão detectada!!!!</h1>
         <p class="sigess-update-text">Atualize a extensão para continuar usando as funções do SIGESS.</p>
         <div class="sigess-update-version"></div>
