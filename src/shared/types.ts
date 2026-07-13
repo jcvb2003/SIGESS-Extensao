@@ -154,6 +154,14 @@ mpaMunicipio?: number;
   sdpaFallbackPhone?: string;
 
   mpaDocumentoMode?: "manual" | "local" | "url";
+  reapMpaPresets?: ReapMpaPreset[];
+  activeReapMpaPresetId?: string;
+}
+
+export interface ReapMpaPreset {
+  id: string;
+  name: string;
+  settings: Partial<AppSettings>;
 }
 
 export interface PessoaData {
