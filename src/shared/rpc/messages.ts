@@ -18,10 +18,6 @@ export const CheckLicenseResponseSchema = BaseResponseSchema.merge(
     ok: z.boolean().optional(),
     plan: z.string().optional(),
     reason: z.string().optional(),
-    usage_manual: z.number().optional(),
-    max_manual: z.number().optional(),
-    usage_turbo: z.number().optional(),
-    max_turbo: z.number().optional(),
   })
 );
 

@@ -3,7 +3,6 @@ import { Monitor, Key, ShieldCheck, Activity, ExternalLink } from "lucide-react"
 
 export function getLicenseErrorMessage(reason?: string): string {
   switch (reason) {
-    case "trial_expired": return "Período de teste expirado.";
     case "expired": return "Sua licença expirou.";
     case "wrong_device": return "Licença em uso em outro dispositivo.";
     case "invalid_key": return "Chave de acesso inválida.";

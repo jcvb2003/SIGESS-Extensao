@@ -69,7 +69,7 @@ export async function routeMessage(
       }
       case "consumeLicense": {
         const usageType = message.usageType || "manual";
-        const lic = await LicenseService.checkLicense(true, true, usageType);
+        const lic = await LicenseService.checkLicense(true);
         logger.info("Licença", `Uso consumido: ${usageType}`);
         return { success: lic.ok, ...lic };
       }
@@ -223,11 +223,11 @@ async function handleStartBatchLogin(
   message: MessageRequest,
   getTabManager: () => any,
 ) {
-  const license = await LicenseService.checkLicense(false, false);
+  const license = await LicenseService.checkLicense();
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }
   const { type, credentials } = message;
@@ -284,11 +284,11 @@ async function handleAbrirAbaContainer(
   message: MessageRequest,
   getTabManager: () => any,
 ) {
-  const license = await LicenseService.checkLicense(false, false);
+  const license = await LicenseService.checkLicense();
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }
   const { url, cpf, senha, nome, valorComercializado } = message;
@@ -369,11 +369,11 @@ async function handleEnqueueGovBatchSessions(
   message: MessageRequest,
   getTabManager: () => any,
 ) {
-  const license = await LicenseService.checkLicense(false, false);
+  const license = await LicenseService.checkLicense();
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }
 
@@ -582,20 +582,12 @@ async function handleUpdateGovBatchStatus(
 }
 
 async function handleTurboFillReap(message: MessageRequest) {
-  const current = await LicenseService.getStatus();
-  const isPaid = current.ok && current.plan === "paid";
-
-  const forceLive = !isPaid;
-  const forceConsume = !isPaid;
-
-  const license = await LicenseService.checkLicense(forceLive, forceConsume, "turbo");
+  const license = await LicenseService.getStatus();
 
   if (!license.ok) {
     return {
       success: false,
-      error: license.reason === "limit_reached_turbo"
-        ? `Limite de Modo Turbo atingido (${license.usage_turbo}/${license.max_turbo}). Evolua para o Plano Pro para uso ilimitado.`
-        : `Licença Inválida ou Trial Expirado: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
     };
   }
 

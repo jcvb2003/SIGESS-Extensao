@@ -6,88 +6,12 @@ import {
   ShieldCheck,
   RefreshCw,
   ExternalLink,
-  Zap,
-  MousePointer2,
-  Activity,
   Monitor,
   Plus,
   CreditCard
 } from "lucide-react";
 import { LicenseService, LicenseResult } from "../../../shared/services/license";
 import { Skeleton } from "./Skeleton";
-
-interface UsageBucketProps {
-  label: string;
-  icon: React.ReactNode;
-  current: number;
-  max: number;
-  color: string;
-  bgColor: string;
-  isUnlimited?: boolean;
-}
-
-const UsageBucket = ({ label, icon, current, max, color, bgColor, isUnlimited }: UsageBucketProps) => {
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px',
-      padding: '12px',
-      background: 'var(--color-surface)',
-      borderRadius: '12px',
-      border: '1px solid var(--color-border)',
-      transition: 'all 0.2s ease'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{
-            padding: '6px',
-            borderRadius: '8px',
-            background: bgColor,
-            color: color,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            {React.cloneElement(icon as React.ReactElement, { size: 14 })}
-          </div>
-          <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--color-text)' }}>{label}</span>
-        </div>
-        <div style={{ 
-          fontSize: isUnlimited ? '9px' : '10px', 
-          fontWeight: '700', 
-          color: isUnlimited ? 'white' : 'var(--color-muted)', 
-          background: isUnlimited ? color : 'var(--color-surface-alt)', 
-          padding: '2px 8px', 
-          borderRadius: '10px',
-          letterSpacing: isUnlimited ? '0.5px' : 'normal'
-        }}>
-          {isUnlimited ? "ILIMITADO" : `${current} / ${max}`}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
-        {isUnlimited ? (
-          <div style={{ height: '4px', flex: 1, borderRadius: '4px', background: color, opacity: 0.2 }} />
-        ) : (
-          Array.from({ length: max }).map((_, i) => (
-            <div
-              key={`dot-${label}-${i}`}
-              style={{
-                height: '4px',
-                flex: 1,
-                borderRadius: '4px',
-                background: i < current ? color : 'var(--color-border)',
-                opacity: i < current ? 1 : 0.3,
-                transition: 'all 0.3s ease'
-              }}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-};
 
 export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [license, setLicense] = useState<LicenseResult | null>(null);
@@ -190,16 +114,9 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         {renderStatusItem("Status", "VERIFICADO", "Licença autêntica", <ShieldCheck size={18} />, "#f59e0b")}
-        {renderStatusItem("Referência", license?.plan === 'paid' ? "PRO-ACTIVE" : "TRIAL-MODE", "Tipo de registro", <CreditCard size={18} />, "#8b5cf6")}
+        {renderStatusItem("Plano", "SIGESS", "Acesso completo", <CreditCard size={18} />, "#8b5cf6")}
       </div>
       
-      <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <p style={{ margin: 0, fontSize: '10px', fontWeight: '800', color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Consumo de Automações</p>
-        <UsageBucket label="REAP 2025 (Manual)" icon={<MousePointer2 />} current={license?.usage_manual ?? 0} max={license?.max_manual ?? license?.usage_manual ?? 0} color="#0f766e" bgColor="rgba(15, 118, 110, 0.1)" isUnlimited={license?.plan === 'paid'} />
-        <UsageBucket label="REAP 2025 (Turbo)" icon={<Zap />} current={license?.usage_turbo ?? 0} max={license?.max_turbo ?? license?.usage_turbo ?? 0} color="#8b5cf6" bgColor="rgba(139, 92, 246, 0.1)" isUnlimited={license?.plan === 'paid'} />
-        <UsageBucket label="REAP Simplificado" icon={<Activity />} current={license?.usage_agro ?? 0} max={license?.max_agro ?? license?.usage_agro ?? 0} color="#f97316" bgColor="rgba(249, 115, 22, 0.1)" isUnlimited={license?.plan === 'paid'} />
-      </div>
-
       <button onClick={() => loadLicense(true)} disabled={refreshing} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', cursor: refreshing ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', color: 'var(--color-text)', transition: 'all 0.2s', marginTop: '8px' }}>
         <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
         {refreshing ? "Atualizando..." : "Sincronizar Dados"}

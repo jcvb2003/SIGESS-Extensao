@@ -277,7 +277,7 @@ const injectButton = async () => {
     if (errorMsg) { alert(errorMsg); return; }
 
     btn.disabled = true; btn.innerText = "Validando...";
-    const lic = await browser.runtime.sendMessage({ action: "consumeLicense", usageType: "manual" });
+    const lic = await browser.runtime.sendMessage({ action: "checkLicense" });
     if (!lic.ok) {
       alert(lic.reason === "limit_reached_manual"
         ? "Limite de 5 usos (Manual) atingido. Entre em contato para renovar."

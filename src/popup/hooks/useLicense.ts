@@ -29,7 +29,12 @@ export const useLicense = (): UseLicenseReturn => {
       ]);
 
       if (license_cache) {
-        setLicense(license_cache as LicenseResult);
+        const cachedLicense = license_cache as LicenseResult;
+        setLicense(
+          LicenseService.isLocallyActive(cachedLicense)
+            ? cachedLicense
+            : { ok: false, reason: "expired" },
+        );
         return;
       }
 
@@ -62,7 +67,7 @@ export const useLicense = (): UseLicenseReturn => {
           }
         }
 
-        const result = await LicenseService.checkLicense(forceLive, forceConsume);
+        const result = await LicenseService.checkLicense(forceLive);
         setLicense(result);
         setVerified(true);
         return result;
@@ -71,7 +76,7 @@ export const useLicense = (): UseLicenseReturn => {
           "[SIGESS] Falha ao obter licença via Background, tentando direto...",
           error,
         );
-        const result = await LicenseService.checkLicense(forceLive, forceConsume);
+        const result = await LicenseService.checkLicense(forceLive);
         setLicense(result);
         setVerified(true);
         return result;
@@ -92,11 +97,7 @@ export const useLicense = (): UseLicenseReturn => {
           await LicenseService.updateDeviceName(deviceName.trim());
         }
 
-        const result = await LicenseService.checkLicense(
-          true,
-          false,
-          "activate",
-        );
+        const result = await LicenseService.checkLicense(true);
         setLicense(result);
         setVerified(true);
         return result;

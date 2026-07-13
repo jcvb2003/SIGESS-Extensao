@@ -131,7 +131,7 @@ export const AgroManager = {
   async validateLicense(): Promise<any> {
     const browserAPI = typeof browser === "undefined" ? (globalThis as any).chrome : browser;
     return new Promise<any>((resolve) => {
-      browserAPI.runtime.sendMessage({ action: "consumeLicense", usageType: "agro" }, (response: any) => {
+      browserAPI.runtime.sendMessage({ action: "checkLicense" }, (response: any) => {
         resolve(response);
       });
     });
@@ -139,11 +139,9 @@ export const AgroManager = {
 
   handleLicenseError(lic: any, btn: HTMLButtonElement | null) {
     const reasonMap: Record<string, string> = {
-      trial_expired: "Seu período de teste acabou.",
       expired: "Sua licença expirou.",
       wrong_device: "Licença vinculada a outro dispositivo.",
       invalid_key: "Chave de licença inválida.",
-      limit_reached_agro: "Limite de preenchimento Simplificado/Agro atingido. Entre em contato para renovar.",
     };
     const msg = reasonMap[lic?.reason] || `Erro de licença: ${lic?.reason || 'Sem Resposta'}`;
     alert(`${msg}\n\nEntre em contato para renovar: (91) 99319-3461`);
