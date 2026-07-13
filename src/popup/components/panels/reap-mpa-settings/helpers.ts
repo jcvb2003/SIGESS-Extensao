@@ -14,5 +14,7 @@ export function formatBRL(raw: string) {
 export function getMunicipiosByUf(ufCode?: number) {
   const ufLabel = ufCode ? stateLabelById.get(ufCode) : undefined;
   const ufSigla = ufLabel === "PARA" ? "PA" : ufLabel === "MARANHAO" ? "MA" : "";
-  return MUNICIPIOS_LIST.filter((municipio) => municipio.camposAdicionais.siglaUf === ufSigla);
+  return MUNICIPIOS_LIST
+    .filter((municipio) => municipio.camposAdicionais.siglaUf === ufSigla)
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
 }

@@ -7,8 +7,21 @@ function parsePositiveNumber(value?: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function nonNegativeInputValue(value: string) {
+  const parsed = Number(value);
+  return value === "" || !Number.isFinite(parsed) || parsed >= 0 ? value : "0";
+}
+
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function clampRange([rawLo, rawHi]: [number, number], min: number, max: number): [number, number] {
+  const clamp = (value: number) => Math.min(max, Math.max(min, value));
+  const lo = clamp(Number.isFinite(rawLo) ? rawLo : min);
+  const hi = clamp(Number.isFinite(rawHi) ? rawHi : max);
+
+  return lo <= hi ? [lo, hi] : [hi, lo];
 }
 
 function calculateProductionSlice(settings: AppSettings) {
@@ -350,8 +363,9 @@ export function ReapSpeciesSection({
                         className="gps-input"
                         style={{ textAlign: "center", fontSize: "12px", padding: "6px 4px" }}
                         value={(data as any)[key] || ""}
-                        onChange={(e) => updateSpecie(idx, { [key]: e.target.value })}
+                        onChange={(e) => updateSpecie(idx, { [key]: nonNegativeInputValue(e.target.value) })}
                         placeholder="0"
+                        min={0}
                         step={key.startsWith("price") ? "0.01" : "1"}
                       />
                     </div>
@@ -395,10 +409,16 @@ export function ReapSpeciesSection({
 
           const prodAbsMin = productionSlice.min;
           const prodAbsMax = productionSlice.max;
-          const mascProdAnnualMin = settings.mpaMascProductionAnnualMin ?? prodAbsMin;
-          const mascProdAnnualMax = settings.mpaMascProductionAnnualMax ?? prodAbsMax;
-          const femProdAnnualMin = settings.mpaFemProductionAnnualMin ?? prodAbsMin;
-          const femProdAnnualMax = settings.mpaFemProductionAnnualMax ?? prodAbsMax;
+          const [mascProdAnnualMin, mascProdAnnualMax] = clampRange(
+            [settings.mpaMascProductionAnnualMin ?? prodAbsMin, settings.mpaMascProductionAnnualMax ?? prodAbsMax],
+            prodAbsMin,
+            prodAbsMax,
+          );
+          const [femProdAnnualMin, femProdAnnualMax] = clampRange(
+            [settings.mpaFemProductionAnnualMin ?? prodAbsMin, settings.mpaFemProductionAnnualMax ?? prodAbsMax],
+            prodAbsMin,
+            prodAbsMax,
+          );
 
           const panelColors: Record<string, { accent: string; soft: string }> = {
             MASCULINO: { accent: "#2563eb", soft: "rgba(37,99,235,0.08)" },
@@ -513,7 +533,7 @@ export function ReapSpeciesSection({
                           min={7}
                           max={27}
                           value={panel.daysMinVal}
-                          onChange={(e) => panel.onDaysMinChange(e.target.value)}
+                          onChange={(e) => panel.onDaysMinChange(nonNegativeInputValue(e.target.value))}
                         />
                         <input
                           type="number"
@@ -524,7 +544,7 @@ export function ReapSpeciesSection({
                           min={7}
                           max={27}
                           value={panel.daysMaxVal}
-                          onChange={(e) => panel.onDaysMaxChange(e.target.value)}
+                          onChange={(e) => panel.onDaysMaxChange(nonNegativeInputValue(e.target.value))}
                         />
                       </div>
                       {panel.has ? (
