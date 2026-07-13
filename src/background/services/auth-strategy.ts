@@ -122,11 +122,19 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
       try {
         await DOMInjector.waitForElement(tabId, "#accountId", 2500);
 
-        // Tela do CPF visível — reseta flags e resubmete (F5 ou nova navegação)
-        await StorageService.updateCredentials(tabId, {
-          govBrCpfSubmitted: false,
-          govBrPasswordSubmitted: false,
-        });
+        // Returning to CPF after a password submission can indicate an invalid
+        // password. Do not resubmit credentials and risk locking the account.
+        // Before that point, CPF remains recoverable after a reload or a stalled
+        // transition to the password screen.
+        if (passwordSubmitted) {
+          await this.updateStatus(
+            tabId,
+            "erro",
+            "Login interrompido",
+            "O Gov.br retornou para a tela de CPF. Verifique as credenciais antes de tentar novamente.",
+          );
+          return;
+        }
 
         await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
         // Aguarda hcaptcha inicializar antes de clicar — sem isso a transição
@@ -135,7 +143,6 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
         await DOMInjector.clickElement(tabId, "#enter-account-id");
         await StorageService.updateCredentials(tabId, {
           govBrCpfSubmitted: true,
-          govBrPasswordSubmitted: false,
         });
 
         const nextElement = await DOMInjector.waitForAnyElement(
