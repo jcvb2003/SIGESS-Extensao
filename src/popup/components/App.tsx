@@ -262,6 +262,12 @@ const AppContent: React.FC = () => {
     return <LoadingState />;
   }
 
+  // Sem cache valido, aguarda a resposta do background antes de liberar a interface.
+  // Isso evita exibir o painel autenticado por um instante apos uma desvinculacao.
+  if (!license?.ok && !licenseVerified) {
+    return <LoadingState />;
+  }
+
   const shouldShowActivation =
     !license?.ok && (license?.reason === "no_key" || licenseVerified);
 
@@ -403,7 +409,7 @@ const AppContent: React.FC = () => {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
             {isPaidLicense ? <ShieldCheck size={14} /> : <Info size={14} />}
           </div>
-          <span>{license?.plan === "paid" ? "Licença Ativa : PRO" : "Licença : Teste"}</span>
+          <span>Licença ativa</span>
         </button>
       </footer>
 

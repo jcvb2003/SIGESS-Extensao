@@ -244,4 +244,4 @@ RealtimeLicenseService.init().catch(err => console.error("Realtime Init Error:",
 // Warmup da Licença: Valida e aquece o memoryCache no startup.
 // Graças ao Version Check (REST) no isCacheValid, isso garante que se houver desvínculo, 
 // o cache será invalidado já no primeiro milissegundo de ativação do background.
-LicenseService.getStatus().catch(err => console.error("Background License Warmup Error:", err));
+LicenseService.beginStartupValidation().catch(err => console.error("Background License Warmup Error:", err));

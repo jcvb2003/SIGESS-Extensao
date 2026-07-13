@@ -25,6 +25,7 @@ export interface LicenseResult {
 
 export class LicenseService {
   private static memoryCache: LicenseResult | null = null;
+  private static startupValidation: Promise<LicenseResult> | null = null;
 
   static async getSavedKey(): Promise<string | null> {
     const { license_key } = await browser.storage.local.get("license_key");
@@ -49,7 +50,7 @@ export class LicenseService {
     if (!sig) return false;
     try {
       const message = JSON.stringify({
-        ok: data.ok, plan: data.plan, status: data.status, devices: data.devices,
+        ok: data.ok, reason: data.reason, plan: data.plan, status: data.status, devices: data.devices,
         max_devices: data.max_devices, expires_at: data.expires_at,
         valid_until: data.valid_until, updated_at: data.updated_at,
       });
@@ -97,6 +98,9 @@ export class LicenseService {
     _legacyUsageType?: string,
     deviceName?: string,
   ): Promise<LicenseResult> {
+    if (!forceLive && this.startupValidation) {
+      return this.startupValidation;
+    }
     if (!forceLive) {
       const memory = await this.getMemoryCache();
       if (memory) return memory;
@@ -107,13 +111,14 @@ export class LicenseService {
   }
 
   private static async performLiveCheck(
-    action: "status" | "update_name" = "status", deviceName?: string,
+    action: "status" | "activate" | "update_name" = "status", deviceName?: string,
   ): Promise<LicenseResult> {
     const key = await this.getSavedKey();
     if (!key) return { ok: false, reason: "no_key" };
     try {
       const response = await fetch(EDGE_FUNCTION_URL, {
         method: "POST",
+        credentials: "omit",
         headers: { "Content-Type": "application/json", "x-app-secret": this.getAppSecret() },
         body: JSON.stringify({ key, fingerprint: await getFingerprint(), action, device_name: deviceName }),
       });
@@ -145,6 +150,20 @@ export class LicenseService {
   }
 
   static async getStatus(): Promise<LicenseResult> { return this.checkLicense(); }
+  static beginStartupValidation(): Promise<LicenseResult> {
+    if (this.startupValidation) return this.startupValidation;
+    this.startupValidation = (async () => {
+      await browser.storage.local.set({ license_startup_validation: true });
+      const result = await this.performLiveCheck("status");
+      if (!result.ok) await this.resetCache();
+      await browser.storage.local.set({ license_startup_validation: false });
+      return result;
+    })().finally(() => {
+      this.startupValidation = null;
+    });
+    return this.startupValidation;
+  }
+  static async activate(): Promise<LicenseResult> { return this.performLiveCheck("activate"); }
   static async updateDeviceName(name: string): Promise<LicenseResult> {
     return this.performLiveCheck("update_name", name);
   }

@@ -5,7 +5,7 @@ export class RealtimeLicenseService {
   private static client: RealtimeClient | null = null;
   private static channel: RealtimeChannel | null = null;
   private static startupTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
-  private static readonly STARTUP_CONNECT_DELAY_MS = 5000;
+  private static readonly STARTUP_CONNECT_DELAY_MS = 0;
 
   /**
    * Inicializa o cliente Realtime para ouvir notificações de desvinculação da licença.

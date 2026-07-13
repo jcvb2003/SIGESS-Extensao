@@ -23,10 +23,13 @@ export const useLicense = (): UseLicenseReturn => {
 
   const hydrateInitialLicense = useCallback(async () => {
     try {
-      const { license_cache, license_key } = await browser.storage.local.get([
+      const { license_cache, license_key, license_startup_validation } = await browser.storage.local.get([
         "license_cache",
         "license_key",
+        "license_startup_validation",
       ]);
+
+      if (license_startup_validation) return;
 
       if (license_cache) {
         const cachedLicense = license_cache as LicenseResult;
@@ -97,7 +100,7 @@ export const useLicense = (): UseLicenseReturn => {
           await LicenseService.updateDeviceName(deviceName.trim());
         }
 
-        const result = await LicenseService.checkLicense(true);
+        const result = await LicenseService.activate();
         setLicense(result);
         setVerified(true);
         return result;
@@ -130,6 +133,25 @@ export const useLicense = (): UseLicenseReturn => {
       }
     };
   }, [checkLicense, hydrateInitialLicense]);
+
+  useEffect(() => {
+    const handleLicenseCacheChange = (
+      changes: Record<string, { newValue?: unknown }>,
+      areaName: string,
+    ) => {
+      if (areaName !== "local" || !("license_cache" in changes)) return;
+      const next = changes.license_cache?.newValue as LicenseResult | undefined;
+      setLicense(
+        next && LicenseService.isLocallyActive(next)
+          ? next
+          : { ok: false, reason: "expired" },
+      );
+      setVerified(true);
+    };
+
+    browser.storage.onChanged.addListener(handleLicenseCacheChange);
+    return () => browser.storage.onChanged.removeListener(handleLicenseCacheChange);
+  }, []);
 
   return {
     license,

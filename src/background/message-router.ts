@@ -1,6 +1,7 @@
 import { logger } from "../shared/services/logger";
 import { StorageService } from "./services/storage";
 import { LicenseService } from "../shared/services/license";
+import { RealtimeLicenseService } from "./services/realtime-license";
 import {
   CadastroSession,
   GovBatchQueueItem,
@@ -63,6 +64,7 @@ export async function routeMessage(
 
     switch (action) {
       case "checkLicense": {
+        void RealtimeLicenseService.init();
         const lic = await LicenseService.checkLicense();
         logger.info("Licença", "Validação de licença concluída");
         return { success: true, ...lic };
