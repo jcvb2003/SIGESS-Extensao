@@ -92,7 +92,7 @@ import { PessoaData } from "../../shared/types";
       cadunico:   !!(f.cadunico?.capturado || f.cadunico_adv?.capturado),
       tse:        !!f.tse?.capturado,
       pesqbrasil: !!(f.pesqbrasil?.capturado || f.pesq_brasil?.capturado),
-      esocial:    !!(f.caepf?.capturado || f.esocial?.capturado),
+      esocial:    !!(f.ecac_caepf?.capturado || f.caepf?.capturado || f.esocial?.capturado),
       ecac:       !!(f.ecac_cpf?.capturado || f.ecac_caepf?.capturado)
     };
 

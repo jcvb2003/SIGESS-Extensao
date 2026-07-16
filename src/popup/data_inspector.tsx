@@ -34,8 +34,15 @@ const DataInspector: React.FC = () => {
     if (!settings) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Carregando dados...</div>;
 
     const rawData = settings.pessoaData_raw || {};
+    const snapshots = settings.pessoaData_snapshots || {};
+    const sourceDataForInspector = Object.fromEntries(
+        Object.entries(snapshots).map(([source, snapshot]) => [source, snapshot.data])
+    ) as Record<string, Record<string, unknown>>;
     // Oculta a coluna técnica '_init'
-    const sources = Object.keys(rawData).filter(s => s !== '_init');
+    const sources = Array.from(new Set([
+        ...Object.keys(rawData),
+        ...Object.keys(sourceDataForInspector)
+    ])).filter(s => s !== '_init');
     const mainData = settings.pessoaData || {};
 
     const formatSourceName = (name: string) => {
@@ -235,7 +242,7 @@ const DataInspector: React.FC = () => {
                                 <div key={source} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
                                     <h4 style={{ margin: '0 0 16px', color: '#10b981', fontSize: '14px', textTransform: 'uppercase' }}>{formatSourceName(source)}</h4>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {Object.entries(rawData[source])
+                                        {Object.entries(sourceDataForInspector[source] || rawData[source] || {})
                                           .filter(([_, v]) => v !== undefined && v !== null && v !== "")
                                           .map(([key, value]) => (
                                             <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '4px' }}>

@@ -12,8 +12,6 @@ import {
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
 
-// Timeouts em memória para sessões de cadastro automático
-const cadastroTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
   "checkLicense",
@@ -660,7 +658,6 @@ async function handleSavePessoaData(
 // ── Cadastro Automático ───────────────────────────────────────────────────
 
 const CADASTRO_SESSION_KEY = "sigessActiveCadastro";
-const SESSION_TIMEOUT_MS = 120_000;
 
 // Garante que atualizações de portais sejam aplicadas em série —
 // pesqbrasil_mpa e ecac_caepf chegam simultaneamente e causam race condition
@@ -719,11 +716,6 @@ async function isCadastroSessionStale(session: CadastroSession): Promise<boolean
 }
 
 async function clearStaleSession(session: CadastroSession): Promise<void> {
-  const timeout = cadastroTimeouts.get(session.sessionId);
-  if (timeout) {
-    clearTimeout(timeout);
-    cadastroTimeouts.delete(session.sessionId);
-  }
   try {
     await (browser as any).contextualIdentities.remove(session.cookieStoreId);
   } catch { /* container pode já ter sido removido */ }
@@ -797,14 +789,6 @@ async function handleIniciarCadastroAutomatico(
     }
 
     // Timeout global da sessão
-    const globalTimeout = setTimeout(async () => {
-      const s = await getActiveSession();
-      if (s?.sessionId === sessionId) {
-        await finalizeCadastroSession(s, getTabManager);
-      }
-    }, SESSION_TIMEOUT_MS);
-    cadastroTimeouts.set(sessionId, globalTimeout);
-
     return { success: true, sessionId };
   } catch (error: any) {
     await StorageService.remove(CADASTRO_SESSION_KEY);
@@ -958,7 +942,7 @@ async function finalizeIfReady(session: CadastroSession, getTabManager?: () => a
 
 async function handleCadastroDataArrival(
   fonte: string,
-  data: Partial<PessoaData>,
+  _data: Partial<PessoaData>,
   getTabManager?: () => any,
 ): Promise<void> {
   const session = await getActiveSession();
@@ -984,34 +968,6 @@ async function handleCadastroDataArrival(
   await saveSession(session);
 
   // Verificação condicional do TSE após cadunico_adv
-  const legacySession = session as CadastroSession;
-  if (false && fonte === "cadunico_adv" && !legacySession.portais.tse && getTabManager) {
-    const tituloEleitor = (data as Partial<PessoaData>).tituloEleitor;
-    if (!tituloEleitor) {
-      legacySession.portais.tse = { status: "abrindo" };
-      await saveSession(legacySession);
-
-      // Abre TSE no mesmo container (herda sessão Gov.br)
-      const { cookieStoreId } = legacySession;
-      const cadUnicoTabId = legacySession.portais.cadunico.tabId ?? -1;
-      const cadCreds: any = cadUnicoTabId >= 0
-        ? await StorageService.getCredentials(cadUnicoTabId)
-        : null;
-
-      if (cadCreds?.cpf && cadCreds?.senha) {
-        const tseTabId = await (getTabManager as any)().createSessionInContainer(
-          "https://www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral#/",
-          cadCreds.cpf, cadCreds.senha, cookieStoreId,
-          cadCreds.nome, "tse", legacySession.sessionId,
-        );
-        if (tseTabId) {
-          legacySession.portais.tse!.tabId = tseTabId;
-          await saveSession(legacySession);
-        }
-      }
-    }
-  }
-
   // Verifica se todos os portais esperados estão concluídos/erro/timeout
   await evaluateTseRequirement(session, getTabManager);
   await finalizeIfReady(session, getTabManager);
@@ -1022,12 +978,6 @@ async function finalizeCadastroSession(
   _getTabManager?: () => any,
 ): Promise<void> {
   // Cancela timeout global
-  const timeout = cadastroTimeouts.get(session.sessionId);
-  if (timeout) {
-    clearTimeout(timeout);
-    cadastroTimeouts.delete(session.sessionId);
-  }
-
   // Busca dados brutos coletados para o mergeRequest
   const settings = await StorageService.getSettings();
   const raw: Record<string, Partial<PessoaData>> = (settings.pessoaData_raw as any) || {};
@@ -1042,6 +992,7 @@ async function finalizeCadastroSession(
     session.portais.pesqbrasil.tabId,
     session.portais.ecac.tabId,
     session.portais.tse?.tabId,
+    session.portais.inss?.tabId,
   ].filter((id): id is number => typeof id === "number");
 
   if (tabIds.length > 0) {

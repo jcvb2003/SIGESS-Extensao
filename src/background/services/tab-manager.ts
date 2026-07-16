@@ -421,6 +421,10 @@ export class TabManager {
         });
       }
     } else if (creds.portalType === "cadunico") {
+      if (tabUrl.includes("#/successLogin")) {
+        await browser.tabs.update(tabId, { url: "https://cadunico.dataprev.gov.br/#/home" });
+        return;
+      }
       // Abre tabs filhas somente uma vez (pesqbrasil ainda aguardando = não abertas)
       if (
         tabUrl.includes("cadunico.dataprev.gov.br") &&
