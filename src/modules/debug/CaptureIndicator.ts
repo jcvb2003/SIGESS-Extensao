@@ -1,4 +1,4 @@
-import { PessoaData } from "../../shared/types";
+import { CadastroSession, PessoaData } from "../../shared/types";
 
 /**
  * Componente visual discreto que indica o status da coleta em tempo real.
@@ -79,18 +79,19 @@ import { PessoaData } from "../../shared/types";
   }
 
   async function updateFromStorage() {
-    const result = await chrome.storage.local.get("sigessSettings");
+    const result = await chrome.storage.local.get(["sigessSettings", "sigessActiveCadastro"]);
     const settings = result.sigessSettings || {};
     const data = settings.pessoaData as PessoaData;
-    updateDots(data);
+    updateDots(data, result.sigessActiveCadastro);
   }
 
-  function updateDots(data: PessoaData) {
+  function updateDots(data: PessoaData, session?: CadastroSession) {
     const f = data?.fontes || {};
+    const tseDispensado = session?.portais?.tse?.status === "dispensado";
 
     const mapping: Record<string, boolean> = {
       cadunico:   !!(f.cadunico?.capturado || f.cadunico_adv?.capturado),
-      tse:        !!f.tse?.capturado,
+      tse:        !!f.tse?.capturado || tseDispensado,
       pesqbrasil: !!(f.pesqbrasil?.capturado || f.pesq_brasil?.capturado),
       esocial:    !!(f.ecac_caepf?.capturado || f.caepf?.capturado || f.esocial?.capturado),
       ecac:       !!(f.ecac_cpf?.capturado || f.ecac_caepf?.capturado)
@@ -123,8 +124,11 @@ import { PessoaData } from "../../shared/types";
         removeUI();
       } else if (globalThis.self === globalThis.top) {
         createUI();
-        if (settings.pessoaData) updateDots(settings.pessoaData);
+        void updateFromStorage();
       }
+    }
+    if (changes.sigessActiveCadastro && globalThis.self === globalThis.top) {
+      void updateFromStorage();
     }
   });
 

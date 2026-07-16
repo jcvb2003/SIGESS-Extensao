@@ -11,6 +11,7 @@ export interface CadastroPortalEntry {
   tabId?: number;
   evidence?: string;
   updatedAt?: number;
+  postLoginNavigationIssued?: boolean;
 }
 
 export interface CadastroSession {

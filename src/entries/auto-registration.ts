@@ -48,20 +48,27 @@ async function initMain() {
       );
     }
 
-    if (!document.querySelector("#accountId")) return;
-
     const api = globalThis.browser || globalThis.chrome;
-    const response = await api.runtime.sendMessage({ action: "checkReloginEligible" }).catch(() => null);
-    if (!response?.eligible) return;
+    let observer: MutationObserver | null = null;
+    let inserting = false;
 
-    const target = document.querySelector("#enter-account-id");
-    if (!target || document.querySelector("#sigess-relogin-btn")) return;
+    const tryInsert = async (): Promise<boolean> => {
+      if (inserting || document.querySelector("#sigess-relogin-btn")) return true;
+      const accountId = document.querySelector("#accountId");
+      const target = document.querySelector("#enter-account-id");
+      if (!accountId || !target) return false;
 
-    const btn = document.createElement("button");
-    btn.id = "sigess-relogin-btn";
-    btn.type = "button";
-    btn.textContent = "Relogin SIGESS";
-    btn.style.cssText = [
+      inserting = true;
+      const response = await api.runtime.sendMessage({ action: "checkReloginEligible" }).catch(() => null);
+      inserting = false;
+      if (!response?.eligible) return false;
+      if (document.querySelector("#sigess-relogin-btn")) return true;
+
+      const btn = document.createElement("button");
+      btn.id = "sigess-relogin-btn";
+      btn.type = "button";
+      btn.textContent = "Relogin SIGESS";
+      btn.style.cssText = [
       "margin-left:8px",
       "padding:0 16px",
       "height:40px",
@@ -73,16 +80,26 @@ async function initMain() {
       "font-weight:600",
       "cursor:pointer",
       "vertical-align:middle",
-    ].join(";");
+      ].join(";");
 
-    btn.addEventListener("click", async () => {
-      btn.disabled = true;
-      btn.textContent = "Preenchendo...";
-      btn.style.opacity = "0.6";
-      await api.runtime.sendMessage({ action: "triggerRelogin" }).catch(() => null);
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "Preenchendo...";
+        btn.style.opacity = "0.6";
+        await api.runtime.sendMessage({ action: "triggerRelogin" }).catch(() => null);
+      });
+
+      target.insertAdjacentElement("afterend", btn);
+      return true;
+    };
+
+    if (await tryInsert()) return;
+    observer = new MutationObserver(() => {
+      void tryInsert().then((inserted) => {
+        if (inserted) observer?.disconnect();
+      });
     });
-
-    target.insertAdjacentElement("afterend", btn);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 
   async function startAutomation() {
@@ -136,6 +153,10 @@ async function initMain() {
       const currentUrl = globalThis.location.href;
       if (currentUrl === _lastUrl) return; // DOM mutou mas URL não mudou — ignorar excesso
       _lastUrl = currentUrl;
+
+      if (globalThis.location.hostname === "sso.acesso.gov.br") {
+        void injectGovBrReloginButton();
+      }
 
       if (globalThis.location.hostname === "www.tse.jus.br") {
         validateTseResultRoute(currentUrl);

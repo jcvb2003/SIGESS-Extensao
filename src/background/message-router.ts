@@ -967,6 +967,20 @@ async function handleCadastroDataArrival(
   // Verificação condicional do TSE após cadunico_adv
   // Verifica se todos os portais esperados estão concluídos/erro/timeout
   await evaluateTseRequirement(session, getTabManager);
+
+  const canCloseCapturedTab = portalKey !== "cadunico" || Boolean(session.portais.tse);
+  if (
+    portal.status === "concluido" &&
+    canCloseCapturedTab &&
+    typeof portal.tabId === "number"
+  ) {
+    try {
+      await browser.tabs.remove(portal.tabId);
+    } catch {
+      // A aba pode ter sido fechada pela conclusao concorrente de outro portal.
+    }
+  }
+
   await finalizeIfReady(session, getTabManager);
 }
 

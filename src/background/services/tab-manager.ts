@@ -18,6 +18,7 @@ export class TabManager {
   private static readonly PENDING_TAB_RECHECK_MS = 6000;
   private _containerQueueLock: Promise<void> = Promise.resolve();
   private readonly processingTabs = new Set<number>();
+  private readonly postLoginNavigationInFlight = new Set<number>();
 
   constructor() {
     this.strategies = [
@@ -411,11 +412,18 @@ export class TabManager {
     if (!session || session.sessionState !== "active") return;
 
     if (creds.portalType === "ecac") {
+      const ecac = session.portais.ecac;
       // Navega para a página CAEPF se ainda não estiver lá
       if (
         tabUrl.includes("cav.receita.fazenda.gov.br") &&
-        !tabUrl.includes("id=89")
+        !tabUrl.includes("id=89") &&
+        !ecac.postLoginNavigationIssued &&
+        !this.postLoginNavigationInFlight.has(tabId)
       ) {
+        this.postLoginNavigationInFlight.add(tabId);
+        ecac.postLoginNavigationIssued = true;
+        ecac.updatedAt = Date.now();
+        await StorageService.set({ [key]: session });
         await browser.tabs.update(tabId, {
           url: "https://cav.receita.fazenda.gov.br/ecac/Aplicacao.aspx?id=89&origem=menu",
         });
@@ -526,6 +534,7 @@ export class TabManager {
     const containerId = await this.getTabContainer(tabId);
     await this.clearTabContainer(tabId);
     this.processingTabs.delete(tabId);
+    this.postLoginNavigationInFlight.delete(tabId);
 
     if (containerId && this.supportsContextualIdentities()) {
       this.enqueueContainerOp(() => this.processContainerRetention(containerId));
