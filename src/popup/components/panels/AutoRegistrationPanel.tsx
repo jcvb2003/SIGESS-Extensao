@@ -37,7 +37,8 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
       onUpdate({
         pessoaData: {} as any,
         pessoaData_raw: {},
-        pessoaData_snapshots: {}
+        pessoaData_snapshots: {},
+        pessoaData_sensitive: {}
       });
     }
   };

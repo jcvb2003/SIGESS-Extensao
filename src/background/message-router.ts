@@ -183,7 +183,14 @@ async function handleGetESocialAutomationContext(
 
 async function handleGetAutoRegistrationSnapshot(): Promise<MessageResponse> {
   const settings = await StorageService.getSettings();
-  const pessoaData = settings.pessoaData || null;
+  const pessoaData = settings.pessoaData
+    ? {
+      ...settings.pessoaData,
+      ...(settings.pessoaData_sensitive?.senhaGovInss
+        ? { senhaGovInss: settings.pessoaData_sensitive.senhaGovInss }
+        : {}),
+    }
+    : null;
 
   return {
     success: true,
@@ -755,6 +762,8 @@ async function handleIniciarCadastroAutomatico(
   if (!(browser as any).contextualIdentities) {
     return { success: false, error: "Containers Firefox não disponíveis. Ative a extensão Multi-Account Containers." };
   }
+
+  await StorageService.saveCadastroSenhaGovInss(senha);
 
   const sessionId = `cadastro-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 

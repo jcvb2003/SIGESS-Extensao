@@ -94,6 +94,7 @@ import { CadastroSession, PessoaData } from "../../shared/types";
           pessoaData: {},
           pessoaData_raw: {},
           pessoaData_snapshots: {},
+          pessoaData_sensitive: {},
         },
       });
     });

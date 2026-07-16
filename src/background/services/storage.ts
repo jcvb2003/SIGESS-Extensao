@@ -86,6 +86,17 @@ export class StorageService {
     await this.set({ sigessSettings: normalizeReapSettings(settings) });
   }
 
+  static async saveCadastroSenhaGovInss(senhaGovInss: string): Promise<void> {
+    const settings = await this.getSettings();
+    await this.saveSettings({
+      ...settings,
+      pessoaData_sensitive: {
+        ...(settings.pessoaData_sensitive || {}),
+        senhaGovInss,
+      },
+    });
+  }
+
   /**
    * Mescla dados de uma nova fonte e reconsolida o cadastro por prioridade.
    */
@@ -99,6 +110,7 @@ export class StorageService {
     const currentRaw = settings.pessoaData_raw ?? ({} as Record<string, Partial<PessoaData>>);
     const currentProjections = settings.pessoaData_projections ?? currentRaw;
     const currentSnapshots = settings.pessoaData_snapshots ?? {};
+    const currentSensitive = settings.pessoaData_sensitive ?? {};
     
     // 1. Normalização do dado que está entrando (CPF 11 dígitos)
     const normalizedIn = normalizePessoaData(data);
@@ -178,6 +190,9 @@ export class StorageService {
       pessoaData_raw: newRaw,
       pessoaData_projections: newProjections,
       pessoaData_snapshots: newSnapshots,
+      pessoaData_sensitive: data.senhaGovInss === undefined
+        ? currentSensitive
+        : { ...currentSensitive, senhaGovInss: data.senhaGovInss },
     };
     
     await this.saveSettings(newSettings);

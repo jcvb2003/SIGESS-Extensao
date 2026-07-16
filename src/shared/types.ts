@@ -162,6 +162,8 @@ mpaMunicipio?: number;
   pessoaData_projections?: Record<string, Partial<PessoaData>>;
   /** Snapshots completos e normalizados para auditoria no Inspetor de Dados. */
   pessoaData_snapshots?: Record<string, import("../modules/automation/cadastro/contracts").CadastroSourceSnapshot>;
+  /** Valores que não podem sofrer normalização textual. */
+  pessoaData_sensitive?: { senhaGovInss?: string };
   autoRegistrationEnabled?: boolean;
   
   // SDPA (MTE)
