@@ -968,7 +968,12 @@ async function handleCadastroDataArrival(
   // Verifica se todos os portais esperados estão concluídos/erro/timeout
   await evaluateTseRequirement(session, getTabManager);
 
-  const canCloseCapturedTab = portalKey !== "cadunico" || Boolean(session.portais.tse);
+  const cadunicoDependenciesOpened =
+    typeof session.portais.pesqbrasil.tabId === "number" &&
+    typeof session.portais.ecac.tabId === "number";
+  const canCloseCapturedTab =
+    portalKey !== "cadunico" ||
+    (cadunicoDependenciesOpened && Boolean(session.portais.tse));
   if (
     portal.status === "concluido" &&
     canCloseCapturedTab &&
