@@ -102,6 +102,8 @@ export class StorageService {
     
     // 1. Normalização do dado que está entrando (CPF 11 dígitos)
     const normalizedIn = normalizePessoaData(data);
+    if (data.senhaGovInss !== undefined) normalizedIn.senhaGovInss = data.senhaGovInss;
+    if (data.escolaridade !== undefined) normalizedIn.escolaridade = data.escolaridade;
     if (normalizedIn.cpf) {
       normalizedIn.cpf = normalizedIn.cpf.toString().padStart(11, '0');
     }

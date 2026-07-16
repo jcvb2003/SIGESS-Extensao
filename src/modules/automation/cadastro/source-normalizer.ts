@@ -1,6 +1,6 @@
 import { PessoaData } from "../../../shared/types";
 
-const PRESERVED_VALUE_KEYS = new Set(["senhaGovInss"]);
+const PRESERVED_VALUE_KEYS = new Set(["senhaGovInss", "escolaridade"]);
 
 export function normalizeCapturedValue<T>(value: T, key?: string): T {
   if (key && PRESERVED_VALUE_KEYS.has(key)) return value;
