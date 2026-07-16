@@ -117,10 +117,14 @@ import { CadastroSession, PessoaData } from "../../shared/types";
 
   function updateDots(data: PessoaData, session?: CadastroSession) {
     const f = data?.fontes || {};
-    const tseDispensado = session?.portais?.tse?.status === "dispensado";
+    const cadunicoCapturado = !!(f.cadunico?.capturado || f.cadunico_adv?.capturado);
+    const tseDispensado =
+      cadunicoCapturado &&
+      session?.sessionState === "active" &&
+      session.portais?.tse?.status === "dispensado";
 
     const mapping: Record<string, boolean> = {
-      cadunico:   !!(f.cadunico?.capturado || f.cadunico_adv?.capturado),
+      cadunico:   cadunicoCapturado,
       tse:        !!f.tse?.capturado || tseDispensado,
       pesqbrasil: !!(f.pesqbrasil?.capturado || f.pesq_brasil?.capturado),
       esocial:    !!(f.ecac_caepf?.capturado || f.caepf?.capturado || f.esocial?.capturado),
