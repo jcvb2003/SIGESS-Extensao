@@ -47,6 +47,7 @@ export interface UserCredentials {
   loginConcluido?: boolean;
   govBrCpfSubmitted?: boolean;
   govBrPasswordSubmitted?: boolean;
+  govBrTwoFactorPending?: boolean;
   status?: GovBatchItemStatus;
   statusTitle?: string;
   statusDescription?: string;
@@ -61,6 +62,7 @@ export type GovBatchItemStatus =
   | "abrindo_em_lote"
   | "aguardando_pagina"
   | "fazendo_login"
+  | "aguardando_2fa"
   | "acessando_esocial"
   | "consultando"
   | "verificando_boleto"

@@ -109,6 +109,16 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     const storedCreds = (await StorageService.getCredentials(tabId)) || creds;
     const passwordSubmitted = !!storedCreds.govBrPasswordSubmitted;
 
+    const isTwoFactorScreen = await DOMInjector.execute(
+      tabId,
+      () => !!document.querySelector("#twoFactorForm input[name='otpInput'], #enter-offline-2fa-code"),
+    );
+
+    if (isTwoFactorScreen) {
+      await this.markTwoFactorPending(tabId);
+      return;
+    }
+
     const isCpfScreen = await DOMInjector.execute(
       tabId,
       () => !!document.querySelector("#accountId"),
@@ -163,7 +173,12 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
         if (!passwordSubmitted) {
           await this.submitGovBrPassword(tabId, creds.senha);
         } else {
-          await this.markLoginComplete(tabId);
+          await this.updateStatus(
+            tabId,
+            "fazendo_login",
+            "Aguardando redirecionamento",
+            "Aguardando a confirmação do Gov.br para acessar o portal...",
+          );
         }
       } catch (e) {
         console.log(`[Auth] Erro ao preencher senha:`, e);
@@ -183,18 +198,40 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     for (let i = 0; i < 6; i++) {
       await new Promise(r => setTimeout(r, 500));
       try {
-        const hasError = await DOMInjector.execute(
+        const state = await DOMInjector.execute(
           tabId,
-          () => !!document.querySelector(".br-message.warning"),
+          () => ({
+            hasError: !!document.querySelector(".br-message.warning"),
+            twoFactorPending: !!document.querySelector("#twoFactorForm input[name='otpInput'], #enter-offline-2fa-code"),
+          }),
         );
-        if (hasError) throw new Error("govbr_senha_invalida");
+        if (state.hasError) throw new Error("govbr_senha_invalida");
+        if (state.twoFactorPending) {
+          await this.markTwoFactorPending(tabId);
+          return;
+        }
       } catch (e: any) {
         if (e?.message === "govbr_senha_invalida") throw e;
         break; // tab navegou ou erro de scripting → assume sucesso
       }
     }
 
-    await this.markLoginComplete(tabId);
+    await this.updateStatus(
+      tabId,
+      "fazendo_login",
+      "Aguardando redirecionamento",
+      "Aguardando a confirmação do Gov.br para acessar o portal...",
+    );
+  }
+
+  private async markTwoFactorPending(tabId: number): Promise<void> {
+    await StorageService.updateCredentials(tabId, { govBrTwoFactorPending: true });
+    await this.updateStatus(
+      tabId,
+      "aguardando_2fa",
+      "Aguardando código 2FA",
+      "Informe e confirme o código de seis dígitos gerado no aplicativo gov.br.",
+    );
   }
 }
 

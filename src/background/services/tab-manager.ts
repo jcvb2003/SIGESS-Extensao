@@ -185,6 +185,25 @@ export class TabManager {
     const credentials = await StorageService.getCredentials(tabId);
     if (!credentials) return;
 
+    const returnedFromGovBr =
+      credentials.govBrPasswordSubmitted &&
+      !tab.url.includes("sso.acesso.gov.br");
+
+    if (returnedFromGovBr) {
+      const completedCredentials = await StorageService.updateBatchStatus(
+        tabId,
+        "redirecionando",
+        "Login concluído",
+        "Acessando o portal de serviços...",
+        { loginConcluido: true, govBrTwoFactorPending: false },
+      );
+
+      if (completedCredentials?.isCadastroAutomatico && changeInfo.status === "complete") {
+        await this.handleCadastroPostLoginNav(tabId, tab.url, completedCredentials);
+      }
+      return;
+    }
+
     // Hook de pós-login para tabs de cadastro automático
     if (credentials.loginConcluido && credentials.isCadastroAutomatico) {
       if (changeInfo.status === "complete") {
@@ -238,7 +257,7 @@ export class TabManager {
 
     for (const [key, credentials] of Object.entries(allCredentials)) {
       const tabId = Number(key.replace("credenciais_", ""));
-      if (!Number.isFinite(tabId) || credentials.loginConcluido) continue;
+      if (!Number.isFinite(tabId) || credentials.loginConcluido || credentials.govBrTwoFactorPending) continue;
       if (credentials.status === "concluido" || credentials.status === "erro" || credentials.status === "ignorado") continue;
       if (this.processingTabs.has(tabId)) continue;
 
@@ -377,6 +396,7 @@ export class TabManager {
       loginConcluido: false,
       govBrCpfSubmitted: false,
       govBrPasswordSubmitted: false,
+      govBrTwoFactorPending: false,
     });
 
     const credentials = await StorageService.getCredentials(tabId);
