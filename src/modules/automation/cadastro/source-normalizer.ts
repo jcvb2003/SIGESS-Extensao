@@ -1,6 +1,10 @@
 import { PessoaData } from "../../../shared/types";
 
-export function normalizeCapturedValue<T>(value: T): T {
+const PRESERVED_VALUE_KEYS = new Set(["senhaGovInss"]);
+
+export function normalizeCapturedValue<T>(value: T, key?: string): T {
+  if (key && PRESERVED_VALUE_KEYS.has(key)) return value;
+
   if (typeof value === "string") {
     return value
       .normalize("NFD")
@@ -18,7 +22,7 @@ export function normalizeCapturedValue<T>(value: T): T {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, item]) => [
         key,
-        normalizeCapturedValue(item),
+        normalizeCapturedValue(item, key),
       ]),
     ) as T;
   }
