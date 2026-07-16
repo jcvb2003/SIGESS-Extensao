@@ -201,11 +201,16 @@ async function fillRadixSelect(labelText: string, value: string): Promise<boolea
   await sleep(350);
 
   const options = Array.from(document.querySelectorAll('[role="option"]'));
-  const valueNorm = value.trim().toUpperCase();
+  const normalizeSelectText = (text: string) => text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+  const valueNorm = normalizeSelectText(value);
 
-  const match = options.find(o => o.textContent?.trim().toUpperCase() === valueNorm)
-    || options.find(o => o.textContent?.trim().toUpperCase().includes(valueNorm))
-    || options.find(o => valueNorm.includes(o.textContent?.trim().toUpperCase() || '___'));
+  const match = options.find(o => normalizeSelectText(o.textContent || "") === valueNorm)
+    || options.find(o => normalizeSelectText(o.textContent || "").includes(valueNorm))
+    || options.find(o => valueNorm.includes(normalizeSelectText(o.textContent || "___")));
 
   if (match) {
     (match as HTMLElement).click();

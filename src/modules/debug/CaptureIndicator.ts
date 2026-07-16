@@ -68,6 +68,36 @@ import { CadastroSession, PessoaData } from "../../shared/types";
     });
 
     root.appendChild(dotContainer);
+
+    const clearButton = document.createElement("button");
+    clearButton.type = "button";
+    clearButton.title = "Limpar dados capturados";
+    clearButton.setAttribute("aria-label", "Limpar dados capturados");
+    clearButton.textContent = "🗑";
+    clearButton.style.cssText = `
+        border: 0;
+        background: transparent;
+        color: #f87171;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 0 0 0 2px;
+    `;
+    clearButton.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      if (!globalThis.confirm("Deseja realmente limpar todos os dados capturados?")) return;
+      const result = await chrome.storage.local.get("sigessSettings");
+      const settings = result.sigessSettings || {};
+      await chrome.storage.local.set({
+        sigessSettings: {
+          ...settings,
+          pessoaData: {},
+          pessoaData_raw: {},
+          pessoaData_snapshots: {},
+        },
+      });
+    });
+    root.appendChild(clearButton);
     document.body.appendChild(root);
 
     updateFromStorage();

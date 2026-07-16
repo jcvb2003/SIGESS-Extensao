@@ -7,7 +7,13 @@ import { PessoaData } from "../../../shared/types";
 export function parseCaepfData(payload: any): Partial<PessoaData> | null {
   try {
     // Resposta é array direto — sem wrapper "content"
-    const arr = Array.isArray(payload) ? payload : payload?.content;
+    const arr = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.content)
+        ? payload.content
+        : payload && typeof payload === "object"
+          ? [payload]
+          : undefined;
     if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
 
     const item = arr[0];

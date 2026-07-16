@@ -36,7 +36,8 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
     if (confirm("Deseja realmente limpar todos os dados capturados?")) {
       onUpdate({
         pessoaData: {} as any,
-        pessoaData_raw: {}
+        pessoaData_raw: {},
+        pessoaData_snapshots: {}
       });
     }
   };

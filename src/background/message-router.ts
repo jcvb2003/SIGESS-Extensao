@@ -1033,7 +1033,7 @@ async function handleCheckReloginEligible(
   const tabId = sender?.tab?.id;
   if (!tabId) return { success: true, eligible: false };
   const creds = await StorageService.getCredentials(tabId);
-  return { success: true, eligible: !!creds?.loginConcluido };
+  return { success: true, eligible: Boolean(creds?.cpf && creds?.senha) };
 }
 
 async function handleTriggerRelogin(

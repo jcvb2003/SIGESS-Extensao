@@ -498,6 +498,22 @@ export class TabManager {
     if (pesqTabId) session.portais.pesqbrasil.tabId = pesqTabId;
     if (ecacTabId) session.portais.ecac.tabId = ecacTabId;
     await StorageService.set({ [key]: session });
+
+    const cadunico = session.portais.cadunico;
+    const tseDecidido = Boolean(session.portais.tse);
+    if (
+      cadunico.status === "concluido" &&
+      tseDecidido &&
+      typeof cadunico.tabId === "number" &&
+      typeof pesqTabId === "number" &&
+      typeof ecacTabId === "number"
+    ) {
+      try {
+        await browser.tabs.remove(cadunico.tabId);
+      } catch {
+        // A aba pode ter sido fechada pela finalizacao concorrente do fluxo.
+      }
+    }
   }
 
   async handleTabRemoval(

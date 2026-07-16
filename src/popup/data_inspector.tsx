@@ -5,6 +5,18 @@ import { StorageService } from '../background/services/storage';
 import { Shield, AlertTriangle, CheckCircle2, Info, ArrowLeft } from 'lucide-react';
 import './styles/global.css';
 
+function flattenRawData(value: unknown, prefix = ""): Array<[string, unknown]> {
+    if (Array.isArray(value)) {
+        return value.flatMap((item, index) => flattenRawData(item, `${prefix}[${index}]`));
+    }
+    if (value && typeof value === "object") {
+        return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) =>
+            flattenRawData(child, prefix ? `${prefix}.${key}` : key),
+        );
+    }
+    return prefix && value !== undefined && value !== null && value !== "" ? [[prefix, value]] : [];
+}
+
 const DataInspector: React.FC = () => {
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -242,8 +254,7 @@ const DataInspector: React.FC = () => {
                                 <div key={source} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
                                     <h4 style={{ margin: '0 0 16px', color: '#10b981', fontSize: '14px', textTransform: 'uppercase' }}>{formatSourceName(source)}</h4>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {Object.entries(sourceDataForInspector[source] || rawData[source] || {})
-                                          .filter(([_, v]) => v !== undefined && v !== null && v !== "")
+                                        {flattenRawData(sourceDataForInspector[source] || rawData[source] || {})
                                           .map(([key, value]) => (
                                             <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '4px' }}>
                                                 <span style={{ color: '#64748b' }}>{key}</span>
