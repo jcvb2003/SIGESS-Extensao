@@ -4,11 +4,15 @@ import { scrapeEcacCpfData, scrapeEcacCaepfTable } from "../modules/automation/e
 import { parseCadUnicoToken } from "../modules/automation/cadunico/extractor";
 import { fetchCadUnicoAdvanced } from "../modules/automation/cadunico/fetcher";
 import { parseTseData } from "../modules/automation/tse/extractor";
-import { fillTseAuthForm, resetTseFillGuard } from "../modules/automation/tse/form-filler-tse";
+import {
+  fillTseAuthForm,
+  resetTseFillGuard,
+  validateTseResultRoute,
+} from "../modules/automation/tse/form-filler-tse";
 import { parseInssData } from "../modules/automation/inss/extractor";
+import { resolveTseQueryProfile } from "../modules/automation/cadastro/tse-query-profile";
 import { updateAssistantStatus, removeAssistantUI } from "../modules/automation/assistant-ui";
 import { setupSPANavigationObserver } from "../modules/automation/spa-observer";
-import { PessoaData } from "../shared/types";
 
 declare var browser: any;
 declare var chrome: any;
@@ -114,8 +118,14 @@ async function initMain() {
     }
 
     // Reage a mudanças de URL (incluindo back button)
-    globalThis.addEventListener('popstate', resetTseFillGuard);
-    globalThis.addEventListener('hashchange', resetTseFillGuard);
+    const handleTseNavigation = () => {
+      if (globalThis.location.hostname === "www.tse.jus.br") {
+        validateTseResultRoute(globalThis.location.href);
+      }
+      resetTseFillGuard();
+    };
+    globalThis.addEventListener('popstate', handleTseNavigation);
+    globalThis.addEventListener('hashchange', handleTseNavigation);
 
     let _lastUrl = globalThis.location.href;
 
@@ -126,6 +136,10 @@ async function initMain() {
       const currentUrl = globalThis.location.href;
       if (currentUrl === _lastUrl) return; // DOM mutou mas URL não mudou — ignorar excesso
       _lastUrl = currentUrl;
+
+      if (globalThis.location.hostname === "www.tse.jus.br") {
+        validateTseResultRoute(currentUrl);
+      }
 
       if (_autoEnabled) {
         (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings").then(res => {
@@ -342,9 +356,16 @@ async function initMain() {
     }
 
     // Preenchimento automático para o TSE (Portal de Atendimento)
-    if (url.includes('tse.jus.br') && url.includes('atendimento-eleitor')) {
-      const data = settings.pessoaData as PessoaData;
-      if (data) fillTseAuthForm(data);
+    if (url.includes('tse.jus.br')) {
+      validateTseResultRoute(url);
+    }
+
+    if (
+      url.includes('tse.jus.br') &&
+      url.includes('atendimento-eleitor/consultar-numero-titulo-eleitor')
+    ) {
+      const profile = resolveTseQueryProfile(settings);
+      if (profile.isSufficient) fillTseAuthForm(profile);
     }
   }
 

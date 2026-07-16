@@ -11,6 +11,7 @@ import {
   PessoaData,
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
+import { resolveTseQueryProfile } from "../modules/automation/cadastro/tse-query-profile";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -886,12 +887,8 @@ async function evaluateTseRequirement(session: CadastroSession, getTabManager?: 
   const inssPendente = session.portais.inss && !isPortalTerminal(session.portais.inss);
   if (!pesqBrasilFinalizado || inssPendente) return;
 
-  const profileIsSufficient = Boolean(
-    pessoa.cpf &&
-    pessoa.dataDeNascimento &&
-    (pessoa.mae || pessoa.pai),
-  );
-  if (!profileIsSufficient || !getTabManager) {
+  const profile = resolveTseQueryProfile(settings);
+  if (!profile.isSufficient || !getTabManager) {
     session.portais.tse = {
       status: "erro",
       evidence: "dados_insuficientes_para_consulta",

@@ -4,6 +4,7 @@ let _tseFillDone = false;
 let _tseSubmitDone = false;
 let _tseFormObserver: MutationObserver | null = null;
 let _tseOutcomeObserver: MutationObserver | null = null;
+const TSE_RESULT_HASH = "#/atendimento-eleitor/consultar-numero-titulo-eleitor";
 
 /**
  * Reseta o guard de preenchimento para permitir nova execução em navegações SPA.
@@ -86,31 +87,45 @@ function submitTseQueryWhenReady(): void {
   observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
 }
 
+/**
+ * Depois do envio, a única rota válida é a tela que expõe os dados eleitorais.
+ * A conclusão ainda depende do payload coletado pela bridge; a rota apenas
+ * impede que um redirecionamento inesperado seja tratado como sucesso.
+ */
+export function validateTseResultRoute(url: string): void {
+  if (!_tseSubmitDone || url.includes(TSE_RESULT_HASH)) return;
+  reportTseOutcome("failed", "redirecionamento_tse_inesperado");
+}
+
 function observeTseOutcome(): void {
   if (_tseOutcomeObserver) return;
-  const report = (reason: string) => {
-    const api = (globalThis as any).browser || (globalThis as any).chrome;
-    void api?.runtime?.sendMessage?.({
-      action: "REPORT_CADASTRO_PORTAL_OUTCOME",
-      portal: "tse",
-      outcome: "not_found",
-      reason,
-    });
-    _tseOutcomeObserver?.disconnect();
-    _tseOutcomeObserver = null;
-  };
   const check = () => {
     if (!_tseSubmitDone) return;
     const text = document.body?.innerText || "";
     if (text.includes("nível de acesso obtido é menor do que o exigido")) {
-      report("dados_divergentes_justica_eleitoral");
+      reportTseOutcome("not_found", "dados_divergentes_justica_eleitoral");
     } else if (text.includes("Não foi possível localizar um eleitor com os dados informados")) {
-      report("eleitor_nao_localizado");
+      reportTseOutcome("not_found", "eleitor_nao_localizado");
     }
   };
   _tseOutcomeObserver = new MutationObserver(check);
   _tseOutcomeObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
   check();
+}
+
+function reportTseOutcome(
+  outcome: "not_found" | "failed",
+  reason: string,
+): void {
+  const api = (globalThis as any).browser || (globalThis as any).chrome;
+  void api?.runtime?.sendMessage?.({
+    action: "REPORT_CADASTRO_PORTAL_OUTCOME",
+    portal: "tse",
+    outcome,
+    reason,
+  });
+  _tseOutcomeObserver?.disconnect();
+  _tseOutcomeObserver = null;
 }
 
 function resolveTipoFiliacao(data: Partial<PessoaData>): string | null {

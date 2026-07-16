@@ -512,7 +512,10 @@ export class TabManager {
         };
         const portalKey = portalMap[creds.portalType];
         const portal = portalKey ? session.portais[portalKey] : undefined;
-        if (portal && portal.status !== "concluido" && portal.status !== "dispensado") {
+        if (
+          portal &&
+          !["concluido", "dispensado", "nao_encontrado", "indisponivel", "erro"].includes(portal.status)
+        ) {
           portal.status = "erro";
           await StorageService.set({ [key]: session });
         }
