@@ -102,6 +102,8 @@ export async function routeMessage(
         return await handleCancelarCadastroAutomatico();
       case "SAVE_PESSOA_DATA":
         return await handleSavePessoaData(message, getTabManager, sender);
+      case "REPORT_CADASTRO_PORTAL_OUTCOME":
+        return await handleCadastroPortalOutcome(message, getTabManager);
       case "downloadESocialGuide":
         return await handleDownloadESocialGuide(message);
       case "checkReloginEligible":
@@ -643,7 +645,7 @@ async function handleSavePessoaData(
   }
 
   try {
-    const newSettings = await StorageService.mergePessoaData(data, fonte);
+    const newSettings = await StorageService.mergePessoaData(data, fonte, message.snapshot);
 
     // Enfileira a atualização de sessão em série para evitar race condition
     // quando pesqbrasil_mpa e ecac_caepf chegam simultaneamente.
@@ -680,6 +682,7 @@ function fonteToPortal(fonte: string): keyof CadastroSession["portais"] | null {
   if (fonte === "ecac_cpf" || fonte === "ecac_caepf") return "ecac";
   if (fonte === "pesqbrasil" || fonte === "pesqbrasil_mpa") return "pesqbrasil";
   if (fonte === "tse") return "tse";
+  if (fonte === "inss") return "inss";
   return null;
 }
 
@@ -809,6 +812,150 @@ async function handleIniciarCadastroAutomatico(
   }
 }
 
+async function handleCadastroPortalOutcome(
+  message: MessageRequest,
+  getTabManager: () => any,
+): Promise<MessageResponse> {
+  const portalKey = message.portal as keyof CadastroSession["portais"] | undefined;
+  const outcome = message.outcome as "not_found" | "unavailable" | "failed" | undefined;
+  if (!portalKey || !outcome) {
+    return { success: false, error: "Resultado do portal inválido." };
+  }
+
+  const session = await getActiveSession();
+  const portal = session?.portais[portalKey];
+  if (!session || !portal) return { success: true };
+
+  portal.status = outcome === "not_found"
+    ? "nao_encontrado"
+    : outcome === "unavailable"
+      ? "indisponivel"
+      : "erro";
+  portal.evidence = String(message.reason || outcome);
+  portal.updatedAt = Date.now();
+  await saveSession(session);
+
+  if (portalKey === "cadunico" && outcome === "not_found") {
+    await openCadastroInss(session, getTabManager);
+  }
+
+  await evaluateTseRequirement(session, getTabManager);
+  await finalizeIfReady(session, getTabManager);
+  return { success: true };
+}
+
+async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
+  if (session.portais.inss) return;
+
+  const cadUnicoTabId = session.portais.cadunico.tabId;
+  const creds = cadUnicoTabId
+    ? await StorageService.getCredentials(cadUnicoTabId)
+    : null;
+  if (!creds?.cpf || !creds.senha) {
+    session.portais.inss = {
+      status: "erro",
+      evidence: "credenciais_indisponiveis",
+      updatedAt: Date.now(),
+    };
+    await saveSession(session);
+    return;
+  }
+
+  session.portais.inss = { status: "abrindo", updatedAt: Date.now() };
+  await saveSession(session);
+  const tabId = await getTabManager().createSessionInContainer(
+    "https://meu.inss.gov.br/#/login",
+    creds.cpf,
+    creds.senha,
+    session.cookieStoreId,
+    creds.nome,
+    "inss",
+    session.sessionId,
+  );
+  if (tabId) {
+    session.portais.inss.tabId = tabId;
+  } else {
+    session.portais.inss.status = "indisponivel";
+    session.portais.inss.evidence = "falha_ao_abrir_aba";
+  }
+  session.portais.inss.updatedAt = Date.now();
+  await saveSession(session);
+}
+
+async function evaluateTseRequirement(session: CadastroSession, getTabManager?: () => any): Promise<void> {
+  if (session.portais.tse) return;
+
+  const settings = await StorageService.getSettings();
+  const pessoa = settings.pessoaData || {};
+  if (pessoa.fontes?.tse?.capturado) {
+    session.portais.tse = {
+      status: "dispensado",
+      evidence: "dados_eleitorais_cadunico",
+      updatedAt: Date.now(),
+    };
+    await saveSession(session);
+    return;
+  }
+
+  const pesqBrasilStatus = session.portais.pesqbrasil.status;
+  const pesqBrasilFinalizado = ["concluido", "erro", "indisponivel"].includes(pesqBrasilStatus);
+  const inssPendente = session.portais.inss && !isPortalTerminal(session.portais.inss);
+  if (!pesqBrasilFinalizado || inssPendente) return;
+
+  const profileIsSufficient = Boolean(
+    pessoa.cpf &&
+    pessoa.dataDeNascimento &&
+    (pessoa.mae || pessoa.pai),
+  );
+  if (!profileIsSufficient || !getTabManager) {
+    session.portais.tse = {
+      status: "erro",
+      evidence: "dados_insuficientes_para_consulta",
+      updatedAt: Date.now(),
+    };
+    await saveSession(session);
+    return;
+  }
+
+  const cadUnicoTabId = session.portais.cadunico.tabId;
+  const creds = cadUnicoTabId
+    ? await StorageService.getCredentials(cadUnicoTabId)
+    : null;
+  if (!creds?.cpf || !creds.senha) return;
+
+  session.portais.tse = { status: "abrindo", updatedAt: Date.now() };
+  await saveSession(session);
+  const tabId = await getTabManager().createSessionInContainer(
+    "https://www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral#/atendimento-eleitor/consultar-numero-titulo-eleitor",
+    creds.cpf,
+    creds.senha,
+    session.cookieStoreId,
+    creds.nome,
+    "tse",
+    session.sessionId,
+  );
+  if (tabId) session.portais.tse.tabId = tabId;
+  else {
+    session.portais.tse.status = "erro";
+    session.portais.tse.evidence = "falha_ao_abrir_aba";
+  }
+  session.portais.tse.updatedAt = Date.now();
+  await saveSession(session);
+}
+
+function isPortalTerminal(portal: CadastroSession["portais"][keyof CadastroSession["portais"]]): boolean {
+  return !!portal && ["concluido", "dispensado", "nao_encontrado", "indisponivel", "erro"].includes(portal.status);
+}
+
+async function finalizeIfReady(session: CadastroSession, getTabManager?: () => any): Promise<void> {
+  const expected: (keyof CadastroSession["portais"])[] = ["cadunico", "pesqbrasil", "ecac"];
+  if (session.portais.inss) expected.push("inss");
+  if (session.portais.tse) expected.push("tse");
+  if (expected.every((key) => isPortalTerminal(session.portais[key]))) {
+    await finalizeCadastroSession(session, getTabManager);
+  }
+}
+
 async function handleCadastroDataArrival(
   fonte: string,
   data: Partial<PessoaData>,
@@ -837,45 +984,37 @@ async function handleCadastroDataArrival(
   await saveSession(session);
 
   // Verificação condicional do TSE após cadunico_adv
-  if (fonte === "cadunico_adv" && !session.portais.tse && getTabManager) {
+  const legacySession = session as CadastroSession;
+  if (false && fonte === "cadunico_adv" && !legacySession.portais.tse && getTabManager) {
     const tituloEleitor = (data as Partial<PessoaData>).tituloEleitor;
     if (!tituloEleitor) {
-      session.portais.tse = { status: "abrindo" };
-      await saveSession(session);
+      legacySession.portais.tse = { status: "abrindo" };
+      await saveSession(legacySession);
 
       // Abre TSE no mesmo container (herda sessão Gov.br)
-      const { cookieStoreId } = session;
-      const cadUnicoTabId = session.portais.cadunico.tabId;
-      const cadCreds = cadUnicoTabId
+      const { cookieStoreId } = legacySession;
+      const cadUnicoTabId = legacySession.portais.cadunico.tabId ?? -1;
+      const cadCreds: any = cadUnicoTabId >= 0
         ? await StorageService.getCredentials(cadUnicoTabId)
         : null;
 
       if (cadCreds?.cpf && cadCreds?.senha) {
-        const tseTabId = await getTabManager().createSessionInContainer(
+        const tseTabId = await (getTabManager as any)().createSessionInContainer(
           "https://www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral#/",
           cadCreds.cpf, cadCreds.senha, cookieStoreId,
-          cadCreds.nome, "tse", session.sessionId,
+          cadCreds.nome, "tse", legacySession.sessionId,
         );
         if (tseTabId) {
-          session.portais.tse!.tabId = tseTabId;
-          await saveSession(session);
+          legacySession.portais.tse!.tabId = tseTabId;
+          await saveSession(legacySession);
         }
       }
     }
   }
 
   // Verifica se todos os portais esperados estão concluídos/erro/timeout
-  const portaisEsperados: (keyof typeof session.portais)[] = ["cadunico", "pesqbrasil", "ecac"];
-  if (session.portais.tse) portaisEsperados.push("tse");
-
-  const todosFinalizados = portaisEsperados.every((key) => {
-    const p = session.portais[key];
-    return p && (p.status === "concluido" || p.status === "erro" || p.status === "timeout");
-  });
-
-  if (todosFinalizados) {
-    await finalizeCadastroSession(session, getTabManager);
-  }
+  await evaluateTseRequirement(session, getTabManager);
+  await finalizeIfReady(session, getTabManager);
 }
 
 async function finalizeCadastroSession(

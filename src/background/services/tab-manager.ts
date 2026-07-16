@@ -144,7 +144,7 @@ export class TabManager {
     senha: string,
     cookieStoreId: string,
     nome?: string,
-    portalType?: "cadunico" | "ecac" | "tse" | "pesqbrasil_mpa",
+    portalType?: "cadunico" | "ecac" | "tse" | "pesqbrasil_mpa" | "inss",
     cadastroSessionId?: string,
   ): Promise<number | null> {
     try {
@@ -428,6 +428,12 @@ export class TabManager {
       ) {
         await this.openCadastroSiblings(session, tabId, creds);
       }
+    } else if (creds.portalType === "inss") {
+      if (tabUrl.includes("meu.inss.gov.br") && !tabUrl.includes("dados-cadastrais")) {
+        await browser.tabs.update(tabId, {
+          url: "https://meu.inss.gov.br/#/dados-cadastrais?tk-categoria=Por%20Menu",
+        });
+      }
     }
   }
 
@@ -440,8 +446,6 @@ export class TabManager {
     if (session.portais.pesqbrasil.status !== "aguardando") return;
 
     // Aguarda mínimo de 30s desde o início da sessão — CadÚnico pode ainda estar fazendo login
-    if (Date.now() - session.startedAt < 30_000) return;
-
     const cadUnicoTabId = session.portais.cadunico.tabId;
     if (!cadUnicoTabId) return;
 
@@ -500,10 +504,11 @@ export class TabManager {
           ecac: "ecac",
           pesqbrasil_mpa: "pesqbrasil",
           tse: "tse",
+          inss: "inss",
         };
         const portalKey = portalMap[creds.portalType];
         const portal = portalKey ? session.portais[portalKey] : undefined;
-        if (portal && portal.status !== "concluido" && portal.status !== "timeout") {
+        if (portal && portal.status !== "concluido" && portal.status !== "dispensado") {
           portal.status = "erro";
           await StorageService.set({ [key]: session });
         }

@@ -29,6 +29,7 @@ const targets = [
   "caepf_bridge",
   "cadunico_bridge",
   "tse_bridge",
+  "inss_bridge",
   "capture_indicator",
   "content_sdpa",
 ];

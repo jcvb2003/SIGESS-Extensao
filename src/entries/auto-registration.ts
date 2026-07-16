@@ -5,6 +5,7 @@ import { parseCadUnicoToken } from "../modules/automation/cadunico/extractor";
 import { fetchCadUnicoAdvanced } from "../modules/automation/cadunico/fetcher";
 import { parseTseData } from "../modules/automation/tse/extractor";
 import { fillTseAuthForm, resetTseFillGuard } from "../modules/automation/tse/form-filler-tse";
+import { parseInssData } from "../modules/automation/inss/extractor";
 import { updateAssistantStatus, removeAssistantUI } from "../modules/automation/assistant-ui";
 import { setupSPANavigationObserver } from "../modules/automation/spa-observer";
 import { PessoaData } from "../shared/types";
@@ -83,7 +84,6 @@ async function initMain() {
   async function startAutomation() {
     if (globalThis.location.hostname === "sso.acesso.gov.br") {
       await injectGovBrReloginButton();
-      return;
     }
 
     // Correção para falha intermitente de redirecionamento no CadÚnico (Gov.br -> SuccessLogin sem token)
@@ -91,15 +91,10 @@ async function initMain() {
       globalThis.location.hostname.includes('cadunico.dataprev.gov.br') &&
       globalThis.location.hash === '#/successLogin'
     ) {
-      if (sessionStorage.getItem('sigess_cadunico_retry')) {
-        sessionStorage.removeItem('sigess_cadunico_retry');
-        console.error('[SIGESS] CadÚnico: Falha persistente no successLogin. Aguardando ação manual.');
-      } else {
-        sessionStorage.setItem('sigess_cadunico_retry', '1');
-        console.warn('[SIGESS] CadÚnico: successLogin sem token detectado. Redirecionando para raiz do app...');
-        globalThis.location.replace('https://cadunico.dataprev.gov.br/');
-      }
+      console.warn('[SIGESS] CadÚnico: successLogin sem token. Redirecionando para #/home.');
+      globalThis.location.replace('https://cadunico.dataprev.gov.br/#/home');
       return;
+
     }
 
     const [settingsResult, cadastroResult] = await Promise.all([
@@ -195,7 +190,6 @@ async function initMain() {
           if (document.querySelector('table.tabela')) finish();
         });
         obs.observe(document.documentElement, { childList: true, subtree: true });
-        setTimeout(finish, 15000);
       };
 
       if (document.readyState === 'loading') {
@@ -331,7 +325,11 @@ async function initMain() {
 
     // Tela de consentimento OAuth do Gov.br — aparece após login bem-sucedido em alguns portais.
     // Clica automaticamente em "Autorizar" para não bloquear o fluxo.
-    if (_cadastroSessionActive) {
+    if (
+      _cadastroSessionActive &&
+      host === "sso.acesso.gov.br" &&
+      globalThis.location.pathname === "/authorize"
+    ) {
       const clickAuthorize = () => {
         const btn = document.querySelector<HTMLButtonElement>('button[name="user_oauth_approval"][value="true"]');
         if (btn) { btn.click(); return true; }
@@ -340,7 +338,6 @@ async function initMain() {
       if (!clickAuthorize()) {
         const obs = new MutationObserver(() => { if (clickAuthorize()) obs.disconnect(); });
         obs.observe(document.documentElement, { childList: true, subtree: true });
-        setTimeout(() => obs.disconnect(), 30000);
       }
     }
 
@@ -372,18 +369,25 @@ async function initMain() {
       if (extractedData) saveData(extractedData, "pesqbrasil");
     } else if (type === "SIGESS_CAEPF_RAW_DATA") {
       const extractedData = parseCaepfData(payload);
-      if (extractedData) saveData(extractedData, "caepf");
+      if (extractedData) saveData(extractedData, "ecac_caepf", payload);
     } else if (type === "SIGESS_CADUNICO_RAW_TOKEN") {
       const extractedData = parseCadUnicoToken(payload as string);
       if (extractedData) saveData(extractedData, "cadunico");
     } else if (type === "SIGESS_CADUNICO_ADV_TOKENS") {
       const advPayload = payload as { cpf: string; bearer: string; xsrf: string; cnas: string };
-      fetchCadUnicoAdvanced(advPayload).then(data => {
-        if (data) saveData(data, "cadunico_adv");
+      fetchCadUnicoAdvanced(advPayload).then(result => {
+        if (result.kind === "collected") {
+          saveData(result.data, "cadunico_adv", result.data);
+        } else {
+          reportPortalOutcome("cadunico", result.kind, result.reason);
+        }
       });
     } else if (type === "SIGESS_TSE_RAW_DATA") {
       const extractedData = parseTseData(payload);
-      if (extractedData) saveData(extractedData, "tse");
+      if (extractedData) saveData(extractedData, "tse", payload);
+    } else if (type === "SIGESS_INSS_RAW_DATA") {
+      const extractedData = parseInssData(payload);
+      if (extractedData) saveData(extractedData, "inss", payload);
     }
   }
 
@@ -417,12 +421,18 @@ async function initMain() {
       injectScript("assets/cadunico_bridge.js");
     } else if (host.includes("tse.jus.br")) {
       injectScript("assets/tse_bridge.js");
+    } else if (host.includes("meu.inss.gov.br")) {
+      injectScript("assets/inss_bridge.js");
     }
   }
 
   // ── Persistência ─────────────────────────────────────────────────────────
 
-  function saveData(data: Partial<import("../shared/types").PessoaData>, fonte: string) {
+  function saveData(
+    data: Partial<import("../shared/types").PessoaData>,
+    fonte: string,
+    snapshot?: unknown,
+  ) {
     console.log(`SIGESS: Dados extraídos de ${fonte}`, data);
     const api = (globalThis.browser || globalThis.chrome) as any;
     
@@ -430,12 +440,27 @@ async function initMain() {
       api.runtime.sendMessage({
         action: "SAVE_PESSOA_DATA",
         data,
-        fonte
+        fonte,
+        snapshot,
       });
     }
 
     // Disparamos o evento local de atualização
     globalThis.dispatchEvent(new CustomEvent('SIGESS_DATA_UPDATED'));
+  }
+
+  function reportPortalOutcome(
+    portal: "cadunico" | "tse" | "inss",
+    outcome: "not_found" | "failed" | "unavailable",
+    reason: string,
+  ) {
+    const api = (globalThis.browser || globalThis.chrome) as any;
+    api?.runtime?.sendMessage?.({
+      action: "REPORT_CADASTRO_PORTAL_OUTCOME",
+      portal,
+      outcome,
+      reason,
+    });
   }
 
   // ── Reatividade (storage.onChanged) ──────────────────────────────────────

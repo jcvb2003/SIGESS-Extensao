@@ -1,6 +1,16 @@
 export interface CadastroPortalEntry {
-  status: "aguardando" | "abrindo" | "coletando" | "concluido" | "erro" | "timeout";
+  status:
+    | "aguardando"
+    | "abrindo"
+    | "coletando"
+    | "concluido"
+    | "dispensado"
+    | "nao_encontrado"
+    | "indisponivel"
+    | "erro";
   tabId?: number;
+  evidence?: string;
+  updatedAt?: number;
 }
 
 export interface CadastroSession {
@@ -13,6 +23,7 @@ export interface CadastroSession {
     pesqbrasil: CadastroPortalEntry;
     ecac: CadastroPortalEntry;
     tse?: CadastroPortalEntry;
+    inss?: CadastroPortalEntry;
   };
   mergeRequest?: { raw: Record<string, Partial<PessoaData>> };
   errorMessage?: string;
@@ -146,6 +157,10 @@ mpaMunicipio?: number;
 
   pessoaData?: PessoaData;
   pessoaData_raw?: Record<string, Partial<PessoaData>>;
+  /** Projeções autorizadas para o cadastro consolidado por fonte. */
+  pessoaData_projections?: Record<string, Partial<PessoaData>>;
+  /** Snapshots completos e normalizados para auditoria no Inspetor de Dados. */
+  pessoaData_snapshots?: Record<string, import("../modules/automation/cadastro/contracts").CadastroSourceSnapshot>;
   autoRegistrationEnabled?: boolean;
   
   // SDPA (MTE)

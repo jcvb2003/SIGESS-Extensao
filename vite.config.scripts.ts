@@ -21,6 +21,7 @@ const entries = {
     caepf_bridge: resolve(__dirname, 'src/modules/automation/caepf/bridge.ts'),
     cadunico_bridge: resolve(__dirname, 'src/modules/automation/cadunico/bridge.ts'),
     tse_bridge: resolve(__dirname, 'src/modules/automation/tse/bridge.ts'),
+    inss_bridge: resolve(__dirname, 'src/modules/automation/inss/bridge.ts'),
     capture_indicator: resolve(__dirname, 'src/modules/debug/CaptureIndicator.ts'),
     content_sdpa: resolve(__dirname, 'src/entries/sdpa.ts')
 };

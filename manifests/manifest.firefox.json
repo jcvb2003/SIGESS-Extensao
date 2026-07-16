@@ -39,6 +39,7 @@
     "assets/caepf_bridge.js",
     "assets/cadunico_bridge.js",
     "assets/tse_bridge.js",
+    "assets/inss_bridge.js",
     "data_inspector.html",
     "assets/data_inspector.js"
   ],

@@ -2,11 +2,11 @@ import { PessoaData } from "../../../shared/types";
 
 /**
  * Realiza a extração avançada de dados do CadÚnico via API transacional.
- * Retorna os dados consolidados ou null em caso de falha.
+ * Distingue ausência de perfil de falhas técnicas para o orquestrador.
  */
 export async function fetchCadUnicoAdvanced(
   payload: CadUnicoAdvPayload
-): Promise<Partial<PessoaData> | null> {
+): Promise<CadUnicoAdvancedResult> {
   const { cpf, bearer, xsrf, cnas } = payload;
   console.log("SIGESS: Iniciando extração avançada CadÚnico para CPF: " + cpf);
 
@@ -22,7 +22,7 @@ export async function fetchCadUnicoAdvanced(
     const perfil = await fetchPerfil(cpf, headers);
     if (!perfil) {
       console.warn("SIGESS: Perfil não encontrado para CPF " + cpf);
-      return null;
+      return { kind: "not_found", reason: "perfil_nao_localizado" };
     }
 
     const [details, family, address] = await Promise.all([
@@ -31,10 +31,16 @@ export async function fetchCadUnicoAdvanced(
       fetchAddress(perfil.numeroFamiliar, headers)
     ]);
 
-    return { ...details, ...family, ...address };
+    return {
+      kind: "collected",
+      data: { ...details, ...family, ...address },
+    };
   } catch (e) {
     console.error("SIGESS: Falha na extração avançada CadÚnico", e);
-    return null;
+    return {
+      kind: "failed",
+      reason: e instanceof Error ? e.message : "falha_na_coleta_cadunico",
+    };
   }
 }
 
@@ -46,6 +52,11 @@ export interface CadUnicoAdvPayload {
   xsrf: string;
   cnas: string;
 }
+
+export type CadUnicoAdvancedResult =
+  | { kind: "collected"; data: Partial<PessoaData> }
+  | { kind: "not_found"; reason: string }
+  | { kind: "failed"; reason: string };
 
 type CadUnicoHeaders = Record<string, string>;
 

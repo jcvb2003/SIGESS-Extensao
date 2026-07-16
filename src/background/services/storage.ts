@@ -1,5 +1,8 @@
 import { AppSettings, GovBatchItemStatus, UserCredentials, PessoaData } from "../../shared/types";
 import { normalizeReapSettings } from "../../modules/reap-mpa/reap-settings";
+import { CadastroSourceSnapshot } from "../../modules/automation/cadastro/contracts";
+import { normalizeCapturedValue, normalizePessoaData } from "../../modules/automation/cadastro/source-normalizer";
+import { projectSourceFields } from "../../modules/automation/cadastro/source-projections";
 
 declare var chrome: any;
 declare var browser: any;
@@ -86,13 +89,19 @@ export class StorageService {
   /**
    * Mescla dados de uma nova fonte e reconsolida o cadastro por prioridade.
    */
-  static async mergePessoaData(data: Partial<PessoaData>, fonte: string): Promise<AppSettings> {
+  static async mergePessoaData(
+    data: Partial<PessoaData>,
+    fonte: string,
+    snapshot?: unknown,
+  ): Promise<AppSettings> {
     const settings = await this.getSettings();
     const currentPessoa: PessoaData = settings.pessoaData ?? { nome: "", cpf: "", fontes: {} };
     const currentRaw = settings.pessoaData_raw ?? ({} as Record<string, Partial<PessoaData>>);
+    const currentProjections = settings.pessoaData_projections ?? currentRaw;
+    const currentSnapshots = settings.pessoaData_snapshots ?? {};
     
     // 1. Normalização do dado que está entrando (CPF 11 dígitos)
-    const normalizedIn = { ...data };
+    const normalizedIn = normalizePessoaData(data);
     if (normalizedIn.cpf) {
       normalizedIn.cpf = normalizedIn.cpf.toString().padStart(11, '0');
     }
@@ -106,11 +115,34 @@ export class StorageService {
       }
     };
 
+    const projectedIn = projectSourceFields(fonte, normalizedIn);
+    const newProjections: Record<string, Partial<PessoaData>> = {
+      ...currentProjections,
+      [fonte]: {
+        ...(currentProjections[fonte] || {}),
+        ...projectedIn,
+      },
+    };
+
+    const newSnapshots: Record<string, CadastroSourceSnapshot> = snapshot === undefined
+      ? currentSnapshots
+      : {
+        ...currentSnapshots,
+        [fonte]: {
+          portal: sourceToPortalId(fonte),
+          outcome: "collected",
+          evidence: `payload:${fonte}`,
+          collectedAt: Date.now(),
+          data: normalizeCapturedValue(snapshot),
+        },
+      };
+
     // 3. Reconsolidação Prioritária do pessoaData (objeto principal)
     // Ordem: 1. CadÚnico, 2. PesqBrasil, 3. Resto (Cronológico)
     const priorityOrder = [
       'cadunico_adv', 'cadunico',
-      'pesqbrasil', 'pesq_brasil'
+      'pesqbrasil', 'pesq_brasil',
+      'inss'
     ];
 
     let consolidated: PessoaData = { 
@@ -119,7 +151,7 @@ export class StorageService {
     };
 
     // Primeiro aplica o "Resto" (fontes que não estão na lista de prioridade explícita)
-    Object.entries(newRaw).forEach(([f, d]) => {
+    Object.entries(newProjections).forEach(([f, d]) => {
       if (!priorityOrder.includes(f)) {
         consolidated = { ...consolidated, ...d };
       }
@@ -129,8 +161,8 @@ export class StorageService {
     // Por isso aplicamos a prioridade REVERSA (menos prioritário primeiro)
     const reversedPriority = [...priorityOrder].reverse();
     reversedPriority.forEach(f => {
-      if (newRaw[f]) {
-        consolidated = { ...consolidated, ...newRaw[f] };
+      if (newProjections[f]) {
+        consolidated = { ...consolidated, ...newProjections[f] };
       }
     });
 
@@ -141,7 +173,9 @@ export class StorageService {
     const newSettings: AppSettings = { 
       ...settings, 
       pessoaData: consolidated,
-      pessoaData_raw: newRaw 
+      pessoaData_raw: newRaw,
+      pessoaData_projections: newProjections,
+      pessoaData_snapshots: newSnapshots,
     };
     
     await this.saveSettings(newSettings);
@@ -220,6 +254,14 @@ export class StorageService {
 
     return credentials;
   }
+}
+
+function sourceToPortalId(fonte: string): CadastroSourceSnapshot["portal"] {
+  if (fonte === "cadunico" || fonte === "cadunico_adv") return "cadunico";
+  if (fonte === "pesqbrasil" || fonte === "pesqbrasil_mpa") return "pesqbrasil";
+  if (fonte === "ecac_cpf" || fonte === "ecac_caepf") return "ecac";
+  if (fonte === "inss") return "inss";
+  return "tse";
 }
 
 /**

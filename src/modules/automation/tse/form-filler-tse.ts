@@ -1,12 +1,20 @@
 import { PessoaData } from "../../../shared/types";
 
 let _tseFillDone = false;
+let _tseSubmitDone = false;
+let _tseFormObserver: MutationObserver | null = null;
+let _tseOutcomeObserver: MutationObserver | null = null;
 
 /**
  * Reseta o guard de preenchimento para permitir nova execução em navegações SPA.
  */
 export function resetTseFillGuard(): void {
   _tseFillDone = false;
+  _tseSubmitDone = false;
+  _tseFormObserver?.disconnect();
+  _tseOutcomeObserver?.disconnect();
+  _tseFormObserver = null;
+  _tseOutcomeObserver = null;
 }
 
 /**
@@ -19,7 +27,7 @@ export function fillTseAuthForm(data: Partial<PessoaData>): void {
   const cpfField = document.getElementById('titulo-cpf-nome');
   if (!cpfField) {
     // Modal ainda não abriu — tentar em 500ms sem marcar como done
-    setTimeout(() => fillTseAuthForm(data), 500);
+    observeTseForm(data);
     return;
   }
 
@@ -45,6 +53,64 @@ export function fillTseAuthForm(data: Partial<PessoaData>): void {
   // Select de filiação — determinar opção correta
   const tipoFiliacao = resolveTipoFiliacao(data);
   if (tipoFiliacao) setAngularSelect(tipoFiliacao);
+  submitTseQueryWhenReady();
+  observeTseOutcome();
+}
+
+function observeTseForm(data: Partial<PessoaData>): void {
+  if (_tseFormObserver) return;
+  _tseFormObserver = new MutationObserver(() => {
+    if (!document.getElementById('titulo-cpf-nome')) return;
+    _tseFormObserver?.disconnect();
+    _tseFormObserver = null;
+    fillTseAuthForm(data);
+  });
+  _tseFormObserver.observe(document.documentElement, { childList: true, subtree: true });
+}
+
+function submitTseQueryWhenReady(): void {
+  const submit = () => {
+    if (_tseSubmitDone) return true;
+    const button = document.querySelector<HTMLButtonElement>('button[data-cy="bt-entrar"]');
+    if (!button || button.disabled) return false;
+    _tseSubmitDone = true;
+    button.click();
+    return true;
+  };
+
+  if (submit()) return;
+  const observer = new MutationObserver(() => {
+    if (!submit()) return;
+    observer.disconnect();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+}
+
+function observeTseOutcome(): void {
+  if (_tseOutcomeObserver) return;
+  const report = (reason: string) => {
+    const api = (globalThis as any).browser || (globalThis as any).chrome;
+    void api?.runtime?.sendMessage?.({
+      action: "REPORT_CADASTRO_PORTAL_OUTCOME",
+      portal: "tse",
+      outcome: "not_found",
+      reason,
+    });
+    _tseOutcomeObserver?.disconnect();
+    _tseOutcomeObserver = null;
+  };
+  const check = () => {
+    if (!_tseSubmitDone) return;
+    const text = document.body?.innerText || "";
+    if (text.includes("nível de acesso obtido é menor do que o exigido")) {
+      report("dados_divergentes_justica_eleitoral");
+    } else if (text.includes("Não foi possível localizar um eleitor com os dados informados")) {
+      report("eleitor_nao_localizado");
+    }
+  };
+  _tseOutcomeObserver = new MutationObserver(check);
+  _tseOutcomeObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  check();
 }
 
 function resolveTipoFiliacao(data: Partial<PessoaData>): string | null {
