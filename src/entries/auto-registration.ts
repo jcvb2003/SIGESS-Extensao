@@ -387,7 +387,7 @@ async function initMain() {
       if (_cadastroSessionActive) {
         if (profile.isSufficient) fillTseAuthForm(profile);
       } else if (profile.cpf || profile.dataDeNascimento || profile.mae || profile.pai) {
-        fillTseAuthForm(profile, { submit: profile.isSufficient });
+        fillTseAuthForm(profile, { submit: false });
       }
     }
   }
