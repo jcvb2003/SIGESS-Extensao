@@ -13,6 +13,11 @@ import {
 import { BadgeManager } from "./services/badge-manager";
 import { INSS_LOGIN_URL, isInssUrl } from "../modules/automation/inss/routes";
 import {
+  PESQBRASIL_AGRO_URL,
+  PESQBRASIL_MPA_URL,
+  isPesqBrasilMpaUrl,
+} from "../modules/automation/pesqbrasil/routes";
+import {
   getActiveCadastroSession,
 } from "./cadastro/cadastro-session-store";
 import {
@@ -270,8 +275,8 @@ async function handleStartBatchLogin(
     return { success: false, error: "Lista de credenciais vazia" };
   }
   const urlMap: Record<string, string> = {
-    pesqbrasil_agro: "https://pesqbrasil-pescadorprofissional.agro.gov.br/",
-    pesqbrasil_mpa: "https://pesqbrasil-pescadorprofissional.mpa.gov.br/",
+    pesqbrasil_agro: PESQBRASIL_AGRO_URL,
+    pesqbrasil_mpa: PESQBRASIL_MPA_URL,
     esocial: "https://login.esocial.gov.br/",
     inss: INSS_LOGIN_URL,
   };
@@ -372,7 +377,7 @@ async function handleAbrirAbaContainer(
       valorComercializado,
       type: url.includes("esocial") ? "esocial"
         : isInssUrl(url) ? "inss"
-        : url.includes("mpa.gov.br") ? "pesqbrasil_mpa"
+        : isPesqBrasilMpaUrl(url) ? "pesqbrasil_mpa"
         : "pesqbrasil_agro",
       timestamp: Date.now(),
     };
@@ -393,7 +398,7 @@ async function handleAbrirAbaContainer(
     nome,
     url.includes("esocial") ? "esocial"
       : isInssUrl(url) ? "inss"
-      : url.includes("mpa.gov.br") ? "pesqbrasil_mpa"
+      : isPesqBrasilMpaUrl(url) ? "pesqbrasil_mpa"
       : "pesqbrasil_agro",
     valorComercializado,
   );

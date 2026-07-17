@@ -1,4 +1,5 @@
 import { setupSPANavigationObserver } from "../spa-observer";
+import { TSE_HOST } from "../tse/routes";
 
 interface NavigationCallbacks {
   onAnyMutation(): void;
@@ -9,7 +10,7 @@ interface NavigationCallbacks {
 
 export function setupRegistrationNavigation(callbacks: NavigationCallbacks): void {
   const handleHistoryNavigation = () => {
-    if (globalThis.location.hostname === "www.tse.jus.br") {
+    if (globalThis.location.hostname === TSE_HOST) {
       callbacks.onTseNavigation(globalThis.location.href);
     }
     callbacks.onHistoryNavigation();
@@ -23,7 +24,7 @@ export function setupRegistrationNavigation(callbacks: NavigationCallbacks): voi
     const currentUrl = globalThis.location.href;
     if (currentUrl === lastUrl) return;
     lastUrl = currentUrl;
-    if (globalThis.location.hostname === "www.tse.jus.br") callbacks.onTseNavigation(currentUrl);
+    if (globalThis.location.hostname === TSE_HOST) callbacks.onTseNavigation(currentUrl);
     callbacks.onUrlChanged(currentUrl);
   });
 }

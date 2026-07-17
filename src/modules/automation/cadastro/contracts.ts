@@ -1,4 +1,4 @@
-import type { PessoaData } from "../../../shared/types";
+import type { AppSettings, PessoaData } from "../../../shared/types";
 
 export type CadastroPortalId = "cadunico" | "pesqbrasil" | "ecac" | "tse" | "inss";
 
@@ -21,6 +21,7 @@ export interface CadastroPortalDefinition {
 
 export interface CadastroPortalRuntimeContext {
   sessionActive: boolean;
+  settings?: AppSettings;
 }
 
 export interface CadastroPortalRuntimeAdapter {

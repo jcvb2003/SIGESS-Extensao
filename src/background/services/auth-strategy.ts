@@ -3,6 +3,12 @@ import { DOMInjector } from "./dom-injector";
 import { StorageService } from "./storage";
 import { CADUNICO_HOST } from "../../modules/automation/cadunico/routes";
 import { INSS_HOST, isInssUrl } from "../../modules/automation/inss/routes";
+import { ECAC_HOST, isEcacAuthUrl, isEcacUrl } from "../../modules/automation/ecac/routes";
+import {
+  PESQBRASIL_AGRO_HOST,
+  PESQBRASIL_MPA_HOST,
+  isPesqBrasilMpaUrl,
+} from "../../modules/automation/pesqbrasil/routes";
 
 declare var browser: any;
 
@@ -246,7 +252,7 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
 
 export class PesqBrasilStrategy extends BaseAuthStrategy {
   name = "PesqBrasil";
-  urlTrigger = "pesqbrasil-pescadorprofissional.agro.gov.br";
+  urlTrigger = PESQBRASIL_AGRO_HOST;
 
   async execute(
     tabId: number,
@@ -254,7 +260,7 @@ export class PesqBrasilStrategy extends BaseAuthStrategy {
     credentials: UserCredentials,
   ): Promise<void> {
     if (
-      tabUrl.includes("pesqbrasil-pescadorprofissional.agro.gov.br") &&
+      tabUrl.includes(PESQBRASIL_AGRO_HOST) &&
       !tabUrl.includes("sso.acesso.gov.br") &&
       credentials.status !== "fazendo_login"
     ) {
@@ -344,7 +350,7 @@ export class INSSStrategy extends BaseAuthStrategy {
 
 export class PesqBrasilMPAStrategy extends BaseAuthStrategy {
   name = "PesqBrasilMPA";
-  urlTrigger = "pesqbrasil-pescadorprofissional.mpa.gov.br";
+  urlTrigger = PESQBRASIL_MPA_HOST;
 
   async execute(
     tabId: number,
@@ -352,7 +358,7 @@ export class PesqBrasilMPAStrategy extends BaseAuthStrategy {
     credentials: UserCredentials,
   ): Promise<void> {
     if (
-      tabUrl.includes("pesqbrasil-pescadorprofissional.mpa.gov.br") &&
+      isPesqBrasilMpaUrl(tabUrl) &&
       !tabUrl.includes("sso.acesso.gov.br") &&
       credentials.status !== "fazendo_login"
     ) {
@@ -435,7 +441,7 @@ export class CadUnicoStrategy extends BaseAuthStrategy {
 
 export class EcacStrategy extends BaseAuthStrategy {
   name = "EcacCadastro";
-  urlTrigger = "cav.receita.fazenda.gov.br";
+  urlTrigger = ECAC_HOST;
 
   async execute(
     tabId: number,
@@ -444,8 +450,7 @@ export class EcacStrategy extends BaseAuthStrategy {
   ): Promise<void> {
     // Página de login do eCAC — clica no botão Gov.br
     if (
-      tabUrl.includes("cav.receita.fazenda.gov.br") &&
-      tabUrl.includes("autenticacao") &&
+      isEcacAuthUrl(tabUrl) &&
       credentials.status !== "fazendo_login"
     ) {
       try {
@@ -464,8 +469,8 @@ export class EcacStrategy extends BaseAuthStrategy {
     // SSO bypass: Gov.br já tinha sessão ativa no container e redirecionou
     // de volta para o eCAC sem passar pela tela de senha
     if (
-      tabUrl.includes("cav.receita.fazenda.gov.br") &&
-      !tabUrl.includes("autenticacao") &&
+      isEcacUrl(tabUrl) &&
+      !isEcacAuthUrl(tabUrl) &&
       !tabUrl.includes("sso.acesso.gov.br")
     ) {
       await this.markLoginComplete(tabId);

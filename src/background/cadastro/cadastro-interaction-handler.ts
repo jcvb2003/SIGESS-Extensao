@@ -2,6 +2,7 @@ import type { MessageResponse } from "../../shared/types";
 import { StorageService } from "../services/storage";
 import { getActiveCadastroSession } from "./cadastro-session-store";
 import { INSS_DATA_URL, isInssDataUrl, isInssUrl } from "../../modules/automation/inss/routes";
+import { isTseAutoatendimentoUrl } from "../../modules/automation/tse/routes";
 
 export async function canSubmitCadastroTse(
   sender?: browser.runtime.MessageSender,
@@ -19,7 +20,7 @@ export async function canSubmitCadastroTse(
       creds?.isCadastroAutomatico &&
       creds.portalType === "tse" &&
       creds.cadastroSessionId === session.sessionId &&
-      sender?.tab?.url?.includes("www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral"),
+      isTseAutoatendimentoUrl(sender?.tab?.url || ""),
     ),
   };
 }

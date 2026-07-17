@@ -12,6 +12,8 @@ import {
 } from "./auth-strategy";
 import { CADUNICO_HOME_URL, isCadUnicoUrl } from "../../modules/automation/cadunico/routes";
 import { INSS_DATA_URL, isInssDataUrl, isInssUrl } from "../../modules/automation/inss/routes";
+import { ECAC_COLLECTION_URL, ECAC_LOGIN_URL, isEcacCaepfCollectionUrl, isEcacUrl } from "../../modules/automation/ecac/routes";
+import { PESQBRASIL_MPA_URL, isPesqBrasilMpaUrl } from "../../modules/automation/pesqbrasil/routes";
 
 export class TabManager {
   private readonly strategies: AuthStrategy[] = [];
@@ -88,7 +90,7 @@ export class TabManager {
         portalType ||
         (url.includes("esocial") ? "esocial"
           : isInssUrl(url) ? "inss"
-          : url.includes("mpa.gov.br") ? "pesqbrasil_mpa"
+          : isPesqBrasilMpaUrl(url) ? "pesqbrasil_mpa"
           : "pesqbrasil_agro");
 
       let tab: browser.tabs.Tab;
@@ -458,8 +460,8 @@ export class TabManager {
       const ecac = session.portais.ecac;
       // Navega para a página CAEPF se ainda não estiver lá
       if (
-        tabUrl.includes("cav.receita.fazenda.gov.br") &&
-        !tabUrl.includes("id=89") &&
+        isEcacUrl(tabUrl) &&
+        !isEcacCaepfCollectionUrl(tabUrl) &&
         !ecac.postLoginNavigationIssued &&
         !this.postLoginNavigationInFlight.has(tabId)
       ) {
@@ -468,7 +470,7 @@ export class TabManager {
         ecac.updatedAt = Date.now();
         await StorageService.set({ [key]: session });
         await browser.tabs.update(tabId, {
-          url: "https://cav.receita.fazenda.gov.br/ecac/Aplicacao.aspx?id=89&origem=menu",
+          url: ECAC_COLLECTION_URL,
         });
       }
     } else if (creds.portalType === "cadunico") {
@@ -529,11 +531,11 @@ export class TabManager {
 
     const [pesqTabId, ecacTabId] = await Promise.all([
       this.createSessionInContainer(
-        "https://pesqbrasil-pescadorprofissional.mpa.gov.br/",
+        PESQBRASIL_MPA_URL,
         cpf, senha, cookieStoreId, nome, "pesqbrasil_mpa", cadastroSessionId,
       ),
       this.createSessionInContainer(
-        "https://cav.receita.fazenda.gov.br/autenticacao/login",
+        ECAC_LOGIN_URL,
         cpf, senha, cookieStoreId, nome, "ecac", cadastroSessionId,
       ),
     ]);

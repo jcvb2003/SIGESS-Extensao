@@ -13,6 +13,7 @@ import {
   type CadastroReportedOutcome,
 } from "./cadastro-session-controller";
 import { INSS_LOGIN_URL } from "../../modules/automation/inss/routes";
+import { TSE_QUERY_URL } from "../../modules/automation/tse/routes";
 
 export async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
   if (session.portais.inss) return;
@@ -73,7 +74,7 @@ export async function evaluateTseRequirement(
     getTabManager(),
     creds,
     "tse",
-    "https://www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral#/atendimento-eleitor/consultar-numero-titulo-eleitor",
+    TSE_QUERY_URL,
   );
   if (tabId) session.portais.tse.tabId = tabId;
   else {
