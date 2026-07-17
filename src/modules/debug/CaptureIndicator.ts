@@ -1,6 +1,8 @@
 import { CadastroSession, PessoaData } from "../../shared/types";
 import { setupSPANavigationObserver } from "../automation/spa-observer";
 import { StorageService } from "../../background/services/storage";
+import { projectCaptureStatuses, type CaptureStatus } from "../automation/cadastro/status-projection";
+import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
 
 /**
  * Componente visual discreto que indica o status da coleta em tempo real.
@@ -109,7 +111,7 @@ import { StorageService } from "../../background/services/storage";
         host === "localhost") &&
       globalThis.location.pathname.startsWith("/registration");
 
-    return host.includes(".gov.br") || host.includes("mpa.gov.br") || isWebRegistration;
+    return resolvePortalBridge(host) !== null || isWebRegistration;
   }
 
   async function syncUI(): Promise<void> {
@@ -137,32 +139,30 @@ import { StorageService } from "../../background/services/storage";
   }
 
   function updateDots(data: PessoaData, session?: CadastroSession) {
-    const f = data?.fontes || {};
-    const cadunicoCapturado = !!(f.cadunico?.capturado || f.cadunico_adv?.capturado);
-    const cadunicoContingenciaCapturada = !!f.inss?.capturado;
-    const tseDispensado =
-      cadunicoCapturado &&
-      session?.sessionState === "active" &&
-      session.portais?.tse?.status === "dispensado";
-
-    const mapping: Record<string, boolean> = {
-      cadunico:   cadunicoCapturado || cadunicoContingenciaCapturada,
-      tse:        !!f.tse?.capturado || tseDispensado,
-      pesqbrasil: !!(f.pesqbrasil?.capturado || f.pesq_brasil?.capturado),
-      esocial:    !!(f.ecac_caepf?.capturado || f.caepf?.capturado || f.esocial?.capturado),
-      ecac:       !!(f.ecac_cpf?.capturado || f.ecac_caepf?.capturado)
+    const projected = projectCaptureStatuses(data, session);
+    const mapping: Record<string, CaptureStatus> = {
+      cadunico: projected.cadunico,
+      tse: projected.tse,
+      pesqbrasil: projected.pesqbrasil,
+      esocial: projected.caepf,
+      ecac: projected.ecac,
     };
 
-    Object.entries(mapping).forEach(([id, active]) => {
+    const colors: Record<CaptureStatus, { background: string; shadow: string }> = {
+      collected: { background: "#10b981", shadow: "0 0 6px #10b981" },
+      skipped: { background: "#38bdf8", shadow: "0 0 6px #38bdf8" },
+      not_found: { background: "#f59e0b", shadow: "0 0 6px #f59e0b" },
+      waiting: { background: "#a78bfa", shadow: "0 0 6px #a78bfa" },
+      failed: { background: "#f87171", shadow: "0 0 6px #f87171" },
+      idle: { background: "#334155", shadow: "none" },
+    };
+
+    Object.entries(mapping).forEach(([id, status]) => {
       const dot = document.getElementById(`sigess-dot-${id}`);
       if (dot) {
-        if (active) {
-          dot.style.background = "#10b981";
-          dot.style.boxShadow = "0 0 6px #10b981";
-        } else {
-          dot.style.background = "#334155";
-          dot.style.boxShadow = "none";
-        }
+        dot.dataset.status = status;
+        dot.style.background = colors[status].background;
+        dot.style.boxShadow = colors[status].shadow;
       }
     });
 

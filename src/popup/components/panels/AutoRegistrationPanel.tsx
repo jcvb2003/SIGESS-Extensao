@@ -1,6 +1,7 @@
 import React from "react";
 import { AppSettings } from "../../../shared/types";
 import { Trash2, CheckCircle2, CircleDashed, User, Database } from "lucide-react";
+import { isCaptureStatusSatisfied, projectCaptureStatuses } from "../../../modules/automation/cadastro/status-projection";
 
 interface AutoRegistrationPanelProps {
   settings: AppSettings;
@@ -10,7 +11,7 @@ interface AutoRegistrationPanelProps {
 
 const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings, onUpdate, onClear }) => {
   const data = settings.pessoaData || {};
-  const fontes = data.fontes || {};
+  const captureStatuses = projectCaptureStatuses(data);
 
   const formatCPF = (cpf?: string) => {
     if (!cpf) return "---";
@@ -116,8 +117,8 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
         <div className="sources-grid">
           {sources.map((source) => {
             if (source.id === "receita") {
-              const caiCaptured = !!(fontes.caepf?.capturado || fontes.esocial?.capturado);
-              const ecacCaptured = !!(fontes.ecac_cpf?.capturado || fontes.ecac_caepf?.capturado);
+              const caiCaptured = isCaptureStatusSatisfied(captureStatuses.caepf);
+              const ecacCaptured = isCaptureStatusSatisfied(captureStatuses.ecac);
               const anyCaptured = caiCaptured || ecacCaptured;
 
               return (
@@ -137,12 +138,8 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
               );
             }
 
-            let isCaptured = !!fontes[source.id]?.capturado;
-            if (source.id === "cadunico") {
-              isCaptured = isCaptured || !!fontes.cadunico_adv?.capturado;
-            } else if (source.id === "pesqbrasil") {
-              isCaptured = isCaptured || !!fontes.pesq_brasil?.capturado;
-            }
+            const status = captureStatuses[source.id as "cadunico" | "pesqbrasil" | "tse"];
+            const isCaptured = isCaptureStatusSatisfied(status);
 
             return (
               <div key={source.id} className={`source-item ${isCaptured ? "active" : ""}`}>

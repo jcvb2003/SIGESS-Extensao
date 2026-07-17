@@ -4,13 +4,13 @@ import { InssPortalRuntime } from "../modules/automation/inss/runtime";
 import { EcacPortalRuntime } from "../modules/automation/ecac/runtime";
 import { PesqBrasilPortalRuntime } from "../modules/automation/pesqbrasil/runtime";
 import { TsePortalRuntime } from "../modules/automation/tse/runtime";
-import { updateAssistantStatus, removeAssistantUI } from "../modules/automation/assistant-ui";
 import { resolvePortalBridge } from "../modules/automation/cadastro/portal-bridges";
 import { BridgeInjector } from "../modules/automation/cadastro/bridge-injector";
 import { routePortalBridgeMessage } from "../modules/automation/cadastro/portal-data-router";
 import { setupRegistrationNavigation } from "../modules/automation/cadastro/registration-navigation";
 import { loadRegistrationRuntimeState, observeRegistrationStorage } from "../modules/automation/cadastro/registration-state";
 import { injectGovBrReloginButton } from "../modules/automation/cadastro/govbr-relogin";
+import { GovBrConsentRuntime } from "../modules/automation/cadastro/govbr-consent";
 
 declare var browser: any;
 declare var chrome: any;
@@ -35,6 +35,7 @@ async function initMain() {
   const ecacRuntime = new EcacPortalRuntime();
   const pesqBrasilRuntime = new PesqBrasilPortalRuntime();
   const tseRuntime = new TsePortalRuntime({ canSubmit: canSubmitCadastroTse });
+  const govBrConsentRuntime = new GovBrConsentRuntime();
 
   // ── Inicialização ────────────────────────────────────────────────────────
 
@@ -62,7 +63,6 @@ async function initMain() {
 
     // Reage a mudanças de URL (incluindo back button)
     setupRegistrationNavigation({
-      onAnyMutation: updateAssistantStatus,
       onHistoryNavigation: () => tseRuntime.reset(),
       onTseNavigation: (url) => tseRuntime.onNavigation(url),
       onUrlChanged: () => {
@@ -85,46 +85,11 @@ async function initMain() {
 
     injectBridges();
 
-    const host = globalThis.location.hostname;
-
     cadUnicoRuntime.run({ sessionActive: _cadastroSessionActive });
     ecacRuntime.run({ sessionActive: _cadastroSessionActive });
 
     pesqBrasilRuntime.run({ sessionActive: _cadastroSessionActive });
-
-    // Tela de consentimento OAuth do Gov.br — aparece após login bem-sucedido em alguns portais.
-    // Clica automaticamente em "Autorizar" para não bloquear o fluxo.
-    if (
-      _cadastroSessionActive &&
-      host === "sso.acesso.gov.br" &&
-      globalThis.location.pathname === "/authorize"
-    ) {
-      let contactConfirmationReported = false;
-      const reportContactConfirmation = () => {
-        if (contactConfirmationReported || !document.querySelector("#contact-validation")) return false;
-        contactConfirmationReported = true;
-        void (globalThis.browser || globalThis.chrome).runtime.sendMessage({
-          action: "govBrContactConfirmationDetected",
-        });
-        return true;
-      };
-      if (!reportContactConfirmation()) {
-        const contactObserver = new MutationObserver(() => {
-          if (reportContactConfirmation()) contactObserver.disconnect();
-        });
-        contactObserver.observe(document.documentElement, { childList: true, subtree: true });
-      }
-
-      const clickAuthorize = () => {
-        const btn = document.querySelector<HTMLButtonElement>('button[name="user_oauth_approval"][value="true"]');
-        if (btn) { btn.click(); return true; }
-        return false;
-      };
-      if (!clickAuthorize()) {
-        const obs = new MutationObserver(() => { if (clickAuthorize()) obs.disconnect(); });
-        obs.observe(document.documentElement, { childList: true, subtree: true });
-      }
-    }
+    govBrConsentRuntime.run({ sessionActive: _cadastroSessionActive });
 
     inssRuntime.run({ sessionActive: _cadastroSessionActive });
 
@@ -147,13 +112,9 @@ async function initMain() {
   // ── Injeção de bridges ───────────────────────────────────────────────────
   const bridgeInjector = new BridgeInjector();
 
-  function injectScript(assetPath: string) {
-    bridgeInjector.inject(assetPath);
-  }
-
   function injectBridges() {
     const bridge = resolvePortalBridge(globalThis.location.hostname);
-    if (bridge) injectScript(bridge);
+    if (bridge) bridgeInjector.inject(bridge);
   }
 
   // ── Persistência ─────────────────────────────────────────────────────────
@@ -179,8 +140,7 @@ async function initMain() {
         _autoEnabled = !!newVal.autoRegistrationEnabled || cadastroIsActive;
 
         if (oldVal.autoRegistrationEnabled === true && newVal.autoRegistrationEnabled === false && !cadastroIsActive) {
-          console.log("SIGESS: Captura desativada via popup. Ocultando UI.");
-          removeAssistantUI();
+          console.log("SIGESS: Captura desativada via popup.");
           return;
         }
 
@@ -188,7 +148,6 @@ async function initMain() {
           initEnabledFeatures(newVal);
         }
 
-        updateAssistantStatus();
       });
     }
 
@@ -210,8 +169,6 @@ async function initMain() {
       }
     }
   });
-
-  globalThis.addEventListener('SIGESS_DATA_UPDATED', updateAssistantStatus);
 
   // Comando do background para clicar no botão Gov.br do eCAC.
   // DOMInjector (mundo isolado) gera isTrusted=false, que validarHcaptcha rejeita.

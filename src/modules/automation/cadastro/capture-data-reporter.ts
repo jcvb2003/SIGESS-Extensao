@@ -8,5 +8,4 @@ export function saveCapturedPessoaData(
   console.log(`SIGESS: Dados extraídos de ${fonte}`, data);
   const api = (globalThis.browser || globalThis.chrome) as any;
   api?.runtime?.sendMessage?.({ action: "SAVE_PESSOA_DATA", data, fonte, snapshot });
-  globalThis.dispatchEvent(new CustomEvent("SIGESS_DATA_UPDATED"));
 }
