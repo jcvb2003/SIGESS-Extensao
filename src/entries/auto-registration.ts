@@ -17,6 +17,7 @@ import { setupSPANavigationObserver } from "../modules/automation/spa-observer";
 import { reportCadastroPortalOutcome } from "../modules/automation/cadastro/portal-outcome-reporter";
 import { saveCapturedPessoaData as saveData } from "../modules/automation/cadastro/capture-data-reporter";
 import { resolvePortalBridge } from "../modules/automation/cadastro/portal-bridges";
+import { BridgeInjector } from "../modules/automation/cadastro/bridge-injector";
 
 declare var browser: any;
 declare var chrome: any;
@@ -537,20 +538,10 @@ async function initMain() {
   }
 
   // ── Injeção de bridges ───────────────────────────────────────────────────
-  const _injectedBridges = new Set<string>();
+  const bridgeInjector = new BridgeInjector();
 
   function injectScript(assetPath: string) {
-    if (_injectedBridges.has(assetPath)) return;
-    _injectedBridges.add(assetPath);
-
-    try {
-      const script = document.createElement("script");
-      script.src = (globalThis.browser || globalThis.chrome).runtime.getURL(assetPath);
-      (document.head || document.documentElement).appendChild(script);
-      console.log(`SIGESS: Bridge script injected -> ${assetPath}`);
-    } catch (e) {
-      console.error(`SIGESS: Erro ao injetar bridge ${assetPath}`, e);
-    }
+    bridgeInjector.inject(assetPath);
   }
 
   function injectBridges() {
