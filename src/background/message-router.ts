@@ -103,6 +103,8 @@ export async function routeMessage(
         return await handleSavePessoaData(message, getTabManager, sender);
       case "REPORT_CADASTRO_PORTAL_OUTCOME":
         return await handleCadastroPortalOutcome(message, getTabManager);
+      case "govBrTwoFactorDetected":
+        return await handleGovBrTwoFactorDetected(sender);
       case "downloadESocialGuide":
         return await handleDownloadESocialGuide(message);
       case "checkReloginEligible":
@@ -804,6 +806,26 @@ async function handleIniciarCadastroAutomatico(
     await StorageService.remove(CADASTRO_SESSION_KEY);
     return { success: false, error: error.message };
   }
+}
+
+async function handleGovBrTwoFactorDetected(sender?: browser.runtime.MessageSender): Promise<MessageResponse> {
+  const tabId = sender?.tab?.id;
+  if (typeof tabId !== "number") return { success: true };
+
+  const credentials = await StorageService.getCredentials(tabId);
+  if (!credentials?.isCadastroAutomatico || !credentials.govBrPasswordSubmitted) {
+    return { success: true };
+  }
+
+  const updatedCredentials = await StorageService.updateCredentials(tabId, {
+    govBrTwoFactorPending: true,
+  });
+  await StorageService.updateCadastroInteraction(updatedCredentials?.cadastroSessionId, {
+    type: "govbr_2fa",
+    message: "Verificação de 2 etapas ativada. Aguardando código...",
+    tabId,
+  });
+  return { success: true };
 }
 
 async function handleCadastroPortalOutcome(
