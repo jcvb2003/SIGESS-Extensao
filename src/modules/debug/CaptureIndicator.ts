@@ -174,12 +174,15 @@ import { CadastroSession, PessoaData } from "../../shared/types";
     if (!settings.autoRegistrationEnabled) return;
 
     const host = globalThis.location.hostname;
+    const isSigessRegistration =
+      (host.endsWith(".sigess.com.br") || host === "sigess-extensao.vercel.app") &&
+      globalThis.location.pathname.startsWith("/registration");
     const isLocalRegistration =
       host === "localhost" && globalThis.location.pathname.startsWith("/registration");
     const isTarget =
       host.includes(".gov.br") ||
       host.includes("mpa.gov.br") ||
-      host.includes("sigess") ||
+      isSigessRegistration ||
       isLocalRegistration;
 
     if (isTarget && document.body && globalThis.self === globalThis.top) {

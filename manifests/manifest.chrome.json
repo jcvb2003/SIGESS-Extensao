@@ -110,8 +110,8 @@
         "*://*.gov.br/*",
         "*://*.receita.fazenda.gov.br/*",
         "*://*.tse.jus.br/*",
-        "*://*.sigess.com.br/*",
-        "*://sigess-extensao.vercel.app/*",
+        "*://*.sigess.com.br/registration*",
+        "*://sigess-extensao.vercel.app/registration*",
         "http://localhost:5173/registration*"
       ],
       "js": [
