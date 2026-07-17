@@ -198,8 +198,8 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
   private async submitGovBrPassword(tabId: number, senha: string): Promise<void> {
     await DOMInjector.waitForElement(tabId, "#password", 1200);
     await DOMInjector.setInputValue(tabId, "#password", senha);
-    await StorageService.updateCredentials(tabId, { govBrPasswordSubmitted: true });
     await DOMInjector.clickElement(tabId, "#submit-button");
+    await StorageService.updateCredentials(tabId, { govBrPasswordSubmitted: true });
 
     // Aguarda até 3s para detectar mensagem de senha inválida antes de marcar login completo.
     // Se a tab navegar (login bem-sucedido), DOMInjector lança e saímos do loop.

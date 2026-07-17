@@ -813,12 +813,11 @@ async function handleGovBrTwoFactorDetected(sender?: browser.runtime.MessageSend
   if (typeof tabId !== "number") return { success: true };
 
   const credentials = await StorageService.getCredentials(tabId);
-  if (!credentials?.isCadastroAutomatico) {
+  if (!credentials?.isCadastroAutomatico || !credentials.govBrPasswordSubmitted) {
     return { success: true };
   }
 
   const updatedCredentials = await StorageService.updateCredentials(tabId, {
-    govBrPasswordSubmitted: true,
     govBrTwoFactorPending: true,
   });
   await StorageService.updateCadastroInteraction(updatedCredentials?.cadastroSessionId, {
