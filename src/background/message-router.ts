@@ -19,6 +19,10 @@ import {
   removeCadastroSession,
   saveCadastroSession,
 } from "./cadastro/cadastro-session-store";
+import {
+  createCadastroPortalTab,
+  getCadastroLaunchCredentials,
+} from "./cadastro/cadastro-portal-launcher";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -927,10 +931,7 @@ function isRegisteredCadastroPortalSender(
 async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
   if (session.portais.inss) return;
 
-  const cadUnicoTabId = session.portais.cadunico.tabId;
-  const creds = cadUnicoTabId
-    ? await StorageService.getCredentials(cadUnicoTabId)
-    : null;
+  const creds = await getCadastroLaunchCredentials(session);
   if (!creds?.cpf || !creds.senha) {
     session.portais.inss = {
       status: "erro",
@@ -943,14 +944,12 @@ async function openCadastroInss(session: CadastroSession, getTabManager: () => a
 
   session.portais.inss = { status: "abrindo", updatedAt: Date.now() };
   await saveSession(session);
-  const tabId = await getTabManager().createSessionInContainer(
-    "https://meu.inss.gov.br/#/login",
-    creds.cpf,
-    creds.senha,
-    session.cookieStoreId,
-    creds.nome,
+  const tabId = await createCadastroPortalTab(
+    session,
+    getTabManager(),
+    creds,
     "inss",
-    session.sessionId,
+    "https://meu.inss.gov.br/#/login",
   );
   if (tabId) {
     session.portais.inss.tabId = tabId;
@@ -998,22 +997,17 @@ async function evaluateTseRequirement(session: CadastroSession, getTabManager?: 
     return;
   }
 
-  const cadUnicoTabId = session.portais.cadunico.tabId;
-  const creds = cadUnicoTabId
-    ? await StorageService.getCredentials(cadUnicoTabId)
-    : null;
+  const creds = await getCadastroLaunchCredentials(session);
   if (!creds?.cpf || !creds.senha) return;
 
   session.portais.tse = { status: "abrindo", updatedAt: Date.now() };
   await saveSession(session);
-  const tabId = await getTabManager().createSessionInContainer(
-    "https://www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral#/atendimento-eleitor/consultar-numero-titulo-eleitor",
-    creds.cpf,
-    creds.senha,
-    session.cookieStoreId,
-    creds.nome,
+  const tabId = await createCadastroPortalTab(
+    session,
+    getTabManager(),
+    creds,
     "tse",
-    session.sessionId,
+    "https://www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral#/atendimento-eleitor/consultar-numero-titulo-eleitor",
   );
   if (tabId) session.portais.tse.tabId = tabId;
   else {
