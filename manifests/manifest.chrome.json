@@ -95,7 +95,7 @@
         "*://*.sigess.com.br/*",
         "*://sigess-extensao.vercel.app/*",
         "*://*.vercel.app/*",
-        "http://localhost:5173/*"
+        "http://localhost:5173/registration*"
       ],
       "js": [
         "assets/content_auto_registration.js"
@@ -112,7 +112,7 @@
         "*://*.tse.jus.br/*",
         "*://*.sigess.com.br/*",
         "*://sigess-extensao.vercel.app/*",
-        "http://localhost:5173/*"
+        "http://localhost:5173/registration*"
       ],
       "js": [
         "assets/capture_indicator.js"
