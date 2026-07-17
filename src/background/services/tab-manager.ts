@@ -272,7 +272,7 @@ export class TabManager {
 
     for (const [key, credentials] of Object.entries(allCredentials)) {
       const tabId = Number(key.replace("credenciais_", ""));
-      if (!Number.isFinite(tabId) || credentials.loginConcluido || credentials.govBrTwoFactorPending) continue;
+      if (!Number.isFinite(tabId) || credentials.govBrTwoFactorPending) continue;
       if (credentials.status === "concluido" || credentials.status === "erro" || credentials.status === "ignorado") continue;
       if (this.processingTabs.has(tabId)) continue;
 
@@ -282,6 +282,13 @@ export class TabManager {
       try {
         const tab = await browser.tabs.get(tabId);
         if (!tab.url) continue;
+
+        if (credentials.loginConcluido) {
+          if (credentials.isCadastroAutomatico && tab.status === "complete") {
+            await this.handleCadastroPostLoginNav(tabId, tab.url, credentials);
+          }
+          continue;
+        }
 
         if ((tab as browser.tabs.Tab & { discarded?: boolean }).discarded) {
           await StorageService.updateBatchStatus(

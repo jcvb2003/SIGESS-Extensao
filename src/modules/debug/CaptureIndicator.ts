@@ -148,13 +148,14 @@ import { setupSPANavigationObserver } from "../automation/spa-observer";
   function updateDots(data: PessoaData, session?: CadastroSession) {
     const f = data?.fontes || {};
     const cadunicoCapturado = !!(f.cadunico?.capturado || f.cadunico_adv?.capturado);
+    const cadunicoContingenciaCapturada = !!f.inss?.capturado;
     const tseDispensado =
       cadunicoCapturado &&
       session?.sessionState === "active" &&
       session.portais?.tse?.status === "dispensado";
 
     const mapping: Record<string, boolean> = {
-      cadunico:   cadunicoCapturado,
+      cadunico:   cadunicoCapturado || cadunicoContingenciaCapturada,
       tse:        !!f.tse?.capturado || tseDispensado,
       pesqbrasil: !!(f.pesqbrasil?.capturado || f.pesq_brasil?.capturado),
       esocial:    !!(f.ecac_caepf?.capturado || f.caepf?.capturado || f.esocial?.capturado),
