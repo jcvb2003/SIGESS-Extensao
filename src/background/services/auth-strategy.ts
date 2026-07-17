@@ -225,7 +225,14 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
   }
 
   private async markTwoFactorPending(tabId: number): Promise<void> {
-    await StorageService.updateCredentials(tabId, { govBrTwoFactorPending: true });
+    const storedCreds = await StorageService.updateCredentials(tabId, { govBrTwoFactorPending: true });
+    if (storedCreds?.isCadastroAutomatico) {
+      await StorageService.updateCadastroInteraction(storedCreds.cadastroSessionId, {
+        type: "govbr_2fa",
+        message: "Verificação de 2 etapas ativada. Aguardando código...",
+        tabId,
+      });
+    }
     await this.updateStatus(
       tabId,
       "aguardando_2fa",

@@ -28,6 +28,11 @@ export interface CadastroSession {
   };
   mergeRequest?: { raw: Record<string, Partial<PessoaData>> };
   errorMessage?: string;
+  interactionRequired?: {
+    type: "govbr_2fa";
+    message: string;
+    tabId?: number;
+  };
 }
 
 export interface UserCredentials {

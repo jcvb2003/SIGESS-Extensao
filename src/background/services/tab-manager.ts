@@ -190,6 +190,9 @@ export class TabManager {
       !tab.url.includes("sso.acesso.gov.br");
 
     if (returnedFromGovBr) {
+      if (credentials.isCadastroAutomatico) {
+        await StorageService.updateCadastroInteraction(credentials.cadastroSessionId, undefined, tabId);
+      }
       const completedCredentials = await StorageService.updateBatchStatus(
         tabId,
         "redirecionando",

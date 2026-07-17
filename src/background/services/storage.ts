@@ -1,4 +1,4 @@
-import { AppSettings, GovBatchItemStatus, UserCredentials, PessoaData } from "../../shared/types";
+import { AppSettings, CadastroSession, GovBatchItemStatus, UserCredentials, PessoaData } from "../../shared/types";
 import { normalizeReapSettings } from "../../modules/reap-mpa/reap-settings";
 import { CadastroSourceSnapshot } from "../../modules/automation/cadastro/contracts";
 import { normalizeCapturedValue, normalizePessoaData } from "../../modules/automation/cadastro/source-normalizer";
@@ -16,6 +16,7 @@ function getBrowserStorage() {
 }
 
 export class StorageService {
+  private static readonly CADASTRO_SESSION_KEY = "sigessActiveCadastro";
   static async get<T>(keys: string | string[]): Promise<Record<string, T>> {
     const storage = getBrowserStorage();
     if (!storage) return {} as Record<string, T>;
@@ -249,6 +250,27 @@ export class StorageService {
       ...extra,
       lastError: shouldKeepError ? extra?.lastError : undefined,
     });
+  }
+
+  static async updateCadastroInteraction(
+    sessionId: string | undefined,
+    interaction: CadastroSession["interactionRequired"] | undefined,
+    clearingTabId?: number,
+  ): Promise<void> {
+    if (!sessionId) return;
+
+    const result = await this.get<CadastroSession>(this.CADASTRO_SESSION_KEY);
+    const session = result[this.CADASTRO_SESSION_KEY];
+    if (!session || session.sessionState !== "active" || session.sessionId !== sessionId) return;
+
+    if (interaction) {
+      session.interactionRequired = interaction;
+    } else {
+      if (clearingTabId !== undefined && session.interactionRequired?.tabId !== clearingTabId) return;
+      delete session.interactionRequired;
+    }
+
+    await this.set({ [this.CADASTRO_SESSION_KEY]: session });
   }
 
   static async getLastEsocialCredentials(): Promise<UserCredentials | null> {
