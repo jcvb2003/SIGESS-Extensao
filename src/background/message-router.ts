@@ -15,7 +15,6 @@ import { resolveTseQueryProfile } from "../modules/automation/cadastro/tse-query
 import { isCadastroPortalTerminal } from "../modules/automation/cadastro/session-status";
 import {
   getActiveCadastroSession,
-  removeCadastroSession,
   saveCadastroSession,
 } from "./cadastro/cadastro-session-store";
 import {
@@ -28,6 +27,10 @@ import {
   getCadastroPortalForDataSource,
   type CadastroReportedOutcome,
 } from "./cadastro/cadastro-session-controller";
+import {
+  cancelCadastroAutomatico,
+  iniciarCadastroAutomatico,
+} from "./cadastro/cadastro-session-lifecycle";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -112,9 +115,9 @@ export async function routeMessage(
       case "turboFillReap":
         return await handleTurboFillReap(message);
       case "iniciarCadastroAutomatico":
-        return await handleIniciarCadastroAutomatico(message, getTabManager);
+        return await iniciarCadastroAutomatico(message, getTabManager);
       case "cancelarCadastroAutomatico":
-        return await handleCancelarCadastroAutomatico();
+        return await cancelCadastroAutomatico();
       case "SAVE_PESSOA_DATA":
         return await handleSavePessoaData(message, getTabManager, sender);
       case "REPORT_CADASTRO_PORTAL_OUTCOME":
@@ -704,111 +707,6 @@ function enqueueCadastroDataArrival(
 
 const getActiveSession = getActiveCadastroSession;
 const saveSession = saveCadastroSession;
-
-/** Verifica se a sessão ativa não tem mais nenhuma tab aberta (background reiniciou e perdeu o timeout). */
-async function isCadastroSessionStale(session: CadastroSession): Promise<boolean> {
-  const tabIds = [
-    session.portais.cadunico.tabId,
-    session.portais.pesqbrasil?.tabId,
-    session.portais.ecac?.tabId,
-    session.portais.tse?.tabId,
-  ].filter((id): id is number => typeof id === "number");
-
-  if (tabIds.length === 0) return true; // sem tabs conhecidas → stale
-
-  for (const tabId of tabIds) {
-    try {
-      await browser.tabs.get(tabId);
-      return false; // pelo menos uma tab ainda existe → sessão válida
-    } catch {
-      // tab não existe, testa a próxima
-    }
-  }
-  return true; // nenhuma tab sobreviveu
-}
-
-async function clearStaleSession(session: CadastroSession): Promise<void> {
-  try {
-    await (browser as any).contextualIdentities.remove(session.cookieStoreId);
-  } catch { /* container pode já ter sido removido */ }
-  await removeCadastroSession();
-}
-
-async function handleCancelarCadastroAutomatico(): Promise<MessageResponse> {
-  const session = await getActiveSession();
-  if (!session) return { success: true }; // nada a cancelar
-  await clearStaleSession(session);
-  return { success: true };
-}
-
-async function handleIniciarCadastroAutomatico(
-  message: MessageRequest,
-  getTabManager: () => any,
-): Promise<MessageResponse> {
-  const { cpf, senha, nome } = message;
-  if (!cpf || !senha) {
-    return { success: false, error: "CPF e senha são obrigatórios." };
-  }
-
-  // Idempotência: bloqueia sessão duplicada — mas auto-limpa sessões stale
-  // (o timeout de 120s fica só em memória; se o background reiniciar, o timeout
-  // se perde e a sessão fica presa em "active" no storage para sempre).
-  const existing = await getActiveSession();
-  if (existing) {
-    const isStale = await isCadastroSessionStale(existing);
-    if (!isStale) {
-      return { success: false, error: "sessao_ja_ativa" };
-    }
-    // Sessão stale: limpa silenciosamente e prossegue
-    await clearStaleSession(existing);
-  }
-
-  if (!(browser as any).contextualIdentities) {
-    return { success: false, error: "Containers Firefox não disponíveis. Ative a extensão Multi-Account Containers." };
-  }
-
-  await StorageService.saveCadastroSenhaGovInss(senha);
-
-  const sessionId = `cadastro-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  try {
-    const container = await (browser as any).contextualIdentities.create({
-      name: `Cadastro-${String(cpf).slice(-4)}`,
-      color: "green",
-      icon: "briefcase",
-    });
-    const cookieStoreId: string = container.cookieStoreId;
-
-    const session: CadastroSession = {
-      sessionId,
-      cookieStoreId,
-      sessionState: "active",
-      startedAt: Date.now(),
-      portais: {
-        cadunico: { status: "abrindo" },
-        pesqbrasil: { status: "aguardando" },
-        ecac: { status: "aguardando" },
-      },
-    };
-    await saveSession(session);
-
-    // Abre CadÚnico diretamente na rota onde está o botão Gov.br
-    const cadUnicoTabId = await getTabManager().createSessionInContainer(
-      "https://cadunico.dataprev.gov.br/#/home",
-      cpf, senha, cookieStoreId, nome, "cadunico", sessionId,
-    );
-    if (cadUnicoTabId) {
-      session.portais.cadunico.tabId = cadUnicoTabId;
-      await saveSession(session);
-    }
-
-    // Timeout global da sessão
-    return { success: true, sessionId };
-  } catch (error: any) {
-    await removeCadastroSession();
-    return { success: false, error: error.message };
-  }
-}
 
 async function handleCadastroPortalOutcome(
   message: MessageRequest,
