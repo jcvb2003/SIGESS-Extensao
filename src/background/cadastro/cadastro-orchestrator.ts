@@ -1,11 +1,17 @@
 import { resolveTseQueryProfile } from "../../modules/automation/cadastro/tse-query-profile";
 import type { CadastroSession, PessoaData } from "../../shared/types";
+import type { CadastroPortalId } from "../../modules/automation/cadastro/contracts";
 import { StorageService } from "../services/storage";
 import { isCadastroPortalTerminal } from "../../modules/automation/cadastro/session-status";
 import { createCadastroPortalTab, getCadastroLaunchCredentials } from "./cadastro-portal-launcher";
 import { saveCadastroSession } from "./cadastro-session-store";
 import { getActiveCadastroSession } from "./cadastro-session-store";
-import { getCadastroPortalForDataSource, isCadastroSessionReadyToFinalize } from "./cadastro-session-controller";
+import {
+  applyCadastroPortalOutcome,
+  getCadastroPortalForDataSource,
+  isCadastroSessionReadyToFinalize,
+  type CadastroReportedOutcome,
+} from "./cadastro-session-controller";
 
 export async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
   if (session.portais.inss) return;
@@ -134,5 +140,21 @@ export async function processCadastroDataArrival(
   if (portal.status === "concluido" && canCloseCapturedTab && typeof portal.tabId === "number") {
     try { await browser.tabs.remove(portal.tabId); } catch { /* Aba já fechada. */ }
   }
+  if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
+}
+
+export async function processCadastroPortalOutcome(
+  session: CadastroSession,
+  portalId: CadastroPortalId,
+  outcome: CadastroReportedOutcome,
+  evidence: string,
+  getTabManager: () => any,
+): Promise<void> {
+  applyCadastroPortalOutcome(session, portalId, outcome, evidence);
+  await saveCadastroSession(session);
+  if (portalId === "cadunico" && outcome === "not_found") {
+    await openCadastroInss(session, getTabManager);
+  }
+  await evaluateTseRequirement(session, getTabManager);
   if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
 }

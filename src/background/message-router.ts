@@ -13,11 +13,8 @@ import {
 import { BadgeManager } from "./services/badge-manager";
 import {
   getActiveCadastroSession,
-  saveCadastroSession,
 } from "./cadastro/cadastro-session-store";
 import {
-  applyCadastroPortalOutcome,
-  isCadastroSessionReadyToFinalize,
   type CadastroReportedOutcome,
 } from "./cadastro/cadastro-session-controller";
 import {
@@ -30,10 +27,8 @@ import {
   reportGovBrContactConfirmation,
 } from "./cadastro/cadastro-interaction-handler";
 import {
-  evaluateTseRequirement,
-  finalizeCadastroSession,
-  openCadastroInss,
   processCadastroDataArrival,
+  processCadastroPortalOutcome,
 } from "./cadastro/cadastro-orchestrator";
 
 
@@ -710,8 +705,6 @@ function enqueueCadastroDataArrival(
 }
 
 const getActiveSession = getActiveCadastroSession;
-const saveSession = saveCadastroSession;
-
 async function handleCadastroPortalOutcome(
   message: MessageRequest,
   getTabManager: () => any,
@@ -730,15 +723,7 @@ async function handleCadastroPortalOutcome(
     return { success: false, error: "aba_do_portal_nao_autorizada" };
   }
 
-  applyCadastroPortalOutcome(session, portalKey, outcome, String(message.reason || outcome));
-  await saveSession(session);
-
-  if (portalKey === "cadunico" && outcome === "not_found") {
-    await openCadastroInss(session, getTabManager);
-  }
-
-  await evaluateTseRequirement(session, getTabManager);
-  await finalizeIfReady(session);
+  await processCadastroPortalOutcome(session, portalKey, outcome, String(message.reason || outcome), getTabManager);
   return { success: true };
 }
 
@@ -749,12 +734,6 @@ function isRegisteredCadastroPortalSender(
 ): boolean {
   const tabId = sender?.tab?.id;
   return typeof tabId === "number" && session.portais[portal]?.tabId === tabId;
-}
-
-async function finalizeIfReady(session: CadastroSession): Promise<void> {
-  if (isCadastroSessionReadyToFinalize(session)) {
-    await finalizeCadastroSession(session);
-  }
 }
 
 async function handleCheckReloginEligible(
