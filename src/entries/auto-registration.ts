@@ -3,6 +3,7 @@ import { parseCaepfData } from "../modules/automation/caepf/extractor";
 import { scrapeEcacCpfData, scrapeEcacCaepfTable } from "../modules/automation/ecac/extractor";
 import { parseCadUnicoToken } from "../modules/automation/cadunico/extractor";
 import { fetchCadUnicoAdvanced } from "../modules/automation/cadunico/fetcher";
+import { recoverCadUnicoIncompleteSuccessLogin } from "../modules/automation/cadunico/navigation";
 import { parseTseData } from "../modules/automation/tse/extractor";
 import {
   fillTseAuthForm,
@@ -114,12 +115,8 @@ async function initMain() {
     }
 
     // Recupera somente o callback incompleto: com token, o CadÚnico deve consumi-lo.
-    if (
-      globalThis.location.hostname.includes('cadunico.dataprev.gov.br') &&
-      globalThis.location.hash === '#/successLogin'
-    ) {
+    if (recoverCadUnicoIncompleteSuccessLogin(globalThis.location)) {
       console.warn('[SIGESS] CadÚnico: successLogin sem token. Redirecionando para #/home.');
-      globalThis.location.replace('https://cadunico.dataprev.gov.br/#/home');
     }
 
     const [settingsResult, cadastroResult] = await Promise.all([
