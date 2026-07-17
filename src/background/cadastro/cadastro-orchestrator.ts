@@ -1,5 +1,5 @@
 import { resolveTseQueryProfile } from "../../modules/automation/cadastro/tse-query-profile";
-import type { CadastroSession } from "../../shared/types";
+import type { CadastroSession, PessoaData } from "../../shared/types";
 import { StorageService } from "../services/storage";
 import { isCadastroPortalTerminal } from "../../modules/automation/cadastro/session-status";
 import { createCadastroPortalTab, getCadastroLaunchCredentials } from "./cadastro-portal-launcher";
@@ -73,4 +73,35 @@ export async function evaluateTseRequirement(
   }
   session.portais.tse.updatedAt = Date.now();
   await saveCadastroSession(session);
+}
+
+export async function finalizeCadastroSession(session: CadastroSession): Promise<void> {
+  const settings = await StorageService.getSettings();
+  const raw: Record<string, Partial<PessoaData>> = (settings.pessoaData_projections as any) || {};
+
+  session.sessionState = "complete";
+  session.mergeRequest = { raw };
+  await saveCadastroSession(session);
+
+  const tabIds = [
+    session.portais.cadunico.tabId,
+    session.portais.pesqbrasil.tabId,
+    session.portais.ecac.tabId,
+    session.portais.tse?.tabId,
+    session.portais.inss?.tabId,
+  ].filter((id): id is number => typeof id === "number");
+  if (tabIds.length > 0) {
+    try {
+      await browser.tabs.remove(tabIds);
+    } catch {
+      // As abas podem já ter sido fechadas por uma coleta concorrente.
+    }
+  }
+  setTimeout(async () => {
+    try {
+      await (browser as any).contextualIdentities.remove(session.cookieStoreId);
+    } catch {
+      // O container pode já ter sido removido.
+    }
+  }, 2000);
 }

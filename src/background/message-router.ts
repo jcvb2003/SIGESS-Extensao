@@ -30,7 +30,11 @@ import {
   navigateAuthenticatedCadastroInss,
   reportGovBrContactConfirmation,
 } from "./cadastro/cadastro-interaction-handler";
-import { evaluateTseRequirement, openCadastroInss } from "./cadastro/cadastro-orchestrator";
+import {
+  evaluateTseRequirement,
+  finalizeCadastroSession,
+  openCadastroInss,
+} from "./cadastro/cadastro-orchestrator";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -734,7 +738,7 @@ async function handleCadastroPortalOutcome(
   }
 
   await evaluateTseRequirement(session, getTabManager);
-  await finalizeIfReady(session, getTabManager);
+  await finalizeIfReady(session);
   return { success: true };
 }
 
@@ -747,9 +751,9 @@ function isRegisteredCadastroPortalSender(
   return typeof tabId === "number" && session.portais[portal]?.tabId === tabId;
 }
 
-async function finalizeIfReady(session: CadastroSession, getTabManager?: () => any): Promise<void> {
+async function finalizeIfReady(session: CadastroSession): Promise<void> {
   if (isCadastroSessionReadyToFinalize(session)) {
-    await finalizeCadastroSession(session, getTabManager);
+    await finalizeCadastroSession(session);
   }
 }
 
@@ -802,47 +806,7 @@ async function handleCadastroDataArrival(
     }
   }
 
-  await finalizeIfReady(session, getTabManager);
-}
-
-async function finalizeCadastroSession(
-  session: CadastroSession,
-  _getTabManager?: () => any,
-): Promise<void> {
-  // Cancela timeout global
-  // Busca dados brutos coletados para o mergeRequest
-  const settings = await StorageService.getSettings();
-  const raw: Record<string, Partial<PessoaData>> = (settings.pessoaData_projections as any) || {};
-
-  session.sessionState = "complete";
-  // O inspetor preserva pessoaData_raw completo. A revisão recebe apenas as
-  // projeções por fonte; para TSE, isso limita estruturalmente a título, zona e seção.
-  session.mergeRequest = { raw };
-  await saveSession(session);
-
-  // Fecha tabs dos portais
-  const tabIds = [
-    session.portais.cadunico.tabId,
-    session.portais.pesqbrasil.tabId,
-    session.portais.ecac.tabId,
-    session.portais.tse?.tabId,
-    session.portais.inss?.tabId,
-  ].filter((id): id is number => typeof id === "number");
-
-  if (tabIds.length > 0) {
-    try {
-      await browser.tabs.remove(tabIds);
-    } catch (e) {
-      // Tabs podem já ter sido fechadas
-    }
-  }
-
-  // Remove container com pequeno delay (tabs precisam fechar primeiro)
-  setTimeout(async () => {
-    try {
-      await (browser as any).contextualIdentities.remove(session.cookieStoreId);
-    } catch (e) {}
-  }, 2000);
+  await finalizeIfReady(session);
 }
 
 async function handleCheckReloginEligible(
