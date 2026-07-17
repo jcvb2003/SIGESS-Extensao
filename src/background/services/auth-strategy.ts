@@ -77,6 +77,14 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     return !!creds?.loginConcluido;
   }
 
+  protected isGovBrSsoPage(tabUrl: string): boolean {
+    try {
+      return new URL(tabUrl).hostname === "sso.acesso.gov.br";
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * O Gov.br roda hcaptcha invisível antes de transitar CPF→senha.
    * Quando a tab está em background, o hcaptcha não inicializa e a transição
@@ -266,7 +274,7 @@ export class PesqBrasilStrategy extends BaseAuthStrategy {
       }
     }
 
-    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+    if (this.isGovBrSsoPage(tabUrl)) {
       await this.handleGovBrLogin(tabId, credentials);
     }
   }
@@ -295,7 +303,7 @@ export class MTEStrategy extends BaseAuthStrategy {
       }
     }
 
-    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+    if (this.isGovBrSsoPage(tabUrl)) {
       await this.handleGovBrLogin(tabId, credentials);
     }
   }
@@ -324,7 +332,7 @@ export class INSSStrategy extends BaseAuthStrategy {
       }
     }
 
-    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+    if (this.isGovBrSsoPage(tabUrl)) {
       await this.handleGovBrLogin(tabId, credentials);
     }
   }
@@ -355,7 +363,7 @@ export class PesqBrasilMPAStrategy extends BaseAuthStrategy {
       }
     }
 
-    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+    if (this.isGovBrSsoPage(tabUrl)) {
       await this.handleGovBrLogin(tabId, credentials);
     }
   }
@@ -377,7 +385,7 @@ export class ESocialStrategy extends BaseAuthStrategy {
       } catch (e) {}
     }
 
-    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+    if (this.isGovBrSsoPage(tabUrl)) {
       await this.handleGovBrLogin(tabId, credentials);
     }
   }
@@ -415,7 +423,7 @@ export class CadUnicoStrategy extends BaseAuthStrategy {
       }
     }
 
-    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+    if (this.isGovBrSsoPage(tabUrl)) {
       await this.handleGovBrLogin(tabId, credentials);
     }
   }
@@ -445,7 +453,7 @@ export class EcacStrategy extends BaseAuthStrategy {
       } catch (e) {}
     }
 
-    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+    if (this.isGovBrSsoPage(tabUrl)) {
       await this.handleGovBrLogin(tabId, credentials);
     }
 
