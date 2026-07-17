@@ -2,7 +2,7 @@ import { parsePesqBrasilRSC } from "../modules/automation/pesqbrasil/extractor";
 import { parseCaepfData } from "../modules/automation/caepf/extractor";
 import { scrapeEcacCpfData, scrapeEcacCaepfTable } from "../modules/automation/ecac/extractor";
 import { parseCadUnicoToken } from "../modules/automation/cadunico/extractor";
-import { fetchCadUnicoAdvanced } from "../modules/automation/cadunico/fetcher";
+import { processCadUnicoAdvancedCollection } from "../modules/automation/cadunico/portal";
 import { recoverCadUnicoIncompleteSuccessLogin } from "../modules/automation/cadunico/navigation";
 import { parseTseData } from "../modules/automation/tse/extractor";
 import {
@@ -511,13 +511,11 @@ async function initMain() {
         profile?: { identificador: number; numeroFamiliar: number } | null;
         profileNotFound?: boolean;
       };
-      fetchCadUnicoAdvanced(advPayload).then(result => {
-        if (result.kind === "collected") {
-          saveData(result.data, "cadunico_adv", result.data);
-        } else {
-          reportCadastroPortalOutcome("cadunico", result.kind, result.reason);
-        }
-      });
+      void processCadUnicoAdvancedCollection(
+        advPayload,
+        saveData,
+        (outcome, reason) => reportCadastroPortalOutcome("cadunico", outcome, reason),
+      );
     } else if (type === "SIGESS_TSE_RAW_DATA") {
       const extractedData = parseTseData(payload);
       if (extractedData) saveData(extractedData, "tse", payload);
