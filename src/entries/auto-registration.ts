@@ -38,9 +38,6 @@ async function initMain() {
   let _cadUnicoClickAttempted = false;
   /** Evita disparar o click do Gov.br no PesqBrasil MPA mais de uma vez por ciclo de vida. */
   let _pesqBrasilMpaClickAttempted = false;
-  /** Impede que a mesma tela 2FA envie eventos repetidos ao background. */
-  let _twoFactorReported = false;
-  let _twoFactorObserverStarted = false;
 
   // ── Inicialização ────────────────────────────────────────────────────────
 
@@ -105,33 +102,9 @@ async function initMain() {
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 
-  function observeGovBrTwoFactor(): void {
-    if (globalThis.location.hostname !== "sso.acesso.gov.br") return;
-
-    const reportIfPresent = () => {
-      if (_twoFactorReported || !_cadastroSessionActive) return;
-      const twoFactorForm = document.querySelector("#twoFactorForm input[name='otpInput'], #enter-offline-2fa-code");
-      if (!twoFactorForm) return;
-
-      _twoFactorReported = true;
-      const api = globalThis.browser || globalThis.chrome;
-      void api.runtime.sendMessage({ action: "govBrTwoFactorDetected" }).catch(() => {
-        _twoFactorReported = false;
-      });
-    };
-
-    reportIfPresent();
-    if (_twoFactorObserverStarted) return;
-    _twoFactorObserverStarted = true;
-
-    const observer = new MutationObserver(reportIfPresent);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-  }
-
   async function startAutomation() {
     if (globalThis.location.hostname === "sso.acesso.gov.br") {
       await injectGovBrReloginButton();
-      observeGovBrTwoFactor();
     }
 
     // Correção para falha intermitente de redirecionamento no CadÚnico (Gov.br -> SuccessLogin sem token)
@@ -153,7 +126,6 @@ async function initMain() {
     const activeCadastro = cadastroResult.sigessActiveCadastro;
     _autoEnabled = !!settings.autoRegistrationEnabled || activeCadastro?.sessionState === "active";
     _cadastroSessionActive = activeCadastro?.sessionState === "active";
-    observeGovBrTwoFactor();
 
     // SEMPRE registra listeners de bridge, mesmo se desativado (para poder ativar em tempo real)
     globalThis.addEventListener("message", handleBridgeMessages);
@@ -572,7 +544,6 @@ async function initMain() {
       const wasActive = !!changes.sigessActiveCadastro.oldValue;
       const isActive = newSession?.sessionState === "active";
       _cadastroSessionActive = isActive;
-      if (isActive) observeGovBrTwoFactor();
 
       if (isActive && !_autoEnabled) {
         _autoEnabled = true;
