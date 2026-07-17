@@ -174,7 +174,11 @@ import { CadastroSession, PessoaData } from "../../shared/types";
     if (!settings.autoRegistrationEnabled) return;
 
     const host = globalThis.location.hostname;
-    const isTarget = host.includes(".gov.br") || host.includes("mpa.gov.br") || host.includes("sigess");
+    const isTarget =
+      host.includes(".gov.br") ||
+      host.includes("mpa.gov.br") ||
+      host.includes("sigess") ||
+      host === "localhost";
 
     if (isTarget && document.body && globalThis.self === globalThis.top) {
       createUI();

@@ -93,7 +93,8 @@
         "*://*.tse.jus.br/*",
         "*://*.sigess.com.br/*",
         "*://sigess-extensao.vercel.app/*",
-        "*://*.vercel.app/*"
+        "*://*.vercel.app/*",
+        "http://localhost:5173/*"
       ],
       "js": [
         "assets/content_auto_registration.js"
@@ -109,7 +110,8 @@
         "*://*.receita.fazenda.gov.br/*",
         "*://*.tse.jus.br/*",
         "*://*.sigess.com.br/*",
-        "*://sigess-extensao.vercel.app/*"
+        "*://sigess-extensao.vercel.app/*",
+        "http://localhost:5173/*"
       ],
       "js": [
         "assets/capture_indicator.js"
