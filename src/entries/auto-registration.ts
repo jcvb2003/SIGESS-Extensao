@@ -16,6 +16,7 @@ import { updateAssistantStatus, removeAssistantUI } from "../modules/automation/
 import { setupSPANavigationObserver } from "../modules/automation/spa-observer";
 import { reportCadastroPortalOutcome } from "../modules/automation/cadastro/portal-outcome-reporter";
 import { saveCapturedPessoaData as saveData } from "../modules/automation/cadastro/capture-data-reporter";
+import { resolvePortalBridge } from "../modules/automation/cadastro/portal-bridges";
 
 declare var browser: any;
 declare var chrome: any;
@@ -555,21 +556,8 @@ async function initMain() {
   }
 
   function injectBridges() {
-    const host = globalThis.location.hostname;
-    if (host.includes("pesqbrasil-pescadorprofissional")) {
-      injectScript("assets/pesqbrasil_bridge.js");
-    } else if (
-      host.includes("caepf.receita.fazenda.gov.br") ||
-      host.includes("cav.receita.fazenda.gov.br")
-    ) {
-      injectScript("assets/caepf_bridge.js");
-    } else if (host.includes("cadunico.dataprev.gov.br")) {
-      injectScript("assets/cadunico_bridge.js");
-    } else if (host.includes("tse.jus.br")) {
-      injectScript("assets/tse_bridge.js");
-    } else if (host.includes("meu.inss.gov.br")) {
-      injectScript("assets/inss_bridge.js");
-    }
+    const bridge = resolvePortalBridge(globalThis.location.hostname);
+    if (bridge) injectScript(bridge);
   }
 
   // ── Persistência ─────────────────────────────────────────────────────────
