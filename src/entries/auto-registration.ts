@@ -36,6 +36,8 @@ async function initMain() {
   let _ecacClickAttempted = false;
   /** Evita disparar o click do Gov.br no CadÚnico mais de uma vez por ciclo de vida. */
   let _cadUnicoClickAttempted = false;
+  /** Evita aceitar o termo próprio do CadÚnico mais de uma vez por ciclo de vida. */
+  let _cadUnicoTermsAttempted = false;
   /** Evita disparar o click do Gov.br no PesqBrasil MPA mais de uma vez por ciclo de vida. */
   let _pesqBrasilMpaClickAttempted = false;
 
@@ -304,6 +306,43 @@ async function initMain() {
         document.addEventListener('DOMContentLoaded', clickCadUnicoGovBr, { once: true });
       } else {
         clickCadUnicoGovBr();
+      }
+    }
+
+    // Termo próprio do CadÚnico: não confundir com o consentimento OAuth do GOV.BR.
+    // Só existe na rota #/home já autenticada e usa o botão identificado pelo portal.
+    if (
+      host.includes("cadunico.dataprev.gov.br") &&
+      globalThis.location.hash === "#/home" &&
+      _cadastroSessionActive &&
+      !_cadUnicoTermsAttempted
+    ) {
+      _cadUnicoTermsAttempted = true;
+      const acceptCadUnicoTerms = () => {
+        const script = document.createElement("script");
+        script.textContent = `
+          (function() {
+            var observer;
+            function accept() {
+              var button = document.querySelector('#botaoLiConcordo');
+              if (!button || button.offsetParent === null) return false;
+              if (observer) observer.disconnect();
+              button.click();
+              return true;
+            }
+            if (!accept()) {
+              observer = new MutationObserver(function() { accept(); });
+              observer.observe(document.documentElement, { childList: true, subtree: true });
+            }
+          })();
+        `;
+        (document.head || document.documentElement).appendChild(script);
+        script.remove();
+      };
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", acceptCadUnicoTerms, { once: true });
+      } else {
+        acceptCadUnicoTerms();
       }
     }
 
