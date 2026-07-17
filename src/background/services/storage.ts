@@ -1,6 +1,7 @@
 import { AppSettings, CadastroSession, GovBatchItemStatus, UserCredentials, PessoaData } from "../../shared/types";
 import { normalizeReapSettings } from "../../modules/reap-mpa/reap-settings";
 import { CadastroSourceSnapshot } from "../../modules/automation/cadastro/contracts";
+import { resolveCadastroPortalBySource } from "../../modules/automation/cadastro/portal-registry";
 import { normalizeCapturedValue, normalizePessoaData } from "../../modules/automation/cadastro/source-normalizer";
 import { projectSourceFields } from "../../modules/automation/cadastro/source-projections";
 
@@ -319,11 +320,7 @@ export class StorageService {
 }
 
 function sourceToPortalId(fonte: string): CadastroSourceSnapshot["portal"] {
-  if (fonte === "cadunico" || fonte === "cadunico_adv") return "cadunico";
-  if (fonte === "pesqbrasil" || fonte === "pesqbrasil_mpa") return "pesqbrasil";
-  if (fonte === "ecac_cpf" || fonte === "ecac_caepf") return "ecac";
-  if (fonte === "inss") return "inss";
-  return "tse";
+  return resolveCadastroPortalBySource(fonte) ?? "tse";
 }
 
 function hasValidElectoralNumber(value: unknown): boolean {

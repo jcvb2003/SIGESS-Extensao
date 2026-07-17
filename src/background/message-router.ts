@@ -12,6 +12,13 @@ import {
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
 import { resolveTseQueryProfile } from "../modules/automation/cadastro/tse-query-profile";
+import { resolveCadastroPortalBySource } from "../modules/automation/cadastro/portal-registry";
+import { isCadastroPortalTerminal } from "../modules/automation/cadastro/session-status";
+import {
+  getActiveCadastroSession,
+  removeCadastroSession,
+  saveCadastroSession,
+} from "./cadastro/cadastro-session-store";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -671,8 +678,6 @@ async function handleSavePessoaData(
 
 // ── Cadastro Automático ───────────────────────────────────────────────────
 
-const CADASTRO_SESSION_KEY = "sigessActiveCadastro";
-
 // Garante que atualizações de portais sejam aplicadas em série —
 // pesqbrasil_mpa e ecac_caepf chegam simultaneamente e causam race condition
 // se cada um ler/escrever a sessão de forma concorrente.
@@ -689,23 +694,11 @@ function enqueueCadastroDataArrival(
 }
 
 function fonteToPortal(fonte: string): keyof CadastroSession["portais"] | null {
-  if (fonte === "cadunico" || fonte === "cadunico_adv") return "cadunico";
-  if (fonte === "ecac_cpf" || fonte === "ecac_caepf") return "ecac";
-  if (fonte === "pesqbrasil" || fonte === "pesqbrasil_mpa") return "pesqbrasil";
-  if (fonte === "tse") return "tse";
-  if (fonte === "inss") return "inss";
-  return null;
+  return resolveCadastroPortalBySource(fonte);
 }
 
-async function getActiveSession(): Promise<CadastroSession | null> {
-  const result = await StorageService.get<CadastroSession>(CADASTRO_SESSION_KEY);
-  const session: CadastroSession | undefined = (result as any)[CADASTRO_SESSION_KEY];
-  return session?.sessionState === "active" ? session : null;
-}
-
-async function saveSession(session: CadastroSession): Promise<void> {
-  await StorageService.set({ [CADASTRO_SESSION_KEY]: session });
-}
+const getActiveSession = getActiveCadastroSession;
+const saveSession = saveCadastroSession;
 
 /** Verifica se a sessão ativa não tem mais nenhuma tab aberta (background reiniciou e perdeu o timeout). */
 async function isCadastroSessionStale(session: CadastroSession): Promise<boolean> {
@@ -733,7 +726,7 @@ async function clearStaleSession(session: CadastroSession): Promise<void> {
   try {
     await (browser as any).contextualIdentities.remove(session.cookieStoreId);
   } catch { /* container pode já ter sido removido */ }
-  await StorageService.remove(CADASTRO_SESSION_KEY);
+  await removeCadastroSession();
 }
 
 async function handleCancelarCadastroAutomatico(): Promise<MessageResponse> {
@@ -807,7 +800,7 @@ async function handleIniciarCadastroAutomatico(
     // Timeout global da sessão
     return { success: true, sessionId };
   } catch (error: any) {
-    await StorageService.remove(CADASTRO_SESSION_KEY);
+    await removeCadastroSession();
     return { success: false, error: error.message };
   }
 }
@@ -991,7 +984,7 @@ async function evaluateTseRequirement(session: CadastroSession, getTabManager?: 
 
   const pesqBrasilStatus = session.portais.pesqbrasil.status;
   const pesqBrasilFinalizado = ["concluido", "erro", "indisponivel"].includes(pesqBrasilStatus);
-  const inssPendente = session.portais.inss && !isPortalTerminal(session.portais.inss);
+  const inssPendente = session.portais.inss && !isCadastroPortalTerminal(session.portais.inss);
   if (!pesqBrasilFinalizado || inssPendente) return;
 
   const profile = resolveTseQueryProfile(settings);
@@ -1031,15 +1024,11 @@ async function evaluateTseRequirement(session: CadastroSession, getTabManager?: 
   await saveSession(session);
 }
 
-function isPortalTerminal(portal: CadastroSession["portais"][keyof CadastroSession["portais"]]): boolean {
-  return !!portal && ["concluido", "dispensado", "nao_encontrado", "indisponivel", "erro"].includes(portal.status);
-}
-
 async function finalizeIfReady(session: CadastroSession, getTabManager?: () => any): Promise<void> {
   const expected: (keyof CadastroSession["portais"])[] = ["cadunico", "pesqbrasil", "ecac"];
   if (session.portais.inss) expected.push("inss");
   if (session.portais.tse) expected.push("tse");
-  if (expected.every((key) => isPortalTerminal(session.portais[key]))) {
+  if (expected.every((key) => isCadastroPortalTerminal(session.portais[key]))) {
     await finalizeCadastroSession(session, getTabManager);
   }
 }

@@ -1,6 +1,21 @@
-import { PessoaData } from "../../../shared/types";
+import type { PessoaData } from "../../../shared/types";
 
 export type CadastroPortalId = "cadunico" | "pesqbrasil" | "ecac" | "tse" | "inss";
+
+export type CadastroSourceId =
+  | "cadunico"
+  | "cadunico_adv"
+  | "pesqbrasil"
+  | "pesqbrasil_mpa"
+  | "ecac_cpf"
+  | "ecac_caepf"
+  | "tse"
+  | "inss";
+
+export interface CadastroPortalDefinition {
+  id: CadastroPortalId;
+  sources: readonly CadastroSourceId[];
+}
 
 export type CadastroPortalOutcomeKind =
   | "collected"
