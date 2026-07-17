@@ -4,7 +4,7 @@ let _tseFillDone = false;
 let _tseSubmitDone = false;
 let _tseFormObserver: MutationObserver | null = null;
 let _tseOutcomeObserver: MutationObserver | null = null;
-const TSE_RESULT_HASH = "#/atendimento-eleitor/consultar-numero-titulo-eleitor";
+const TSE_AUTOATENDIMENTO_PATH = "/servicos-eleitorais/autoatendimento-eleitoral";
 
 /**
  * Reseta o guard de preenchimento para permitir nova execução em navegações SPA.
@@ -101,7 +101,7 @@ function submitTseQueryWhenReady(): void {
  * impede que um redirecionamento inesperado seja tratado como sucesso.
  */
 export function validateTseResultRoute(url: string): void {
-  if (!_tseSubmitDone || url.includes(TSE_RESULT_HASH)) return;
+  if (!_tseSubmitDone || url.includes(TSE_AUTOATENDIMENTO_PATH)) return;
   reportTseOutcome("failed", "redirecionamento_tse_inesperado");
 }
 

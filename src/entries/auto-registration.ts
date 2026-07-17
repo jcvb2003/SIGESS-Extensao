@@ -381,7 +381,7 @@ async function initMain() {
 
     if (
       url.includes('tse.jus.br') &&
-      url.includes('atendimento-eleitor/consultar-numero-titulo-eleitor')
+      url.includes('servicos-eleitorais/autoatendimento-eleitoral')
     ) {
       const profile = resolveTseQueryProfile(settings);
       if (_cadastroSessionActive) {
