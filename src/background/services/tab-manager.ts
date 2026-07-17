@@ -468,7 +468,7 @@ export class TabManager {
         });
       }
     } else if (creds.portalType === "cadunico") {
-      if (tabUrl.includes("#/successLogin")) {
+      if (tabUrl.endsWith("#/successLogin")) {
         await browser.tabs.update(tabId, { url: "https://cadunico.dataprev.gov.br/#/home" });
         return;
       }

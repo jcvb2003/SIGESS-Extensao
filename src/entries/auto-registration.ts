@@ -109,12 +109,12 @@ async function initMain() {
       await injectGovBrReloginButton();
     }
 
-    // O token pode vir anexado à hash de successLogin após o retorno do Gov.br.
+    // Recupera somente o callback incompleto: com token, o CadÚnico deve consumi-lo.
     if (
       globalThis.location.hostname.includes('cadunico.dataprev.gov.br') &&
-      globalThis.location.hash.startsWith('#/successLogin')
+      globalThis.location.hash === '#/successLogin'
     ) {
-      console.warn('[SIGESS] CadÚnico: successLogin detectado. Redirecionando para #/home.');
+      console.warn('[SIGESS] CadÚnico: successLogin sem token. Redirecionando para #/home.');
       globalThis.location.replace('https://cadunico.dataprev.gov.br/#/home');
     }
 
