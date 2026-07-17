@@ -1,9 +1,8 @@
+import { CADUNICO_HOME_URL, isCadUnicoIncompleteSuccessLogin } from "./routes";
+
 export function recoverCadUnicoIncompleteSuccessLogin(location: Location): boolean {
-  if (
-    location.hostname.includes("cadunico.dataprev.gov.br") &&
-    location.hash === "#/successLogin"
-  ) {
-    location.replace("https://cadunico.dataprev.gov.br/#/home");
+  if (isCadUnicoIncompleteSuccessLogin(location)) {
+    location.replace(CADUNICO_HOME_URL);
     return true;
   }
   return false;

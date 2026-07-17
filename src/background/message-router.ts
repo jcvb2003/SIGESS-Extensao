@@ -11,6 +11,7 @@ import {
   PessoaData,
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
+import { INSS_LOGIN_URL, isInssUrl } from "../modules/automation/inss/routes";
 import {
   getActiveCadastroSession,
 } from "./cadastro/cadastro-session-store";
@@ -272,7 +273,7 @@ async function handleStartBatchLogin(
     pesqbrasil_agro: "https://pesqbrasil-pescadorprofissional.agro.gov.br/",
     pesqbrasil_mpa: "https://pesqbrasil-pescadorprofissional.mpa.gov.br/",
     esocial: "https://login.esocial.gov.br/",
-    inss: "https://meu.inss.gov.br/#/login",
+    inss: INSS_LOGIN_URL,
   };
   const targetUrl = urlMap[type as string];
   if (!targetUrl) return { success: false, error: "Tipo de login inválido" };
@@ -370,7 +371,7 @@ async function handleAbrirAbaContainer(
       url,
       valorComercializado,
       type: url.includes("esocial") ? "esocial"
-        : url.includes("meu.inss.gov.br") ? "inss"
+        : isInssUrl(url) ? "inss"
         : url.includes("mpa.gov.br") ? "pesqbrasil_mpa"
         : "pesqbrasil_agro",
       timestamp: Date.now(),
@@ -391,7 +392,7 @@ async function handleAbrirAbaContainer(
     randIndex,
     nome,
     url.includes("esocial") ? "esocial"
-      : url.includes("meu.inss.gov.br") ? "inss"
+      : isInssUrl(url) ? "inss"
       : url.includes("mpa.gov.br") ? "pesqbrasil_mpa"
       : "pesqbrasil_agro",
     valorComercializado,

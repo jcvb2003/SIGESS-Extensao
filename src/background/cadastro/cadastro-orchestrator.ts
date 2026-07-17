@@ -12,6 +12,7 @@ import {
   isCadastroSessionReadyToFinalize,
   type CadastroReportedOutcome,
 } from "./cadastro-session-controller";
+import { INSS_LOGIN_URL } from "../../modules/automation/inss/routes";
 
 export async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
   if (session.portais.inss) return;
@@ -26,7 +27,7 @@ export async function openCadastroInss(session: CadastroSession, getTabManager: 
   session.portais.inss = { status: "abrindo", updatedAt: Date.now() };
   await saveCadastroSession(session);
   const tabId = await createCadastroPortalTab(
-    session, getTabManager(), creds, "inss", "https://meu.inss.gov.br/#/login",
+    session, getTabManager(), creds, "inss", INSS_LOGIN_URL,
   );
   if (tabId) session.portais.inss.tabId = tabId;
   else {

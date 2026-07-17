@@ -15,6 +15,17 @@ export type CadastroSourceId =
 export interface CadastroPortalDefinition {
   id: CadastroPortalId;
   sources: readonly CadastroSourceId[];
+  entryUrl?: string;
+  collectionUrl?: string;
+}
+
+export interface CadastroPortalRuntimeContext {
+  sessionActive: boolean;
+}
+
+export interface CadastroPortalRuntimeAdapter {
+  readonly id: CadastroPortalId;
+  run(context: CadastroPortalRuntimeContext): void;
 }
 
 export type CadastroPortalOutcomeKind =

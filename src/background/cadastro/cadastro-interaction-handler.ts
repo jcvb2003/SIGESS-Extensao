@@ -1,6 +1,7 @@
 import type { MessageResponse } from "../../shared/types";
 import { StorageService } from "../services/storage";
 import { getActiveCadastroSession } from "./cadastro-session-store";
+import { INSS_DATA_URL, isInssDataUrl, isInssUrl } from "../../modules/automation/inss/routes";
 
 export async function canSubmitCadastroTse(
   sender?: browser.runtime.MessageSender,
@@ -51,7 +52,7 @@ export async function navigateAuthenticatedCadastroInss(
     return { success: true, navigated: false };
   }
   const tab = await browser.tabs.get(tabId);
-  if (!tab.url?.includes("meu.inss.gov.br") || tab.url.includes("dados-cadastrais")) {
+  if (!tab.url || !isInssUrl(tab.url) || isInssDataUrl(tab.url)) {
     return { success: true, navigated: false };
   }
   await StorageService.updateCredentials(tabId, {
@@ -60,6 +61,6 @@ export async function navigateAuthenticatedCadastroInss(
     statusTitle: "Login concluído",
     statusDescription: "Acessando dados cadastrais do Meu INSS...",
   });
-  await browser.tabs.update(tabId, { url: "https://meu.inss.gov.br/#/dados-cadastrais?tk-categoria=Por%20Menu" });
+  await browser.tabs.update(tabId, { url: INSS_DATA_URL });
   return { success: true, navigated: true };
 }

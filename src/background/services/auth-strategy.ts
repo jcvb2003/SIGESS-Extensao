@@ -1,6 +1,8 @@
 import { UserCredentials } from "../../shared/types";
 import { DOMInjector } from "./dom-injector";
 import { StorageService } from "./storage";
+import { CADUNICO_HOST } from "../../modules/automation/cadunico/routes";
+import { INSS_HOST, isInssUrl } from "../../modules/automation/inss/routes";
 
 declare var browser: any;
 
@@ -273,7 +275,7 @@ export class PesqBrasilStrategy extends BaseAuthStrategy {
     // O Meu INSS pode concluir o retorno do Gov.br sem outro evento de navegação.
     // A rota fora de #/login já é a área autenticada do portal.
     if (
-      tabUrl.includes("meu.inss.gov.br") &&
+      isInssUrl(tabUrl) &&
       !tabUrl.includes("#/login") &&
       !tabUrl.includes("sso.acesso.gov.br")
     ) {
@@ -313,7 +315,7 @@ export class MTEStrategy extends BaseAuthStrategy {
 
 export class INSSStrategy extends BaseAuthStrategy {
   name = "INSS";
-  urlTrigger = "meu.inss.gov.br";
+  urlTrigger = INSS_HOST;
 
   async execute(
     tabId: number,
@@ -321,7 +323,7 @@ export class INSSStrategy extends BaseAuthStrategy {
     credentials: UserCredentials,
   ): Promise<void> {
     if (
-      tabUrl.includes("meu.inss.gov.br") &&
+      isInssUrl(tabUrl) &&
       !tabUrl.includes("sso.acesso.gov.br") &&
       credentials.status !== "fazendo_login"
     ) {
@@ -395,7 +397,7 @@ export class ESocialStrategy extends BaseAuthStrategy {
 
 export class CadUnicoStrategy extends BaseAuthStrategy {
   name = "CadUnico";
-  urlTrigger = "cadunico.dataprev.gov.br";
+  urlTrigger = CADUNICO_HOST;
 
   async execute(
     tabId: number,
@@ -403,7 +405,7 @@ export class CadUnicoStrategy extends BaseAuthStrategy {
     credentials: UserCredentials,
   ): Promise<void> {
     if (
-      tabUrl.includes("cadunico.dataprev.gov.br") &&
+      tabUrl.includes(CADUNICO_HOST) &&
       !tabUrl.includes("sso.acesso.gov.br") &&
       credentials.status !== "fazendo_login"
     ) {

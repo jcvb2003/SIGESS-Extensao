@@ -1,5 +1,7 @@
 import { scrapeEcacCpfData, scrapeEcacCaepfTable } from "../modules/automation/ecac/extractor";
 import { recoverCadUnicoIncompleteSuccessLogin } from "../modules/automation/cadunico/navigation";
+import { CadUnicoPortalRuntime } from "../modules/automation/cadunico/runtime";
+import { InssPortalRuntime } from "../modules/automation/inss/runtime";
 import {
   fillTseAuthForm,
   resetTseFillGuard,
@@ -35,14 +37,10 @@ async function initMain() {
   let _cadastroSessionActive = false;
   /** Evita disparar o click do Gov.br no eCAC mais de uma vez por ciclo de vida do content script. */
   let _ecacClickAttempted = false;
-  /** Evita disparar o click do Gov.br no CadÚnico mais de uma vez por ciclo de vida. */
-  let _cadUnicoClickAttempted = false;
-  /** Evita aceitar o termo próprio do CadÚnico mais de uma vez por ciclo de vida. */
-  let _cadUnicoTermsAttempted = false;
   /** Evita disparar o click do Gov.br no PesqBrasil MPA mais de uma vez por ciclo de vida. */
   let _pesqBrasilMpaClickAttempted = false;
-  /** Evita notificar duas vezes a área autenticada do Meu INSS. */
-  let _inssAuthenticatedReported = false;
+  const cadUnicoRuntime = new CadUnicoPortalRuntime();
+  const inssRuntime = new InssPortalRuntime();
 
   // ── Inicialização ────────────────────────────────────────────────────────
 
@@ -177,88 +175,7 @@ async function initMain() {
       }
     }
 
-    // CadÚnico: MutationObserver no mundo principal aguarda o botão Gov.br aparecer
-    // e clica imediatamente — mais confiável que polling via executeScript do background,
-    // especialmente quando o SPA demora a renderizar a rota #/home.
-    const isCadUnico = host.includes('cadunico.dataprev.gov.br') && !url.includes('successLogin');
-    if (isCadUnico && _cadastroSessionActive && !_cadUnicoClickAttempted) {
-      _cadUnicoClickAttempted = true;
-      const clickCadUnicoGovBr = () => {
-        const s = document.createElement('script');
-        s.textContent = `
-          (function() {
-            var SELECTORS = [
-              "button.br-button[class*='botaoGovBr']",
-              ".br-button.botaoGovBr"
-            ];
-            var obs;
-            function findBtn() {
-              for (var i = 0; i < SELECTORS.length; i++) {
-                var b = document.querySelector(SELECTORS[i]);
-                if (b && b.offsetParent !== null) return b;
-              }
-              return null;
-            }
-            function tryClick() {
-              var b = findBtn();
-              if (!b) return false;
-              if (obs) obs.disconnect();
-              b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-              return true;
-            }
-            if (!tryClick()) {
-              obs = new MutationObserver(function() { tryClick(); });
-              obs.observe(document.documentElement, { childList: true, subtree: true });
-              setTimeout(function() { if (obs) obs.disconnect(); }, 20000);
-            }
-          })();
-        `;
-        (document.head || document.documentElement).appendChild(s);
-        s.remove();
-      };
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', clickCadUnicoGovBr, { once: true });
-      } else {
-        clickCadUnicoGovBr();
-      }
-    }
-
-    // Termo próprio do CadÚnico: não confundir com o consentimento OAuth do GOV.BR.
-    // Só existe na rota #/home já autenticada e usa o botão identificado pelo portal.
-    if (
-      host.includes("cadunico.dataprev.gov.br") &&
-      globalThis.location.hash === "#/home" &&
-      _cadastroSessionActive &&
-      !_cadUnicoTermsAttempted
-    ) {
-      _cadUnicoTermsAttempted = true;
-      const acceptCadUnicoTerms = () => {
-        const script = document.createElement("script");
-        script.textContent = `
-          (function() {
-            var observer;
-            function accept() {
-              var button = document.querySelector('#botaoLiConcordo');
-              if (!button || button.offsetParent === null) return false;
-              if (observer) observer.disconnect();
-              button.click();
-              return true;
-            }
-            if (!accept()) {
-              observer = new MutationObserver(function() { accept(); });
-              observer.observe(document.documentElement, { childList: true, subtree: true });
-            }
-          })();
-        `;
-        (document.head || document.documentElement).appendChild(script);
-        script.remove();
-      };
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", acceptCadUnicoTerms, { once: true });
-      } else {
-        acceptCadUnicoTerms();
-      }
-    }
+    cadUnicoRuntime.run({ sessionActive: _cadastroSessionActive });
 
     // PesqBrasil MPA: mesma abordagem — MutationObserver aguarda #button_____r0
     const isPesqBrasilMPA = host.includes('pesqbrasil-pescadorprofissional.mpa.gov.br') ||
@@ -348,29 +265,7 @@ async function initMain() {
       validateTseResultRoute(url);
     }
 
-    // Meu INSS: o retorno autenticado pode ocorrer apenas por transição interna do SPA,
-    // sem um tabs.onUpdated confiável. O avatar existe somente na área autenticada.
-    if (
-      host.includes("meu.inss.gov.br") &&
-      _cadastroSessionActive &&
-      !url.includes("dados-cadastrais") &&
-      !_inssAuthenticatedReported
-    ) {
-      const reportInssAuthenticated = () => {
-        if (_inssAuthenticatedReported || !document.querySelector("#avatar-dropdown-trigger")) return false;
-        _inssAuthenticatedReported = true;
-        void (globalThis.browser || globalThis.chrome).runtime.sendMessage({
-          action: "inssAuthenticated",
-        });
-        return true;
-      };
-      if (!reportInssAuthenticated()) {
-        const inssObserver = new MutationObserver(() => {
-          if (reportInssAuthenticated()) inssObserver.disconnect();
-        });
-        inssObserver.observe(document.documentElement, { childList: true, subtree: true });
-      }
-    }
+    inssRuntime.run({ sessionActive: _cadastroSessionActive });
 
     if (
       url.includes('tse.jus.br') &&

@@ -10,6 +10,8 @@ import {
   CadUnicoStrategy,
   EcacStrategy,
 } from "./auth-strategy";
+import { CADUNICO_HOME_URL, isCadUnicoUrl } from "../../modules/automation/cadunico/routes";
+import { INSS_DATA_URL, isInssDataUrl, isInssUrl } from "../../modules/automation/inss/routes";
 
 export class TabManager {
   private readonly strategies: AuthStrategy[] = [];
@@ -85,7 +87,7 @@ export class TabManager {
       const resolvedPortalType =
         portalType ||
         (url.includes("esocial") ? "esocial"
-          : url.includes("meu.inss.gov.br") ? "inss"
+          : isInssUrl(url) ? "inss"
           : url.includes("mpa.gov.br") ? "pesqbrasil_mpa"
           : "pesqbrasil_agro");
 
@@ -471,20 +473,20 @@ export class TabManager {
       }
     } else if (creds.portalType === "cadunico") {
       if (tabUrl.endsWith("#/successLogin")) {
-        await browser.tabs.update(tabId, { url: "https://cadunico.dataprev.gov.br/#/home" });
+        await browser.tabs.update(tabId, { url: CADUNICO_HOME_URL });
         return;
       }
       // Abre tabs filhas somente uma vez (pesqbrasil ainda aguardando = não abertas)
       if (
-        tabUrl.includes("cadunico.dataprev.gov.br") &&
+        isCadUnicoUrl(tabUrl) &&
         session.portais.pesqbrasil.status === "aguardando"
       ) {
         await this.openCadastroSiblings(session, tabId, creds);
       }
     } else if (creds.portalType === "inss") {
-      if (tabUrl.includes("meu.inss.gov.br") && !tabUrl.includes("dados-cadastrais")) {
+      if (isInssUrl(tabUrl) && !isInssDataUrl(tabUrl)) {
         await browser.tabs.update(tabId, {
-          url: "https://meu.inss.gov.br/#/dados-cadastrais?tk-categoria=Por%20Menu",
+          url: INSS_DATA_URL,
         });
       }
     }

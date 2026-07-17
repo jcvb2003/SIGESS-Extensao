@@ -5,6 +5,7 @@ import {
   removeCadastroSession,
   saveCadastroSession,
 } from "./cadastro-session-store";
+import { CADUNICO_HOME_URL } from "../../modules/automation/cadunico/routes";
 
 async function isCadastroSessionStale(session: CadastroSession): Promise<boolean> {
   const tabIds = [
@@ -85,7 +86,7 @@ export async function iniciarCadastroAutomatico(
     await saveCadastroSession(session);
 
     const cadUnicoTabId = await getTabManager().createSessionInContainer(
-      "https://cadunico.dataprev.gov.br/#/home",
+      CADUNICO_HOME_URL,
       cpf, senha, session.cookieStoreId, nome, "cadunico", sessionId,
     );
     if (cadUnicoTabId) {
