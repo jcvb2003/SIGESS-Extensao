@@ -22,13 +22,16 @@ export function resetTseFillGuard(): void {
  * Preenche automaticamente o formulário de autenticação do TSE
  * (Consulta de Título Eleitoral) com dados já capturados.
  */
-export function fillTseAuthForm(data: Partial<PessoaData>): void {
+export function fillTseAuthForm(
+  data: Partial<PessoaData>,
+  options: { submit?: boolean } = {},
+): void {
   if (_tseFillDone) return;
 
   const cpfField = document.getElementById('titulo-cpf-nome');
   if (!cpfField) {
     // Modal ainda não abriu — tentar em 500ms sem marcar como done
-    observeTseForm(data);
+    observeTseForm(data, options);
     return;
   }
 
@@ -54,17 +57,22 @@ export function fillTseAuthForm(data: Partial<PessoaData>): void {
   // Select de filiação — determinar opção correta
   const tipoFiliacao = resolveTipoFiliacao(data);
   if (tipoFiliacao) setAngularSelect(tipoFiliacao);
-  submitTseQueryWhenReady();
-  observeTseOutcome();
+  if (options.submit !== false) {
+    submitTseQueryWhenReady();
+    observeTseOutcome();
+  }
 }
 
-function observeTseForm(data: Partial<PessoaData>): void {
+function observeTseForm(
+  data: Partial<PessoaData>,
+  options: { submit?: boolean },
+): void {
   if (_tseFormObserver) return;
   _tseFormObserver = new MutationObserver(() => {
     if (!document.getElementById('titulo-cpf-nome')) return;
     _tseFormObserver?.disconnect();
     _tseFormObserver = null;
-    fillTseAuthForm(data);
+    fillTseAuthForm(data, options);
   });
   _tseFormObserver.observe(document.documentElement, { childList: true, subtree: true });
 }

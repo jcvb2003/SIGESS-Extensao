@@ -384,7 +384,11 @@ async function initMain() {
       url.includes('atendimento-eleitor/consultar-numero-titulo-eleitor')
     ) {
       const profile = resolveTseQueryProfile(settings);
-      if (profile.isSufficient) fillTseAuthForm(profile);
+      if (_cadastroSessionActive) {
+        if (profile.isSufficient) fillTseAuthForm(profile);
+      } else if (profile.cpf || profile.dataDeNascimento || profile.mae || profile.pai) {
+        fillTseAuthForm(profile, { submit: profile.isSufficient });
+      }
     }
   }
 
