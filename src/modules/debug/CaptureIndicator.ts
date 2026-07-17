@@ -1,5 +1,6 @@
 import { CadastroSession, PessoaData } from "../../shared/types";
 import { setupSPANavigationObserver } from "../automation/spa-observer";
+import { StorageService } from "../../background/services/storage";
 
 /**
  * Componente visual discreto que indica o status da coleta em tempo real.
@@ -87,17 +88,7 @@ import { setupSPANavigationObserver } from "../automation/spa-observer";
     clearButton.addEventListener("click", async (event) => {
       event.stopPropagation();
       if (!globalThis.confirm("Deseja realmente limpar todos os dados capturados?")) return;
-      const result = await chrome.storage.local.get("sigessSettings");
-      const settings = result.sigessSettings || {};
-      await chrome.storage.local.set({
-        sigessSettings: {
-          ...settings,
-          pessoaData: {},
-          pessoaData_raw: {},
-          pessoaData_snapshots: {},
-          pessoaData_sensitive: {},
-        },
-      });
+      await StorageService.clearCapturedPessoaData();
     });
     root.appendChild(clearButton);
     document.body.appendChild(root);

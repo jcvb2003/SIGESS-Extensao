@@ -5,9 +5,10 @@ import { Trash2, CheckCircle2, CircleDashed, User, Database } from "lucide-react
 interface AutoRegistrationPanelProps {
   settings: AppSettings;
   onUpdate: (s: Partial<AppSettings>) => void;
+  onClear: () => Promise<void>;
 }
 
-const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings, onUpdate }) => {
+const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings, onUpdate, onClear }) => {
   const data = settings.pessoaData || {};
   const fontes = data.fontes || {};
 
@@ -32,14 +33,9 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
     { id: "receita", label: "Receita Federal" },
   ];
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (confirm("Deseja realmente limpar todos os dados capturados?")) {
-      onUpdate({
-        pessoaData: {} as any,
-        pessoaData_raw: {},
-        pessoaData_snapshots: {},
-        pessoaData_sensitive: {}
-      });
+      await onClear();
     }
   };
 

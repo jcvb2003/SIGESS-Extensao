@@ -177,7 +177,7 @@ const AppContent: React.FC = () => {
     verified: licenseVerified,
     activate,
   } = useLicense();
-  const { settings, loading: settingsLoading, updateSettings } = useSettings();
+  const { settings, loading: settingsLoading, updateSettings, clearCapturedPessoaData } = useSettings();
   const { showToast } = useToast();
 
   const handleActivate = async (key: string, deviceName: string) => {
@@ -323,7 +323,11 @@ const AppContent: React.FC = () => {
               }`}
           >
             <div className="section-content">
-              <AutoRegistrationPanel settings={settings} onUpdate={updateSettings} />
+              <AutoRegistrationPanel
+                settings={settings}
+                onUpdate={updateSettings}
+                onClear={clearCapturedPessoaData}
+              />
             </div>
           </div>
         </section>

@@ -87,6 +87,29 @@ export class StorageService {
     await this.set({ sigessSettings: normalizeReapSettings(settings) });
   }
 
+  /** Remove todos os dados de pessoa coletados, preservando apenas configurações operacionais. */
+  static async clearCapturedPessoaData(): Promise<AppSettings> {
+    const settings = await this.getSettings();
+    const clearedSettings: AppSettings = {
+      ...settings,
+      pessoaData: {} as PessoaData,
+      pessoaData_raw: {},
+      pessoaData_projections: {},
+      pessoaData_snapshots: {},
+      pessoaData_sensitive: {},
+    };
+    await this.saveSettings(clearedSettings);
+
+    const sessionResult = await this.get<CadastroSession>(this.CADASTRO_SESSION_KEY);
+    const session = sessionResult[this.CADASTRO_SESSION_KEY];
+    if (session?.mergeRequest) {
+      delete session.mergeRequest;
+      await this.set({ [this.CADASTRO_SESSION_KEY]: session });
+    }
+
+    return clearedSettings;
+  }
+
   static async saveCadastroSenhaGovInss(senhaGovInss: string): Promise<void> {
     const settings = await this.getSettings();
     await this.saveSettings({

@@ -44,6 +44,7 @@ interface UseSettingsReturn {
   settings: AppSettings;
   loading: boolean;
   updateSettings: (newSettings: Partial<AppSettings>) => Promise<void>;
+  clearCapturedPessoaData: () => Promise<void>;
   resetSettings: () => Promise<void>;
 }
 
@@ -76,6 +77,11 @@ export const useSettings = (): UseSettingsReturn => {
     await StorageService.saveSettings(normalizedDefaults);
   }, []);
 
+  const clearCapturedPessoaData = useCallback(async () => {
+    const cleared = await StorageService.clearCapturedPessoaData();
+    setSettings(normalizeReapSettings(cleared));
+  }, []);
+
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
@@ -84,6 +90,7 @@ export const useSettings = (): UseSettingsReturn => {
     settings,
     loading,
     updateSettings,
+    clearCapturedPessoaData,
     resetSettings,
   };
 };
