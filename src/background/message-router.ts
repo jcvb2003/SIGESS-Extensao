@@ -31,6 +31,11 @@ import {
   cancelCadastroAutomatico,
   iniciarCadastroAutomatico,
 } from "./cadastro/cadastro-session-lifecycle";
+import {
+  canSubmitCadastroTse,
+  navigateAuthenticatedCadastroInss,
+  reportGovBrContactConfirmation,
+} from "./cadastro/cadastro-interaction-handler";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -123,11 +128,11 @@ export async function routeMessage(
       case "REPORT_CADASTRO_PORTAL_OUTCOME":
         return await handleCadastroPortalOutcome(message, getTabManager, sender);
       case "canSubmitCadastroTse":
-        return await handleCanSubmitCadastroTse(sender);
+        return await canSubmitCadastroTse(sender);
       case "govBrContactConfirmationDetected":
-        return await handleGovBrContactConfirmationDetected(sender);
+        return await reportGovBrContactConfirmation(sender);
       case "inssAuthenticated":
-        return await handleCadastroInssAuthenticated(sender);
+        return await navigateAuthenticatedCadastroInss(sender);
       case "downloadESocialGuide":
         return await handleDownloadESocialGuide(message);
       case "checkReloginEligible":
@@ -736,80 +741,6 @@ async function handleCadastroPortalOutcome(
   await evaluateTseRequirement(session, getTabManager);
   await finalizeIfReady(session, getTabManager);
   return { success: true };
-}
-
-/** O clique automático no TSE é permitido somente na aba criada para a sessão. */
-async function handleCanSubmitCadastroTse(
-  sender?: browser.runtime.MessageSender,
-): Promise<MessageResponse> {
-  const session = await getActiveSession();
-  if (!session || !isRegisteredCadastroPortalSender(session, "tse", sender)) {
-    return { success: true, allowed: false };
-  }
-
-  const tabId = sender?.tab?.id;
-  const creds = typeof tabId === "number" ? await StorageService.getCredentials(tabId) : null;
-  const allowed = Boolean(
-    creds?.isCadastroAutomatico &&
-    creds.portalType === "tse" &&
-    creds.cadastroSessionId === session.sessionId &&
-    sender?.tab?.url?.includes("www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral"),
-  );
-  return { success: true, allowed };
-}
-
-async function handleGovBrContactConfirmationDetected(
-  sender?: browser.runtime.MessageSender,
-): Promise<MessageResponse> {
-  const tabId = sender?.tab?.id;
-  if (typeof tabId !== "number") return { success: true, interactionUpdated: false };
-
-  const creds = await StorageService.getCredentials(tabId);
-  if (!creds?.isCadastroAutomatico || !creds.cadastroSessionId) {
-    return { success: true, interactionUpdated: false };
-  }
-
-  await StorageService.updateCadastroInteraction(creds.cadastroSessionId, {
-    type: "govbr_contact_confirmation",
-    message: "Confirmação de contato necessária. Aguardando atualização...",
-    tabId,
-  });
-  return { success: true, interactionUpdated: true };
-}
-
-async function handleCadastroInssAuthenticated(
-  sender?: browser.runtime.MessageSender,
-): Promise<MessageResponse> {
-  const tabId = sender?.tab?.id;
-  if (typeof tabId !== "number") return { success: true, navigated: false };
-
-  const session = await getActiveSession();
-  const credentials = await StorageService.getCredentials(tabId);
-  if (
-    !session ||
-    session.portais.inss?.tabId !== tabId ||
-    !credentials?.isCadastroAutomatico ||
-    credentials.portalType !== "inss" ||
-    credentials.cadastroSessionId !== session.sessionId
-  ) {
-    return { success: true, navigated: false };
-  }
-
-  const tab = await browser.tabs.get(tabId);
-  if (!tab.url?.includes("meu.inss.gov.br") || tab.url.includes("dados-cadastrais")) {
-    return { success: true, navigated: false };
-  }
-
-  await StorageService.updateCredentials(tabId, {
-    loginConcluido: true,
-    status: "redirecionando",
-    statusTitle: "Login concluído",
-    statusDescription: "Acessando dados cadastrais do Meu INSS...",
-  });
-  await browser.tabs.update(tabId, {
-    url: "https://meu.inss.gov.br/#/dados-cadastrais?tk-categoria=Por%20Menu",
-  });
-  return { success: true, navigated: true };
 }
 
 function isRegisteredCadastroPortalSender(
