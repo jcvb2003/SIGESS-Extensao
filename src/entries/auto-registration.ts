@@ -14,6 +14,7 @@ import { resolveTseQueryProfile } from "../modules/automation/cadastro/tse-query
 import { updateAssistantStatus, removeAssistantUI } from "../modules/automation/assistant-ui";
 import { setupSPANavigationObserver } from "../modules/automation/spa-observer";
 import { reportCadastroPortalOutcome } from "../modules/automation/cadastro/portal-outcome-reporter";
+import { saveCapturedPessoaData as saveData } from "../modules/automation/cadastro/capture-data-reporter";
 
 declare var browser: any;
 declare var chrome: any;
@@ -575,27 +576,6 @@ async function initMain() {
   }
 
   // ── Persistência ─────────────────────────────────────────────────────────
-
-  function saveData(
-    data: Partial<import("../shared/types").PessoaData>,
-    fonte: string,
-    snapshot?: unknown,
-  ) {
-    console.log(`SIGESS: Dados extraídos de ${fonte}`, data);
-    const api = (globalThis.browser || globalThis.chrome) as any;
-    
-    if (api?.runtime?.sendMessage) {
-      api.runtime.sendMessage({
-        action: "SAVE_PESSOA_DATA",
-        data,
-        fonte,
-        snapshot,
-      });
-    }
-
-    // Disparamos o evento local de atualização
-    globalThis.dispatchEvent(new CustomEvent('SIGESS_DATA_UPDATED'));
-  }
 
   // ── Reatividade (storage.onChanged) ──────────────────────────────────────
 
