@@ -114,8 +114,6 @@ async function initMain() {
     ) {
       console.warn('[SIGESS] CadÚnico: successLogin sem token. Redirecionando para #/home.');
       globalThis.location.replace('https://cadunico.dataprev.gov.br/#/home');
-      return;
-
     }
 
     const [settingsResult, cadastroResult] = await Promise.all([

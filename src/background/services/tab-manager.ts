@@ -231,6 +231,18 @@ export class TabManager {
 
     if (strategy) {
       await this.executeWithRetry(tabId, tab.url, credentials, strategy);
+
+      // O e-CAC pode concluir o login já na página autenticada, sem gerar outro
+      // evento de navegação. Rele as credenciais para usar o mesmo pós-login.
+      const updatedCredentials = await StorageService.getCredentials(tabId);
+      if (
+        changeInfo.status === "complete" &&
+        updatedCredentials?.isCadastroAutomatico &&
+        updatedCredentials.loginConcluido &&
+        updatedCredentials.portalType === "ecac"
+      ) {
+        await this.handleCadastroPostLoginNav(tabId, tab.url, updatedCredentials);
+      }
     }
   }
 
