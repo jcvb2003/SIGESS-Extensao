@@ -19,6 +19,7 @@ const UPDATE_ALLOWED_ACTIONS = new Set([
   "getGovBatchStatuses",
   "getESocialAutomationSettings",
   "getAutoRegistrationSnapshot",
+  "getCadastroAutomaticoSession",
 ]);
 
 function formatCpf(cpf: string): string {
@@ -91,6 +92,8 @@ export async function routeMessage(
         return await handleGetESocialAutomationContext(sender);
       case "getAutoRegistrationSnapshot":
         return await handleGetAutoRegistrationSnapshot();
+      case "getCadastroAutomaticoSession":
+        return await handleGetCadastroAutomaticoSession();
       case "updateGovBatchStatus":
         return await handleUpdateGovBatchStatus(message, sender);
       case "turboFillReap":
@@ -806,6 +809,11 @@ async function handleIniciarCadastroAutomatico(
     await StorageService.remove(CADASTRO_SESSION_KEY);
     return { success: false, error: error.message };
   }
+}
+
+async function handleGetCadastroAutomaticoSession(): Promise<MessageResponse> {
+  const result = await StorageService.get<CadastroSession>(CADASTRO_SESSION_KEY);
+  return { success: true, data: result[CADASTRO_SESSION_KEY] ?? null };
 }
 
 async function handleGovBrTwoFactorDetected(sender?: browser.runtime.MessageSender): Promise<MessageResponse> {
