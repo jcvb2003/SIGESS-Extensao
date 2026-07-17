@@ -12,7 +12,6 @@ import {
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
 import { resolveTseQueryProfile } from "../modules/automation/cadastro/tse-query-profile";
-import { resolveCadastroPortalBySource } from "../modules/automation/cadastro/portal-registry";
 import { isCadastroPortalTerminal } from "../modules/automation/cadastro/session-status";
 import {
   getActiveCadastroSession,
@@ -23,6 +22,12 @@ import {
   createCadastroPortalTab,
   getCadastroLaunchCredentials,
 } from "./cadastro/cadastro-portal-launcher";
+import {
+  applyCadastroPortalOutcome,
+  isCadastroSessionReadyToFinalize,
+  getCadastroPortalForDataSource,
+  type CadastroReportedOutcome,
+} from "./cadastro/cadastro-session-controller";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -697,10 +702,6 @@ function enqueueCadastroDataArrival(
     .catch(() => {});
 }
 
-function fonteToPortal(fonte: string): keyof CadastroSession["portais"] | null {
-  return resolveCadastroPortalBySource(fonte);
-}
-
 const getActiveSession = getActiveCadastroSession;
 const saveSession = saveCadastroSession;
 
@@ -815,7 +816,7 @@ async function handleCadastroPortalOutcome(
   sender?: browser.runtime.MessageSender,
 ): Promise<MessageResponse> {
   const portalKey = message.portal as keyof CadastroSession["portais"] | undefined;
-  const outcome = message.outcome as "not_found" | "unavailable" | "failed" | undefined;
+  const outcome = message.outcome as CadastroReportedOutcome | undefined;
   if (!portalKey || !outcome) {
     return { success: false, error: "Resultado do portal inválido." };
   }
@@ -827,13 +828,7 @@ async function handleCadastroPortalOutcome(
     return { success: false, error: "aba_do_portal_nao_autorizada" };
   }
 
-  portal.status = outcome === "not_found"
-    ? "nao_encontrado"
-    : outcome === "unavailable"
-      ? "indisponivel"
-      : "erro";
-  portal.evidence = String(message.reason || outcome);
-  portal.updatedAt = Date.now();
+  applyCadastroPortalOutcome(session, portalKey, outcome, String(message.reason || outcome));
   await saveSession(session);
 
   if (portalKey === "cadunico" && outcome === "not_found") {
@@ -1019,10 +1014,7 @@ async function evaluateTseRequirement(session: CadastroSession, getTabManager?: 
 }
 
 async function finalizeIfReady(session: CadastroSession, getTabManager?: () => any): Promise<void> {
-  const expected: (keyof CadastroSession["portais"])[] = ["cadunico", "pesqbrasil", "ecac"];
-  if (session.portais.inss) expected.push("inss");
-  if (session.portais.tse) expected.push("tse");
-  if (expected.every((key) => isCadastroPortalTerminal(session.portais[key]))) {
+  if (isCadastroSessionReadyToFinalize(session)) {
     await finalizeCadastroSession(session, getTabManager);
   }
 }
@@ -1035,7 +1027,7 @@ async function handleCadastroDataArrival(
   const session = await getActiveSession();
   if (!session) return;
 
-  const portalKey = fonteToPortal(fonte);
+  const portalKey = getCadastroPortalForDataSource(session, fonte);
   if (!portalKey) return;
 
   const portal = session.portais[portalKey];
