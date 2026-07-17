@@ -269,6 +269,16 @@ export class PesqBrasilStrategy extends BaseAuthStrategy {
     if (tabUrl.includes("sso.acesso.gov.br/login")) {
       await this.handleGovBrLogin(tabId, credentials);
     }
+
+    // O Meu INSS pode concluir o retorno do Gov.br sem outro evento de navegação.
+    // A rota fora de #/login já é a área autenticada do portal.
+    if (
+      tabUrl.includes("meu.inss.gov.br") &&
+      !tabUrl.includes("#/login") &&
+      !tabUrl.includes("sso.acesso.gov.br")
+    ) {
+      await this.markLoginComplete(tabId);
+    }
   }
 }
 

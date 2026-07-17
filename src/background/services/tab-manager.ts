@@ -239,7 +239,7 @@ export class TabManager {
         changeInfo.status === "complete" &&
         updatedCredentials?.isCadastroAutomatico &&
         updatedCredentials.loginConcluido &&
-        updatedCredentials.portalType === "ecac"
+        ["ecac", "inss"].includes(updatedCredentials.portalType || "")
       ) {
         await this.handleCadastroPostLoginNav(tabId, tab.url, updatedCredentials);
       }
@@ -283,12 +283,7 @@ export class TabManager {
         const tab = await browser.tabs.get(tabId);
         if (!tab.url) continue;
 
-        if (credentials.loginConcluido) {
-          if (credentials.isCadastroAutomatico && tab.status === "complete") {
-            await this.handleCadastroPostLoginNav(tabId, tab.url, credentials);
-          }
-          continue;
-        }
+        if (credentials.loginConcluido) continue;
 
         if ((tab as browser.tabs.Tab & { discarded?: boolean }).discarded) {
           await StorageService.updateBatchStatus(
