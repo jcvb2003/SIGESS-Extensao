@@ -1,23 +1,19 @@
-import { parsePesqBrasilRSC } from "../modules/automation/pesqbrasil/extractor";
-import { parseCaepfData } from "../modules/automation/caepf/extractor";
 import { scrapeEcacCpfData, scrapeEcacCaepfTable } from "../modules/automation/ecac/extractor";
-import { parseCadUnicoToken } from "../modules/automation/cadunico/extractor";
-import { processCadUnicoAdvancedCollection } from "../modules/automation/cadunico/portal";
 import { recoverCadUnicoIncompleteSuccessLogin } from "../modules/automation/cadunico/navigation";
-import { parseTseData } from "../modules/automation/tse/extractor";
 import {
   fillTseAuthForm,
   resetTseFillGuard,
   validateTseResultRoute,
 } from "../modules/automation/tse/form-filler-tse";
-import { parseInssData } from "../modules/automation/inss/extractor";
 import { resolveTseQueryProfile } from "../modules/automation/cadastro/tse-query-profile";
 import { updateAssistantStatus, removeAssistantUI } from "../modules/automation/assistant-ui";
-import { setupSPANavigationObserver } from "../modules/automation/spa-observer";
-import { reportCadastroPortalOutcome } from "../modules/automation/cadastro/portal-outcome-reporter";
 import { saveCapturedPessoaData as saveData } from "../modules/automation/cadastro/capture-data-reporter";
 import { resolvePortalBridge } from "../modules/automation/cadastro/portal-bridges";
 import { BridgeInjector } from "../modules/automation/cadastro/bridge-injector";
+import { routePortalBridgeMessage } from "../modules/automation/cadastro/portal-data-router";
+import { setupRegistrationNavigation } from "../modules/automation/cadastro/registration-navigation";
+import { loadRegistrationRuntimeState, observeRegistrationStorage } from "../modules/automation/cadastro/registration-state";
+import { injectGovBrReloginButton } from "../modules/automation/cadastro/govbr-relogin";
 
 declare var browser: any;
 declare var chrome: any;
@@ -50,67 +46,6 @@ async function initMain() {
 
   // ── Inicialização ────────────────────────────────────────────────────────
 
-  async function injectGovBrReloginButton() {
-    if (document.readyState === "loading") {
-      await new Promise<void>((resolve) =>
-        document.addEventListener("DOMContentLoaded", () => resolve(), { once: true }),
-      );
-    }
-
-    const api = globalThis.browser || globalThis.chrome;
-    let observer: MutationObserver | null = null;
-    let inserting = false;
-
-    const tryInsert = async (): Promise<boolean> => {
-      if (inserting || document.querySelector("#sigess-relogin-btn")) return true;
-      const accountId = document.querySelector("#accountId");
-      const target = document.querySelector("#enter-account-id");
-      if (!accountId || !target) return false;
-
-      inserting = true;
-      const response = await api.runtime.sendMessage({ action: "checkReloginEligible" }).catch(() => null);
-      inserting = false;
-      if (!response?.eligible) return false;
-      if (document.querySelector("#sigess-relogin-btn")) return true;
-
-      const btn = document.createElement("button");
-      btn.id = "sigess-relogin-btn";
-      btn.type = "button";
-      btn.textContent = "Relogin SIGESS";
-      btn.style.cssText = [
-      "margin-left:8px",
-      "padding:0 16px",
-      "height:40px",
-      "border-radius:4px",
-      "border:2px solid #1351b4",
-      "background:#fff",
-      "color:#1351b4",
-      "font-size:14px",
-      "font-weight:600",
-      "cursor:pointer",
-      "vertical-align:middle",
-      ].join(";");
-
-      btn.addEventListener("click", async () => {
-        btn.disabled = true;
-        btn.textContent = "Preenchendo...";
-        btn.style.opacity = "0.6";
-        await api.runtime.sendMessage({ action: "triggerRelogin" }).catch(() => null);
-      });
-
-      target.insertAdjacentElement("afterend", btn);
-      return true;
-    };
-
-    if (await tryInsert()) return;
-    observer = new MutationObserver(() => {
-      void tryInsert().then((inserted) => {
-        if (inserted) observer?.disconnect();
-      });
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-  }
-
   async function startAutomation() {
     if (globalThis.location.hostname === "sso.acesso.gov.br") {
       await injectGovBrReloginButton();
@@ -121,57 +56,33 @@ async function initMain() {
       console.warn('[SIGESS] CadÚnico: successLogin sem token. Redirecionando para #/home.');
     }
 
-    const [settingsResult, cadastroResult] = await Promise.all([
-      (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings"),
-      (globalThis.browser || globalThis.chrome).storage.local.get("sigessActiveCadastro"),
-    ]);
-    const settings = settingsResult.sigessSettings || {};
-    const activeCadastro = cadastroResult.sigessActiveCadastro;
-    _autoEnabled = !!settings.autoRegistrationEnabled || activeCadastro?.sessionState === "active";
-    _cadastroSessionActive = activeCadastro?.sessionState === "active";
+    const runtimeState = await loadRegistrationRuntimeState();
+    const settings = runtimeState.settings;
+    _autoEnabled = runtimeState.autoEnabled;
+    _cadastroSessionActive = runtimeState.cadastroSessionActive;
 
     // SEMPRE registra listeners de bridge, mesmo se desativado (para poder ativar em tempo real)
-    globalThis.addEventListener("message", handleBridgeMessages);
+    globalThis.addEventListener("message", (event) => routePortalBridgeMessage(event, _autoEnabled));
 
     if (_autoEnabled) {
       initEnabledFeatures(settings);
     }
 
     // Reage a mudanças de URL (incluindo back button)
-    const handleTseNavigation = () => {
-      if (globalThis.location.hostname === "www.tse.jus.br") {
-        validateTseResultRoute(globalThis.location.href);
-      }
-      resetTseFillGuard();
-    };
-    globalThis.addEventListener('popstate', handleTseNavigation);
-    globalThis.addEventListener('hashchange', handleTseNavigation);
-
-    let _lastUrl = globalThis.location.href;
-
-    // Monitor sempre ativo para reagir a mudanças no popup e navegação SPA
-    setupSPANavigationObserver(() => {
-      updateAssistantStatus();
-
-      const currentUrl = globalThis.location.href;
-      if (currentUrl === _lastUrl) return; // DOM mutou mas URL não mudou — ignorar excesso
-      _lastUrl = currentUrl;
-
-      if (globalThis.location.hostname === "sso.acesso.gov.br") {
-        void injectGovBrReloginButton();
-      }
-
-      if (globalThis.location.hostname === "www.tse.jus.br") {
-        validateTseResultRoute(currentUrl);
-      }
-
-      if (_autoEnabled) {
-        (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings").then(res => {
-          // Se a URL mudou de fato, permitimos um novo preenchimento do TSE e re-checamos bridges
+    setupRegistrationNavigation({
+      onAnyMutation: updateAssistantStatus,
+      onHistoryNavigation: resetTseFillGuard,
+      onTseNavigation: (url) => {
+        validateTseResultRoute(url);
+      },
+      onUrlChanged: () => {
+        if (globalThis.location.hostname === "sso.acesso.gov.br") void injectGovBrReloginButton();
+        if (!_autoEnabled) return;
+        (globalThis.browser || globalThis.chrome).storage.local.get("sigessSettings").then((res: any) => {
           resetTseFillGuard();
           initEnabledFeatures(res.sigessSettings || {});
         });
-      }
+      },
     });
   }
 
@@ -480,52 +391,6 @@ async function initMain() {
 
   // ── Mensagens da Bridge ──────────────────────────────────────────────────
 
-  function handleBridgeMessages(event: MessageEvent) {
-    if (event.origin !== globalThis.location.origin) return;
-
-    const { type, payload } = event.data || {};
-    if (type?.startsWith("SIGESS_")) {
-      processIncomingData(type, payload);
-    }
-  }
-
-  function processIncomingData(type: string, payload: unknown) {
-    if (!_autoEnabled) return;
-
-    console.log(`SIGESS: Mensagem recebida da página -> ${type}`);
-
-    if (type === "SIGESS_PESQBRASIL_RAW_DATA") {
-      const extractedData = parsePesqBrasilRSC(payload as string);
-      if (extractedData) saveData(extractedData, "pesqbrasil");
-    } else if (type === "SIGESS_CAEPF_RAW_DATA") {
-      const extractedData = parseCaepfData(payload);
-      if (extractedData) saveData(extractedData, "ecac_caepf", payload);
-    } else if (type === "SIGESS_CADUNICO_RAW_TOKEN") {
-      const extractedData = parseCadUnicoToken(payload as string);
-      if (extractedData) saveData(extractedData, "cadunico");
-    } else if (type === "SIGESS_CADUNICO_ADV_TOKENS") {
-      const advPayload = payload as {
-        cpf: string;
-        bearer: string;
-        xsrf: string;
-        cnas: string;
-        profile?: { identificador: number; numeroFamiliar: number } | null;
-        profileNotFound?: boolean;
-      };
-      void processCadUnicoAdvancedCollection(
-        advPayload,
-        saveData,
-        (outcome, reason) => reportCadastroPortalOutcome("cadunico", outcome, reason),
-      );
-    } else if (type === "SIGESS_TSE_RAW_DATA") {
-      const extractedData = parseTseData(payload);
-      if (extractedData) saveData(extractedData, "tse", payload);
-    } else if (type === "SIGESS_INSS_RAW_DATA") {
-      const extractedData = parseInssData(payload);
-      if (extractedData) saveData(extractedData, "inss", payload);
-    }
-  }
-
   /** O estado global da sessão não basta: a aba atual precisa ser a TSE criada por ela. */
   async function canSubmitCadastroTse(): Promise<boolean> {
     const api = globalThis.browser || globalThis.chrome;
@@ -553,7 +418,7 @@ async function initMain() {
 
   // ── Reatividade (storage.onChanged) ──────────────────────────────────────
 
-  (globalThis.browser || globalThis.chrome).storage.onChanged.addListener((changes: any) => {
+  observeRegistrationStorage((changes: any) => {
     if (changes.sigessSettings) {
       const newVal = changes.sigessSettings.newValue || {};
       const oldVal = changes.sigessSettings.oldValue || {};
