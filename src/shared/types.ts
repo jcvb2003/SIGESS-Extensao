@@ -29,7 +29,7 @@ export interface CadastroSession {
   mergeRequest?: { raw: Record<string, Partial<PessoaData>> };
   errorMessage?: string;
   interactionRequired?: {
-    type: "govbr_2fa";
+    type: "govbr_2fa" | "govbr_contact_confirmation";
     message: string;
     tabId?: number;
   };

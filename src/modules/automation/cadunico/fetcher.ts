@@ -28,11 +28,15 @@ export async function fetchCadUnicoAdvanced(
   };
 
   try {
-    const perfil = await fetchPerfil(cpf, headers);
-    if (!perfil) {
+    const perfilResult = await fetchPerfil(cpf, headers);
+    if (perfilResult.kind === "not_found") {
       console.warn("SIGESS: Perfil não encontrado para CPF " + cpf);
       return { kind: "not_found", reason: "perfil_nao_localizado" };
     }
+    if (perfilResult.kind === "failed") {
+      return perfilResult;
+    }
+    const perfil = perfilResult.data;
 
     const [details, family, address] = await Promise.all([
       fetchDetails(perfil.identificador, cpf, headers),
@@ -76,7 +80,12 @@ interface PerfilResult {
 
 // ── Funções internas de fetch ────────────────────────────────────────────
 
-async function fetchPerfil(cpf: string, headers: CadUnicoHeaders): Promise<PerfilResult | null> {
+type PerfilFetchResult =
+  | { kind: "collected"; data: PerfilResult }
+  | { kind: "not_found" }
+  | { kind: "failed"; reason: string };
+
+async function fetchPerfil(cpf: string, headers: CadUnicoHeaders): Promise<PerfilFetchResult> {
   const res = await fetch(
     `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/pessoa/${cpf}/tipos-perfil`,
     { headers }
@@ -84,14 +93,20 @@ async function fetchPerfil(cpf: string, headers: CadUnicoHeaders): Promise<Perfi
   if (!res.ok) throw new Error(`Erro Perfil (HTTP ${res.status}): ${res.url}`);
 
   const text = await res.text();
-  if (!text) return null;
+  if (!text.trim()) return { kind: "failed", reason: "perfil_resposta_vazia" };
 
   try {
     const data = JSON.parse(text);
-    return Array.isArray(data) && data.length > 0 ? data[0] : null;
-  } catch (e) {
-    console.error("SIGESS: Erro ao parsear Perfil", e);
-    return null;
+    if (!Array.isArray(data)) return { kind: "failed", reason: "perfil_formato_inesperado" };
+    if (data.length === 0) return { kind: "not_found" };
+
+    const perfil = data[0] as Partial<PerfilResult>;
+    if (typeof perfil.identificador !== "number" || typeof perfil.numeroFamiliar !== "number") {
+      return { kind: "failed", reason: "perfil_sem_identificadores" };
+    }
+    return { kind: "collected", data: perfil as PerfilResult };
+  } catch {
+    return { kind: "failed", reason: "perfil_json_invalido" };
   }
 }
 
@@ -100,19 +115,22 @@ async function fetchDetails(pessoaId: number, cpf: string, headers: CadUnicoHead
     `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/pessoa/${pessoaId}/informacoes-detalhadas`,
     { headers }
   );
-  if (!res.ok) return {};
+  if (!res.ok) throw new Error(`Erro Detalhes (HTTP ${res.status}): ${res.url}`);
 
   const text = await res.text();
-  if (!text) return {};
+  if (!text.trim()) throw new Error("detalhes_resposta_vazia");
 
   let detalhes;
   try {
     detalhes = JSON.parse(text);
   } catch {
-    return {};
+    throw new Error("detalhes_json_invalido");
   }
 
   const c = detalhes.pessoaDadosCadastroDTO || {};
+  if (!c || typeof c !== "object" || Object.keys(c).length === 0) {
+    throw new Error("detalhes_formato_inesperado");
+  }
   const esc = detalhes.pessoaEscolaridadeDTO || {};
   const rgRaw = String(c.numeroIdentidade || '');
   const rgClean = rgRaw.replace(/^0+/, '') || undefined;

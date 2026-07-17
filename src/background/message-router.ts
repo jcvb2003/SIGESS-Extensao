@@ -102,7 +102,11 @@ export async function routeMessage(
       case "SAVE_PESSOA_DATA":
         return await handleSavePessoaData(message, getTabManager, sender);
       case "REPORT_CADASTRO_PORTAL_OUTCOME":
-        return await handleCadastroPortalOutcome(message, getTabManager);
+        return await handleCadastroPortalOutcome(message, getTabManager, sender);
+      case "canSubmitCadastroTse":
+        return await handleCanSubmitCadastroTse(sender);
+      case "govBrContactConfirmationDetected":
+        return await handleGovBrContactConfirmationDetected(sender);
       case "downloadESocialGuide":
         return await handleDownloadESocialGuide(message);
       case "checkReloginEligible":
@@ -809,6 +813,7 @@ async function handleIniciarCadastroAutomatico(
 async function handleCadastroPortalOutcome(
   message: MessageRequest,
   getTabManager: () => any,
+  sender?: browser.runtime.MessageSender,
 ): Promise<MessageResponse> {
   const portalKey = message.portal as keyof CadastroSession["portais"] | undefined;
   const outcome = message.outcome as "not_found" | "unavailable" | "failed" | undefined;
@@ -819,6 +824,9 @@ async function handleCadastroPortalOutcome(
   const session = await getActiveSession();
   const portal = session?.portais[portalKey];
   if (!session || !portal) return { success: true };
+  if (!isRegisteredCadastroPortalSender(session, portalKey, sender)) {
+    return { success: false, error: "aba_do_portal_nao_autorizada" };
+  }
 
   portal.status = outcome === "not_found"
     ? "nao_encontrado"
@@ -836,6 +844,54 @@ async function handleCadastroPortalOutcome(
   await evaluateTseRequirement(session, getTabManager);
   await finalizeIfReady(session, getTabManager);
   return { success: true };
+}
+
+/** O clique automático no TSE é permitido somente na aba criada para a sessão. */
+async function handleCanSubmitCadastroTse(
+  sender?: browser.runtime.MessageSender,
+): Promise<MessageResponse> {
+  const session = await getActiveSession();
+  if (!session || !isRegisteredCadastroPortalSender(session, "tse", sender)) {
+    return { success: true, allowed: false };
+  }
+
+  const tabId = sender?.tab?.id;
+  const creds = typeof tabId === "number" ? await StorageService.getCredentials(tabId) : null;
+  const allowed = Boolean(
+    creds?.isCadastroAutomatico &&
+    creds.portalType === "tse" &&
+    creds.cadastroSessionId === session.sessionId &&
+    sender?.tab?.url?.includes("www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral"),
+  );
+  return { success: true, allowed };
+}
+
+async function handleGovBrContactConfirmationDetected(
+  sender?: browser.runtime.MessageSender,
+): Promise<MessageResponse> {
+  const tabId = sender?.tab?.id;
+  if (typeof tabId !== "number") return { success: true, interactionUpdated: false };
+
+  const creds = await StorageService.getCredentials(tabId);
+  if (!creds?.isCadastroAutomatico || !creds.cadastroSessionId) {
+    return { success: true, interactionUpdated: false };
+  }
+
+  await StorageService.updateCadastroInteraction(creds.cadastroSessionId, {
+    type: "govbr_contact_confirmation",
+    message: "Confirmação de contato necessária. Aguardando atualização...",
+    tabId,
+  });
+  return { success: true, interactionUpdated: true };
+}
+
+function isRegisteredCadastroPortalSender(
+  session: CadastroSession,
+  portal: keyof CadastroSession["portais"],
+  sender?: browser.runtime.MessageSender,
+): boolean {
+  const tabId = sender?.tab?.id;
+  return typeof tabId === "number" && session.portais[portal]?.tabId === tabId;
 }
 
 async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {

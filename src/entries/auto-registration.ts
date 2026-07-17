@@ -363,6 +363,22 @@ async function initMain() {
       host === "sso.acesso.gov.br" &&
       globalThis.location.pathname === "/authorize"
     ) {
+      let contactConfirmationReported = false;
+      const reportContactConfirmation = () => {
+        if (contactConfirmationReported || !document.querySelector("#contact-validation")) return false;
+        contactConfirmationReported = true;
+        void (globalThis.browser || globalThis.chrome).runtime.sendMessage({
+          action: "govBrContactConfirmationDetected",
+        });
+        return true;
+      };
+      if (!reportContactConfirmation()) {
+        const contactObserver = new MutationObserver(() => {
+          if (reportContactConfirmation()) contactObserver.disconnect();
+        });
+        contactObserver.observe(document.documentElement, { childList: true, subtree: true });
+      }
+
       const clickAuthorize = () => {
         const btn = document.querySelector<HTMLButtonElement>('button[name="user_oauth_approval"][value="true"]');
         if (btn) { btn.click(); return true; }
@@ -385,7 +401,11 @@ async function initMain() {
     ) {
       const profile = resolveTseQueryProfile(settings);
       if (_cadastroSessionActive) {
-        if (profile.isSufficient) fillTseAuthForm(profile);
+        if (profile.isSufficient) {
+          void canSubmitCadastroTse().then((submit) => {
+            fillTseAuthForm(profile, { submit });
+          });
+        }
       } else if (profile.cpf || profile.dataDeNascimento || profile.mae || profile.pai) {
         fillTseAuthForm(profile, { submit: false });
       }
@@ -432,6 +452,17 @@ async function initMain() {
     } else if (type === "SIGESS_INSS_RAW_DATA") {
       const extractedData = parseInssData(payload);
       if (extractedData) saveData(extractedData, "inss", payload);
+    }
+  }
+
+  /** O estado global da sessão não basta: a aba atual precisa ser a TSE criada por ela. */
+  async function canSubmitCadastroTse(): Promise<boolean> {
+    const api = globalThis.browser || globalThis.chrome;
+    try {
+      const response = await api.runtime.sendMessage({ action: "canSubmitCadastroTse" });
+      return response?.allowed === true;
+    } catch {
+      return false;
     }
   }
 

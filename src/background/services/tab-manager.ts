@@ -446,6 +446,10 @@ export class TabManager {
     const session: CadastroSession | undefined = (result as any)[key];
     if (!session || session.sessionState !== "active") return;
 
+    // Interações humanas do GOV.BR (2FA ou confirmação de contato) terminam
+    // somente quando a mesma aba retorna ao portal autenticado.
+    await StorageService.updateCadastroInteraction(creds.cadastroSessionId, undefined, tabId);
+
     if (creds.portalType === "ecac") {
       const ecac = session.portais.ecac;
       // Navega para a página CAEPF se ainda não estiver lá
