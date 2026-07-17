@@ -18,7 +18,6 @@ import {
 import {
   applyCadastroPortalOutcome,
   isCadastroSessionReadyToFinalize,
-  getCadastroPortalForDataSource,
   type CadastroReportedOutcome,
 } from "./cadastro/cadastro-session-controller";
 import {
@@ -34,6 +33,7 @@ import {
   evaluateTseRequirement,
   finalizeCadastroSession,
   openCadastroInss,
+  processCadastroDataArrival,
 } from "./cadastro/cadastro-orchestrator";
 
 
@@ -701,11 +701,11 @@ let _cadastroUpdateQueue: Promise<void> = Promise.resolve();
 
 function enqueueCadastroDataArrival(
   fonte: string,
-  data: Partial<PessoaData>,
+  _data: Partial<PessoaData>,
   getTabManager?: () => any,
 ): void {
   _cadastroUpdateQueue = _cadastroUpdateQueue
-    .then(() => handleCadastroDataArrival(fonte, data, getTabManager))
+    .then(() => processCadastroDataArrival(fonte, getTabManager))
     .catch(() => {});
 }
 
@@ -755,58 +755,6 @@ async function finalizeIfReady(session: CadastroSession): Promise<void> {
   if (isCadastroSessionReadyToFinalize(session)) {
     await finalizeCadastroSession(session);
   }
-}
-
-async function handleCadastroDataArrival(
-  fonte: string,
-  _data: Partial<PessoaData>,
-  getTabManager?: () => any,
-): Promise<void> {
-  const session = await getActiveSession();
-  if (!session) return;
-
-  const portalKey = getCadastroPortalForDataSource(session, fonte);
-  if (!portalKey) return;
-
-  const portal = session.portais[portalKey];
-  if (!portal) return;
-
-  // Atualiza status do portal
-  if (fonte === "cadunico") {
-    // Primeira chegada do CadÚnico (JWT básico) — marca como coletando
-    if (portal.status === "abrindo" || portal.status === "aguardando") {
-      portal.status = "coletando";
-    }
-  } else {
-    // cadunico_adv, ecac_cpf, pesqbrasil*, tse → concluído
-    portal.status = "concluido";
-  }
-
-  await saveSession(session);
-
-  // Verificação condicional do TSE após cadunico_adv
-  // Verifica se todos os portais esperados estão concluídos/erro/timeout
-  await evaluateTseRequirement(session, getTabManager);
-
-  const cadunicoDependenciesOpened =
-    typeof session.portais.pesqbrasil.tabId === "number" &&
-    typeof session.portais.ecac.tabId === "number";
-  const canCloseCapturedTab =
-    portalKey !== "cadunico" ||
-    (cadunicoDependenciesOpened && Boolean(session.portais.tse));
-  if (
-    portal.status === "concluido" &&
-    canCloseCapturedTab &&
-    typeof portal.tabId === "number"
-  ) {
-    try {
-      await browser.tabs.remove(portal.tabId);
-    } catch {
-      // A aba pode ter sido fechada pela conclusao concorrente de outro portal.
-    }
-  }
-
-  await finalizeIfReady(session);
 }
 
 async function handleCheckReloginEligible(

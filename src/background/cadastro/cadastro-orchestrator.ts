@@ -4,6 +4,8 @@ import { StorageService } from "../services/storage";
 import { isCadastroPortalTerminal } from "../../modules/automation/cadastro/session-status";
 import { createCadastroPortalTab, getCadastroLaunchCredentials } from "./cadastro-portal-launcher";
 import { saveCadastroSession } from "./cadastro-session-store";
+import { getActiveCadastroSession } from "./cadastro-session-store";
+import { getCadastroPortalForDataSource, isCadastroSessionReadyToFinalize } from "./cadastro-session-controller";
 
 export async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
   if (session.portais.inss) return;
@@ -104,4 +106,33 @@ export async function finalizeCadastroSession(session: CadastroSession): Promise
       // O container pode já ter sido removido.
     }
   }, 2000);
+}
+
+export async function processCadastroDataArrival(
+  source: string,
+  getTabManager?: () => any,
+): Promise<void> {
+  const session = await getActiveCadastroSession();
+  if (!session) return;
+  const portalId = getCadastroPortalForDataSource(session, source);
+  const portal = portalId ? session.portais[portalId] : null;
+  if (!portalId || !portal) return;
+
+  if (source === "cadunico") {
+    if (portal.status === "abrindo" || portal.status === "aguardando") portal.status = "coletando";
+  } else {
+    portal.status = "concluido";
+  }
+  await saveCadastroSession(session);
+  await evaluateTseRequirement(session, getTabManager);
+
+  const cadunicoDependenciesOpened =
+    typeof session.portais.pesqbrasil.tabId === "number" &&
+    typeof session.portais.ecac.tabId === "number";
+  const canCloseCapturedTab = portalId !== "cadunico" ||
+    (cadunicoDependenciesOpened && Boolean(session.portais.tse));
+  if (portal.status === "concluido" && canCloseCapturedTab && typeof portal.tabId === "number") {
+    try { await browser.tabs.remove(portal.tabId); } catch { /* Aba já fechada. */ }
+  }
+  if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
 }
