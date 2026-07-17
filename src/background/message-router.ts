@@ -11,16 +11,10 @@ import {
   PessoaData,
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
-import { resolveTseQueryProfile } from "../modules/automation/cadastro/tse-query-profile";
-import { isCadastroPortalTerminal } from "../modules/automation/cadastro/session-status";
 import {
   getActiveCadastroSession,
   saveCadastroSession,
 } from "./cadastro/cadastro-session-store";
-import {
-  createCadastroPortalTab,
-  getCadastroLaunchCredentials,
-} from "./cadastro/cadastro-portal-launcher";
 import {
   applyCadastroPortalOutcome,
   isCadastroSessionReadyToFinalize,
@@ -36,6 +30,7 @@ import {
   navigateAuthenticatedCadastroInss,
   reportGovBrContactConfirmation,
 } from "./cadastro/cadastro-interaction-handler";
+import { evaluateTseRequirement, openCadastroInss } from "./cadastro/cadastro-orchestrator";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -750,96 +745,6 @@ function isRegisteredCadastroPortalSender(
 ): boolean {
   const tabId = sender?.tab?.id;
   return typeof tabId === "number" && session.portais[portal]?.tabId === tabId;
-}
-
-async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
-  if (session.portais.inss) return;
-
-  const creds = await getCadastroLaunchCredentials(session);
-  if (!creds?.cpf || !creds.senha) {
-    session.portais.inss = {
-      status: "erro",
-      evidence: "credenciais_indisponiveis",
-      updatedAt: Date.now(),
-    };
-    await saveSession(session);
-    return;
-  }
-
-  session.portais.inss = { status: "abrindo", updatedAt: Date.now() };
-  await saveSession(session);
-  const tabId = await createCadastroPortalTab(
-    session,
-    getTabManager(),
-    creds,
-    "inss",
-    "https://meu.inss.gov.br/#/login",
-  );
-  if (tabId) {
-    session.portais.inss.tabId = tabId;
-  } else {
-    session.portais.inss.status = "indisponivel";
-    session.portais.inss.evidence = "falha_ao_abrir_aba";
-  }
-  session.portais.inss.updatedAt = Date.now();
-  await saveSession(session);
-}
-
-async function evaluateTseRequirement(session: CadastroSession, getTabManager?: () => any): Promise<void> {
-  if (session.portais.tse) return;
-
-  // Uma falha técnica do CadÚnico não equivale a ausência de dados eleitorais.
-  // Nesse caso, não abre TSE nem cria uma decisão baseada em dados incompletos.
-  const cadUnicoStatus = session.portais.cadunico.status;
-  if (!["concluido", "nao_encontrado"].includes(cadUnicoStatus)) return;
-
-  const settings = await StorageService.getSettings();
-  const pessoa = settings.pessoaData || {};
-  if (pessoa.fontes?.tse?.capturado) {
-    session.portais.tse = {
-      status: "dispensado",
-      evidence: "dados_eleitorais_cadunico",
-      updatedAt: Date.now(),
-    };
-    await saveSession(session);
-    return;
-  }
-
-  const pesqBrasilStatus = session.portais.pesqbrasil.status;
-  const pesqBrasilFinalizado = ["concluido", "erro", "indisponivel"].includes(pesqBrasilStatus);
-  const inssPendente = session.portais.inss && !isCadastroPortalTerminal(session.portais.inss);
-  if (!pesqBrasilFinalizado || inssPendente) return;
-
-  const profile = resolveTseQueryProfile(settings);
-  if (!profile.isSufficient || !getTabManager) {
-    session.portais.tse = {
-      status: "erro",
-      evidence: "dados_insuficientes_para_consulta",
-      updatedAt: Date.now(),
-    };
-    await saveSession(session);
-    return;
-  }
-
-  const creds = await getCadastroLaunchCredentials(session);
-  if (!creds?.cpf || !creds.senha) return;
-
-  session.portais.tse = { status: "abrindo", updatedAt: Date.now() };
-  await saveSession(session);
-  const tabId = await createCadastroPortalTab(
-    session,
-    getTabManager(),
-    creds,
-    "tse",
-    "https://www.tse.jus.br/servicos-eleitorais/autoatendimento-eleitoral#/atendimento-eleitor/consultar-numero-titulo-eleitor",
-  );
-  if (tabId) session.portais.tse.tabId = tabId;
-  else {
-    session.portais.tse.status = "erro";
-    session.portais.tse.evidence = "falha_ao_abrir_aba";
-  }
-  session.portais.tse.updatedAt = Date.now();
-  await saveSession(session);
 }
 
 async function finalizeIfReady(session: CadastroSession, getTabManager?: () => any): Promise<void> {
