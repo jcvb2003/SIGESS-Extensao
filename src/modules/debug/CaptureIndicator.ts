@@ -163,15 +163,18 @@ import { CadastroSession, PessoaData } from "../../shared/types";
       }
     }
     if (changes.sigessActiveCadastro && globalThis.self === globalThis.top) {
+      const session = changes.sigessActiveCadastro.newValue as CadastroSession | undefined;
+      if (session?.sessionState === "active") createUI();
       void updateFromStorage();
     }
   });
 
   const init = async () => {
-    const result = await chrome.storage.local.get("sigessSettings");
+    const result = await chrome.storage.local.get(["sigessSettings", "sigessActiveCadastro"]);
     const settings = result.sigessSettings || {};
+    const session = result.sigessActiveCadastro as CadastroSession | undefined;
 
-    if (!settings.autoRegistrationEnabled) return;
+    if (!settings.autoRegistrationEnabled && session?.sessionState !== "active") return;
 
     const host = globalThis.location.hostname;
     const isTarget =
