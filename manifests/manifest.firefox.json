@@ -109,9 +109,9 @@
         "*://*.gov.br/*",
         "*://*.receita.fazenda.gov.br/*",
         "*://*.tse.jus.br/*",
-        "*://*.sigess.com.br/registration*",
-        "*://sigess-extensao.vercel.app/registration*",
-        "http://localhost:5173/registration*"
+        "*://*.sigess.com.br/*",
+        "*://sigess-extensao.vercel.app/*",
+        "http://localhost:5173/*"
       ],
       "js": [
         "assets/capture_indicator.js"

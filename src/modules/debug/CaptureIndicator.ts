@@ -1,4 +1,5 @@
 import { CadastroSession, PessoaData } from "../../shared/types";
+import { setupSPANavigationObserver } from "../automation/spa-observer";
 
 /**
  * Componente visual discreto que indica o status da coleta em tempo real.
@@ -109,6 +110,34 @@ import { CadastroSession, PessoaData } from "../../shared/types";
     if (root) root.remove();
   }
 
+  function isTargetPage(): boolean {
+    const host = globalThis.location.hostname;
+    const isWebRegistration =
+      (host.endsWith(".sigess.com.br") ||
+        host === "sigess-extensao.vercel.app" ||
+        host === "localhost") &&
+      globalThis.location.pathname.startsWith("/registration");
+
+    return host.includes(".gov.br") || host.includes("mpa.gov.br") || isWebRegistration;
+  }
+
+  async function syncUI(): Promise<void> {
+    if (globalThis.self !== globalThis.top || !isTargetPage()) {
+      removeUI();
+      return;
+    }
+
+    const result = await chrome.storage.local.get(["sigessSettings", "sigessActiveCadastro"]);
+    const settings = result.sigessSettings || {};
+    if (!settings.autoRegistrationEnabled) {
+      removeUI();
+      return;
+    }
+
+    createUI();
+    updateDots(settings.pessoaData as PessoaData, result.sigessActiveCadastro);
+  }
+
   async function updateFromStorage() {
     const result = await chrome.storage.local.get(["sigessSettings", "sigessActiveCadastro"]);
     const settings = result.sigessSettings || {};
@@ -153,58 +182,18 @@ import { CadastroSession, PessoaData } from "../../shared/types";
 
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.sigessSettings) {
-      const settings = changes.sigessSettings.newValue || {};
-      
-      if (!settings.autoRegistrationEnabled) {
-        removeUI();
-      } else if (globalThis.self === globalThis.top) {
-        createUI();
-        void updateFromStorage();
-      }
+      void syncUI();
     }
     if (changes.sigessActiveCadastro && globalThis.self === globalThis.top) {
-      void updateFromStorage();
+      void syncUI();
     }
   });
 
-  const init = async () => {
-    const result = await chrome.storage.local.get("sigessSettings");
-    const settings = result.sigessSettings || {};
-
-    if (!settings.autoRegistrationEnabled) return;
-
-    const host = globalThis.location.hostname;
-    const isSigessRegistration =
-      (host.endsWith(".sigess.com.br") || host === "sigess-extensao.vercel.app") &&
-      globalThis.location.pathname.startsWith("/registration");
-    const isLocalRegistration =
-      host === "localhost" && globalThis.location.pathname.startsWith("/registration");
-    const isTarget =
-      host.includes(".gov.br") ||
-      host.includes("mpa.gov.br") ||
-      isSigessRegistration ||
-      isLocalRegistration;
-
-    if (isTarget && document.body && globalThis.self === globalThis.top) {
-      createUI();
-      let _reinjTimeout: ReturnType<typeof setTimeout> | null = null;
-      new MutationObserver(() => {
-        if (_reinjTimeout) return;
-        _reinjTimeout = setTimeout(() => {
-          _reinjTimeout = null;
-          if (!document.getElementById(ID_ROOT)) {
-            chrome.storage.local.get("sigessSettings").then(r => {
-              if (r.sigessSettings?.autoRegistrationEnabled) createUI();
-            });
-          }
-        }, 300);
-      }).observe(document.body, { childList: true });
-    }
-  };
-
   if (document.readyState !== "loading") {
-    init();
+    setupSPANavigationObserver(() => void syncUI());
   } else {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => {
+      setupSPANavigationObserver(() => void syncUI());
+    });
   }
 })();
