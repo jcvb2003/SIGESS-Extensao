@@ -16,7 +16,7 @@ function normalizeCadUnicoElectoralNumber(
 export async function fetchCadUnicoAdvanced(
   payload: CadUnicoAdvPayload
 ): Promise<CadUnicoAdvancedResult> {
-  const { cpf, bearer, xsrf, cnas } = payload;
+  const { cpf, bearer, xsrf, cnas, profile, profileNotFound } = payload;
   console.log("SIGESS: Iniciando extração avançada CadÚnico para CPF: " + cpf);
 
   const headers: CadUnicoHeaders = {
@@ -28,15 +28,14 @@ export async function fetchCadUnicoAdvanced(
   };
 
   try {
-    const perfilResult = await fetchPerfil(cpf, headers);
-    if (perfilResult.kind === "not_found") {
+    if (profileNotFound) {
       console.warn("SIGESS: Perfil não encontrado para CPF " + cpf);
       return { kind: "not_found", reason: "perfil_nao_localizado" };
     }
-    if (perfilResult.kind === "failed") {
-      return perfilResult;
+    if (!profile) {
+      return { kind: "failed", reason: "perfil_sem_evidencia_terminal" };
     }
-    const perfil = perfilResult.data;
+    const perfil = profile;
 
     const [details, family, address] = await Promise.all([
       fetchDetails(perfil.identificador, cpf, headers),
@@ -64,6 +63,8 @@ export interface CadUnicoAdvPayload {
   bearer: string;
   xsrf: string;
   cnas: string;
+  profile?: PerfilResult | null;
+  profileNotFound?: boolean;
 }
 
 export type CadUnicoAdvancedResult =
@@ -79,36 +80,6 @@ interface PerfilResult {
 }
 
 // ── Funções internas de fetch ────────────────────────────────────────────
-
-type PerfilFetchResult =
-  | { kind: "collected"; data: PerfilResult }
-  | { kind: "not_found" }
-  | { kind: "failed"; reason: string };
-
-async function fetchPerfil(cpf: string, headers: CadUnicoHeaders): Promise<PerfilFetchResult> {
-  const res = await fetch(
-    `https://cadunico.dataprev.gov.br/transacional/api/transacional-api/v1/pessoa/${cpf}/tipos-perfil`,
-    { headers }
-  );
-  if (!res.ok) throw new Error(`Erro Perfil (HTTP ${res.status}): ${res.url}`);
-
-  const text = await res.text();
-  if (!text.trim()) return { kind: "failed", reason: "perfil_resposta_vazia" };
-
-  try {
-    const data = JSON.parse(text);
-    if (!Array.isArray(data)) return { kind: "failed", reason: "perfil_formato_inesperado" };
-    if (data.length === 0) return { kind: "not_found" };
-
-    const perfil = data[0] as Partial<PerfilResult>;
-    if (typeof perfil.identificador !== "number" || typeof perfil.numeroFamiliar !== "number") {
-      return { kind: "failed", reason: "perfil_sem_identificadores" };
-    }
-    return { kind: "collected", data: perfil as PerfilResult };
-  } catch {
-    return { kind: "failed", reason: "perfil_json_invalido" };
-  }
-}
 
 async function fetchDetails(pessoaId: number, cpf: string, headers: CadUnicoHeaders): Promise<Partial<PessoaData>> {
   const res = await fetch(

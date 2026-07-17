@@ -935,6 +935,11 @@ async function openCadastroInss(session: CadastroSession, getTabManager: () => a
 async function evaluateTseRequirement(session: CadastroSession, getTabManager?: () => any): Promise<void> {
   if (session.portais.tse) return;
 
+  // Uma falha técnica do CadÚnico não equivale a ausência de dados eleitorais.
+  // Nesse caso, não abre TSE nem cria uma decisão baseada em dados incompletos.
+  const cadUnicoStatus = session.portais.cadunico.status;
+  if (!["concluido", "nao_encontrado"].includes(cadUnicoStatus)) return;
+
   const settings = await StorageService.getSettings();
   const pessoa = settings.pessoaData || {};
   if (pessoa.fontes?.tse?.capturado) {

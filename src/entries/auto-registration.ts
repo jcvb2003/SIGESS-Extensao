@@ -477,7 +477,14 @@ async function initMain() {
       const extractedData = parseCadUnicoToken(payload as string);
       if (extractedData) saveData(extractedData, "cadunico");
     } else if (type === "SIGESS_CADUNICO_ADV_TOKENS") {
-      const advPayload = payload as { cpf: string; bearer: string; xsrf: string; cnas: string };
+      const advPayload = payload as {
+        cpf: string;
+        bearer: string;
+        xsrf: string;
+        cnas: string;
+        profile?: { identificador: number; numeroFamiliar: number } | null;
+        profileNotFound?: boolean;
+      };
       fetchCadUnicoAdvanced(advPayload).then(result => {
         if (result.kind === "collected") {
           saveData(result.data, "cadunico_adv", result.data);
