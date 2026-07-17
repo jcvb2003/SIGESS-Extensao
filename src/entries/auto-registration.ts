@@ -40,6 +40,8 @@ async function initMain() {
   let _cadUnicoTermsAttempted = false;
   /** Evita disparar o click do Gov.br no PesqBrasil MPA mais de uma vez por ciclo de vida. */
   let _pesqBrasilMpaClickAttempted = false;
+  /** Evita notificar duas vezes a área autenticada do Meu INSS. */
+  let _inssAuthenticatedReported = false;
 
   // ── Inicialização ────────────────────────────────────────────────────────
 
@@ -432,6 +434,30 @@ async function initMain() {
     // Preenchimento automático para o TSE (Portal de Atendimento)
     if (url.includes('tse.jus.br')) {
       validateTseResultRoute(url);
+    }
+
+    // Meu INSS: o retorno autenticado pode ocorrer apenas por transição interna do SPA,
+    // sem um tabs.onUpdated confiável. O avatar existe somente na área autenticada.
+    if (
+      host.includes("meu.inss.gov.br") &&
+      _cadastroSessionActive &&
+      !url.includes("dados-cadastrais") &&
+      !_inssAuthenticatedReported
+    ) {
+      const reportInssAuthenticated = () => {
+        if (_inssAuthenticatedReported || !document.querySelector("#avatar-dropdown-trigger")) return false;
+        _inssAuthenticatedReported = true;
+        void (globalThis.browser || globalThis.chrome).runtime.sendMessage({
+          action: "inssAuthenticated",
+        });
+        return true;
+      };
+      if (!reportInssAuthenticated()) {
+        const inssObserver = new MutationObserver(() => {
+          if (reportInssAuthenticated()) inssObserver.disconnect();
+        });
+        inssObserver.observe(document.documentElement, { childList: true, subtree: true });
+      }
     }
 
     if (

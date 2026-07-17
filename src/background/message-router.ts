@@ -107,6 +107,8 @@ export async function routeMessage(
         return await handleCanSubmitCadastroTse(sender);
       case "govBrContactConfirmationDetected":
         return await handleGovBrContactConfirmationDetected(sender);
+      case "inssAuthenticated":
+        return await handleCadastroInssAuthenticated(sender);
       case "downloadESocialGuide":
         return await handleDownloadESocialGuide(message);
       case "checkReloginEligible":
@@ -883,6 +885,41 @@ async function handleGovBrContactConfirmationDetected(
     tabId,
   });
   return { success: true, interactionUpdated: true };
+}
+
+async function handleCadastroInssAuthenticated(
+  sender?: browser.runtime.MessageSender,
+): Promise<MessageResponse> {
+  const tabId = sender?.tab?.id;
+  if (typeof tabId !== "number") return { success: true, navigated: false };
+
+  const session = await getActiveSession();
+  const credentials = await StorageService.getCredentials(tabId);
+  if (
+    !session ||
+    session.portais.inss?.tabId !== tabId ||
+    !credentials?.isCadastroAutomatico ||
+    credentials.portalType !== "inss" ||
+    credentials.cadastroSessionId !== session.sessionId
+  ) {
+    return { success: true, navigated: false };
+  }
+
+  const tab = await browser.tabs.get(tabId);
+  if (!tab.url?.includes("meu.inss.gov.br") || tab.url.includes("dados-cadastrais")) {
+    return { success: true, navigated: false };
+  }
+
+  await StorageService.updateCredentials(tabId, {
+    loginConcluido: true,
+    status: "redirecionando",
+    statusTitle: "Login concluído",
+    statusDescription: "Acessando dados cadastrais do Meu INSS...",
+  });
+  await browser.tabs.update(tabId, {
+    url: "https://meu.inss.gov.br/#/dados-cadastrais?tk-categoria=Por%20Menu",
+  });
+  return { success: true, navigated: true };
 }
 
 function isRegisteredCadastroPortalSender(
