@@ -1,4 +1,5 @@
 import { PessoaData } from "../../../shared/types";
+import { reportCadastroPortalOutcome } from "../cadastro/portal-outcome-reporter";
 
 let _tseFillDone = false;
 let _tseSubmitDone = false;
@@ -125,13 +126,7 @@ function reportTseOutcome(
   outcome: "not_found" | "failed",
   reason: string,
 ): void {
-  const api = (globalThis as any).browser || (globalThis as any).chrome;
-  void api?.runtime?.sendMessage?.({
-    action: "REPORT_CADASTRO_PORTAL_OUTCOME",
-    portal: "tse",
-    outcome,
-    reason,
-  });
+  reportCadastroPortalOutcome("tse", outcome, reason);
   _tseOutcomeObserver?.disconnect();
   _tseOutcomeObserver = null;
 }
