@@ -13,6 +13,7 @@ import { parseInssData } from "../modules/automation/inss/extractor";
 import { resolveTseQueryProfile } from "../modules/automation/cadastro/tse-query-profile";
 import { updateAssistantStatus, removeAssistantUI } from "../modules/automation/assistant-ui";
 import { setupSPANavigationObserver } from "../modules/automation/spa-observer";
+import { reportCadastroPortalOutcome } from "../modules/automation/cadastro/portal-outcome-reporter";
 
 declare var browser: any;
 declare var chrome: any;
@@ -515,7 +516,7 @@ async function initMain() {
         if (result.kind === "collected") {
           saveData(result.data, "cadunico_adv", result.data);
         } else {
-          reportPortalOutcome("cadunico", result.kind, result.reason);
+          reportCadastroPortalOutcome("cadunico", result.kind, result.reason);
         }
       });
     } else if (type === "SIGESS_TSE_RAW_DATA") {
@@ -594,20 +595,6 @@ async function initMain() {
 
     // Disparamos o evento local de atualização
     globalThis.dispatchEvent(new CustomEvent('SIGESS_DATA_UPDATED'));
-  }
-
-  function reportPortalOutcome(
-    portal: "cadunico" | "tse" | "inss",
-    outcome: "not_found" | "failed" | "unavailable",
-    reason: string,
-  ) {
-    const api = (globalThis.browser || globalThis.chrome) as any;
-    api?.runtime?.sendMessage?.({
-      action: "REPORT_CADASTRO_PORTAL_OUTCOME",
-      portal,
-      outcome,
-      reason,
-    });
   }
 
   // ── Reatividade (storage.onChanged) ──────────────────────────────────────
