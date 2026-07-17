@@ -821,16 +821,12 @@ async function handleGovBrTwoFactorDetected(sender?: browser.runtime.MessageSend
     govBrPasswordSubmitted: true,
     govBrTwoFactorPending: true,
   });
-  const interactionUpdated = await StorageService.updateCadastroInteraction(updatedCredentials?.cadastroSessionId, {
+  await StorageService.updateCadastroInteraction(updatedCredentials?.cadastroSessionId, {
     type: "govbr_2fa",
     message: "Verificação de 2 etapas ativada. Aguardando código...",
     tabId,
   });
-  if (!interactionUpdated) {
-    console.warn("[Cadastro] Evento 2FA detectado, mas a aba não pertence à sessão ativa.", { tabId });
-    return { success: false, error: "Sessão de cadastro não encontrada para a verificação 2FA." };
-  }
-  return { success: true, interactionUpdated: true };
+  return { success: true };
 }
 
 async function handleCadastroPortalOutcome(
