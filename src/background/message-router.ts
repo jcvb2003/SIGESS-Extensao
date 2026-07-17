@@ -1103,9 +1103,11 @@ async function finalizeCadastroSession(
   // Cancela timeout global
   // Busca dados brutos coletados para o mergeRequest
   const settings = await StorageService.getSettings();
-  const raw: Record<string, Partial<PessoaData>> = (settings.pessoaData_raw as any) || {};
+  const raw: Record<string, Partial<PessoaData>> = (settings.pessoaData_projections as any) || {};
 
   session.sessionState = "complete";
+  // O inspetor preserva pessoaData_raw completo. A revisão recebe apenas as
+  // projeções por fonte; para TSE, isso limita estruturalmente a título, zona e seção.
   session.mergeRequest = { raw };
   await saveSession(session);
 
