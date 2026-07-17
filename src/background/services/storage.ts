@@ -256,21 +256,26 @@ export class StorageService {
     sessionId: string | undefined,
     interaction: CadastroSession["interactionRequired"] | undefined,
     clearingTabId?: number,
-  ): Promise<void> {
-    if (!sessionId) return;
+  ): Promise<boolean> {
 
     const result = await this.get<CadastroSession>(this.CADASTRO_SESSION_KEY);
     const session = result[this.CADASTRO_SESSION_KEY];
-    if (!session || session.sessionState !== "active" || session.sessionId !== sessionId) return;
+    if (!session || session.sessionState !== "active") return false;
+
+    const relatedTabId = interaction?.tabId ?? clearingTabId;
+    const sessionOwnsTab = typeof relatedTabId === "number" && Object.values(session.portais)
+      .some((portal) => portal?.tabId === relatedTabId);
+    if (session.sessionId !== sessionId && !sessionOwnsTab) return false;
 
     if (interaction) {
       session.interactionRequired = interaction;
     } else {
-      if (clearingTabId !== undefined && session.interactionRequired?.tabId !== clearingTabId) return;
+      if (clearingTabId !== undefined && session.interactionRequired?.tabId !== clearingTabId) return false;
       delete session.interactionRequired;
     }
 
     await this.set({ [this.CADASTRO_SESSION_KEY]: session });
+    return true;
   }
 
   static async getLastEsocialCredentials(): Promise<UserCredentials | null> {
