@@ -303,6 +303,11 @@ function sourceToPortalId(fonte: string): CadastroSourceSnapshot["portal"] {
   return "tse";
 }
 
+function hasValidElectoralNumber(value: unknown): boolean {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return Boolean(digits) && !/^0+$/.test(digits);
+}
+
 /**
  * Atualiza o status das fontes no objeto consolidado.
  */
@@ -313,7 +318,12 @@ function consolidateFontes(consolidated: PessoaData, fonte: string, data: Partia
   };
 
   // Se CadÚnico deu dados eleitorais, marca TSE como "virtualmente" capturado
-  if (fonte.startsWith('cadunico') && data.tituloEleitor && data.zonaEleitoral && data.secaoEleitoral) {
+  if (
+    fonte.startsWith('cadunico') &&
+    hasValidElectoralNumber(data.tituloEleitor) &&
+    hasValidElectoralNumber(data.zonaEleitoral) &&
+    hasValidElectoralNumber(data.secaoEleitoral)
+  ) {
     consolidated.fontes!['tse'] = { 
       capturado: true, 
       timestamp: Date.now() 

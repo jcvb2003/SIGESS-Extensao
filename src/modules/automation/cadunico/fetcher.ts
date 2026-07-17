@@ -1,5 +1,14 @@
 import { PessoaData } from "../../../shared/types";
 
+function normalizeCadUnicoElectoralNumber(
+  value: unknown,
+  minLength?: number,
+): string | undefined {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits || /^0+$/.test(digits)) return undefined;
+  return minLength ? digits.padStart(minLength, "0") : digits;
+}
+
 /**
  * Realiza a extração avançada de dados do CadÚnico via API transacional.
  * Distingue ausência de perfil de falhas técnicas para o orquestrador.
@@ -128,9 +137,9 @@ async function fetchDetails(pessoaId: number, cpf: string, headers: CadUnicoHead
     dataExpedicaoRg: c.dataEmissaoIdentidade?.split('T')[0],
     ufRg: c.siglaUfIdentidade,
     orgaoEmissorRg: c.siglaOrgaoEmissor,
-    tituloEleitor: c.numeroTituloEleitorPessoa ? String(c.numeroTituloEleitorPessoa) : undefined,
-    zonaEleitoral: c.numeroZonaTituloEleitorPessoa?.toString().padStart(3, '0'),
-    secaoEleitoral: c.numeroSecaoTituloEleitorPessoa?.toString().padStart(4, '0'),
+    tituloEleitor: normalizeCadUnicoElectoralNumber(c.numeroTituloEleitorPessoa),
+    zonaEleitoral: normalizeCadUnicoElectoralNumber(c.numeroZonaTituloEleitorPessoa, 3),
+    secaoEleitoral: normalizeCadUnicoElectoralNumber(c.numeroSecaoTituloEleitorPessoa, 4),
     ctps: c.numeroCtps ? `${c.numeroCtps}/${c.numeroSerieCtps || ''}`.replace(/\/$/, '') : undefined,
     ctpsUf: c.ufEmissoraCtps,
     alfabetizado: mapAlfabetizado(esc.sabeLerEEscrever?.codigo),
