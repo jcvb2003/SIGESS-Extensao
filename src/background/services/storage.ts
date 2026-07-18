@@ -111,6 +111,21 @@ export class StorageService {
     return clearedSettings;
   }
 
+  static async disableAutomaticCapture(): Promise<AppSettings> {
+    const settings = await this.getSettings();
+    const disabledSettings: AppSettings = {
+      ...settings,
+      autoRegistrationEnabled: false,
+      pessoaData: {} as PessoaData,
+      pessoaData_raw: {},
+      pessoaData_projections: {},
+      pessoaData_snapshots: {},
+      pessoaData_sensitive: {},
+    };
+    await this.saveSettings(disabledSettings);
+    return disabledSettings;
+  }
+
   static async saveCadastroSenhaGovInss(senhaGovInss: string): Promise<void> {
     const settings = await this.getSettings();
     await this.saveSettings({

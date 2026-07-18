@@ -22,7 +22,7 @@ describe("projeção canônica do status de coleta", () => {
   it("projeta estados da sessão sem inventar captura", () => {
     expect(projectCaptureStatuses({}, createSession())).toEqual({
       cadunico: "idle",
-      tse: "skipped",
+      tse: "idle",
       pesqbrasil: "waiting",
       caepf: "failed",
       ecac: "failed",
@@ -42,6 +42,15 @@ describe("projeção canônica do status de coleta", () => {
     expect(projected.caepf).toBe("collected");
     expect(projected.ecac).toBe("collected");
     expect(projected.tse).toBe("collected");
+  });
+
+  it("só mantém TSE dispensado quando os três dados eleitorais existem", () => {
+    const data: PessoaData = {
+      tituloEleitor: "123456789012",
+      zonaEleitoral: "001",
+      secaoEleitoral: "002",
+    };
+    expect(projectCaptureStatuses(data, createSession()).tse).toBe("skipped");
   });
 
   it("representa a contingência do INSS no indicador do CadÚnico", () => {

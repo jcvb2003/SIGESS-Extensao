@@ -40,7 +40,13 @@ export function projectCaptureStatuses(
 
   return {
     cadunico: cadUnicoCollected || inssCollected ? "collected" : projectPortal(session?.portais.cadunico),
-    tse: tseCollected ? "collected" : projectPortal(session?.portais.tse),
+    tse: tseCollected
+      ? "collected"
+      : session?.portais.tse?.status === "dispensado" && hasElectoralData
+        ? "skipped"
+        : session?.portais.tse?.status === "dispensado"
+          ? "idle"
+        : projectPortal(session?.portais.tse),
     pesqbrasil: pesqBrasilCollected ? "collected" : projectPortal(session?.portais.pesqbrasil),
     caepf: caepfCollected ? "collected" : projectPortal(session?.portais.ecac),
     ecac: ecacCollected ? "collected" : projectPortal(session?.portais.ecac),

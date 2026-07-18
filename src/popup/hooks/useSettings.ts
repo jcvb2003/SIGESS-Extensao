@@ -63,6 +63,12 @@ export const useSettings = (): UseSettingsReturn => {
   }, []);
 
   const updateSettings = useCallback(async (newSettings: Partial<AppSettings>) => {
+    if (newSettings.autoRegistrationEnabled === false && settings.autoRegistrationEnabled) {
+      await browser.runtime.sendMessage({ action: "cancelarCadastroAutomatico" });
+      const disabled = await StorageService.disableAutomaticCapture();
+      setSettings(normalizeReapSettings(disabled));
+      return;
+    }
     const updated = normalizeReapSettings({ ...settings, ...newSettings });
     setSettings(updated);
     await browser.runtime.sendMessage({

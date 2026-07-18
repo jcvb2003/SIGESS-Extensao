@@ -93,6 +93,32 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
       await StorageService.clearCapturedPessoaData();
     });
     root.appendChild(clearButton);
+
+    const disableButton = document.createElement("button");
+    disableButton.type = "button";
+    disableButton.title = "Desativar coleta automática";
+    disableButton.setAttribute("aria-label", "Desativar coleta automática");
+    disableButton.textContent = "⏻";
+    disableButton.style.cssText = `
+        border: 0;
+        background: transparent;
+        color: #fbbf24;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 0 0 0 2px;
+    `;
+    disableButton.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      if (!globalThis.confirm("Desativar a coleta automática e apagar todos os dados capturados?")) return;
+      try {
+        await (globalThis.browser || globalThis.chrome).runtime.sendMessage({ action: "cancelarCadastroAutomatico" });
+      } catch {
+        // Não há sessão ativa; a limpeza local ainda deve prosseguir.
+      }
+      await StorageService.disableAutomaticCapture();
+    });
+    root.appendChild(disableButton);
     document.body.appendChild(root);
 
     updateFromStorage();
