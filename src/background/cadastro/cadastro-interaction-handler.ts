@@ -65,7 +65,8 @@ export async function useInssAsCadastroAlternative(
   await saveCadastroSession(session);
   await openCadastroInss(session, getTabManager);
   await evaluateTseRequirement(session, getTabManager);
-  try { await browser.tabs.remove(tabId); } catch { /* Aba pode já ter sido fechada. */ }
+  // A aba do CadÚnico permanece aberta: o TSE usa suas credenciais para criar
+  // a própria sessão. Ela será encerrada na finalização do cadastro.
   return { success: true, switched: true };
 }
 
