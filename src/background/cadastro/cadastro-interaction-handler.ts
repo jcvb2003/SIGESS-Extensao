@@ -3,6 +3,9 @@ import { StorageService } from "../services/storage";
 import { getActiveCadastroSession } from "./cadastro-session-store";
 import { INSS_DATA_URL, isInssDataUrl, isInssUrl } from "../../modules/automation/inss/routes";
 import { isTseAutoatendimentoUrl } from "../../modules/automation/tse/routes";
+import { evaluateTseRequirement, openCadastroInss } from "./cadastro-orchestrator";
+import { saveCadastroSession } from "./cadastro-session-store";
+import { isCadastroPortalTerminal } from "../../modules/automation/cadastro/session-status";
 
 export async function canSubmitCadastroTse(
   sender?: browser.runtime.MessageSender,
@@ -40,6 +43,30 @@ export async function reportGovBrContactConfirmation(
     tabId,
   });
   return { success: true, interactionUpdated: true };
+}
+
+export async function useInssAsCadastroAlternative(
+  _sender: browser.runtime.MessageSender | undefined,
+  getTabManager: () => any,
+): Promise<MessageResponse> {
+  const session = await getActiveCadastroSession();
+  const tabId = session?.interactionRequired?.tabId;
+  if (typeof tabId !== "number" || !session || session.interactionRequired?.type !== "govbr_contact_confirmation") {
+    return { success: true, switched: false };
+  }
+
+  const cadunico = session.portais.cadunico;
+  if (cadunico.tabId === tabId && !isCadastroPortalTerminal(cadunico)) {
+    cadunico.status = "indisponivel";
+    cadunico.evidence = "confirmacao_contato_pendente";
+    cadunico.updatedAt = Date.now();
+  }
+  session.interactionRequired = undefined;
+  await saveCadastroSession(session);
+  await openCadastroInss(session, getTabManager);
+  await evaluateTseRequirement(session, getTabManager);
+  try { await browser.tabs.remove(tabId); } catch { /* Aba pode já ter sido fechada. */ }
+  return { success: true, switched: true };
 }
 
 export async function navigateAuthenticatedCadastroInss(

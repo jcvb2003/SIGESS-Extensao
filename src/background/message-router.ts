@@ -31,6 +31,7 @@ import {
   canSubmitCadastroTse,
   navigateAuthenticatedCadastroInss,
   reportGovBrContactConfirmation,
+  useInssAsCadastroAlternative,
 } from "./cadastro/cadastro-interaction-handler";
 import {
   processCadastroDataArrival,
@@ -131,6 +132,8 @@ export async function routeMessage(
         return await canSubmitCadastroTse(sender);
       case "govBrContactConfirmationDetected":
         return await reportGovBrContactConfirmation(sender);
+      case "usarInssComoAlternativa":
+        return await useInssAsCadastroAlternative(sender, getTabManager);
       case "inssAuthenticated":
         return await navigateAuthenticatedCadastroInss(sender);
       case "downloadESocialGuide":

@@ -120,7 +120,7 @@ function fillStandardRadios(data: PessoaData): number {
   let count = 0;
   const radios: Array<{ name: string; value: string | undefined }> = [
     { name: 'sexo', value: data.sexo },
-    { name: 'alfabetizado', value: data.alfabetizado }
+    { name: 'alfabetizado', value: String(data.alfabetizado ?? '').replace(/^NAO$/, 'NÃO') || undefined }
   ];
 
   for (const r of radios) {
