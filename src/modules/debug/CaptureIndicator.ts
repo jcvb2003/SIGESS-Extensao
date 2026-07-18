@@ -1,7 +1,7 @@
 import { CadastroSession, PessoaData } from "../../shared/types";
 import { setupSPANavigationObserver } from "../automation/spa-observer";
 import { StorageService } from "../../background/services/storage";
-import { projectCaptureStatuses, type CaptureStatus } from "../automation/cadastro/status-projection";
+import { isCaptureStatusSatisfied, projectCaptureStatuses, type CaptureStatus } from "../automation/cadastro/status-projection";
 import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
 
 /**
@@ -128,18 +128,22 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
     }
 
     createUI();
-    updateDots(settings.pessoaData as PessoaData, result.sigessActiveCadastro);
+    updateDots(settings.pessoaData as PessoaData, result.sigessActiveCadastro, settings.pessoaData_raw);
   }
 
   async function updateFromStorage() {
     const result = await chrome.storage.local.get(["sigessSettings", "sigessActiveCadastro"]);
     const settings = result.sigessSettings || {};
     const data = settings.pessoaData as PessoaData;
-    updateDots(data, result.sigessActiveCadastro);
+    updateDots(data, result.sigessActiveCadastro, settings.pessoaData_raw);
   }
 
-  function updateDots(data: PessoaData, session?: CadastroSession) {
-    const projected = projectCaptureStatuses(data, session);
+  function updateDots(
+    data: PessoaData,
+    session?: CadastroSession,
+    rawSources?: Record<string, Partial<PessoaData>>,
+  ) {
+    const projected = projectCaptureStatuses(data, session, rawSources);
     const mapping: Record<string, CaptureStatus> = {
       cadunico: projected.cadunico,
       tse: projected.tse,
@@ -148,21 +152,13 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
       ecac: projected.ecac,
     };
 
-    const colors: Record<CaptureStatus, { background: string; shadow: string }> = {
-      collected: { background: "#10b981", shadow: "0 0 6px #10b981" },
-      skipped: { background: "#38bdf8", shadow: "0 0 6px #38bdf8" },
-      not_found: { background: "#f59e0b", shadow: "0 0 6px #f59e0b" },
-      waiting: { background: "#a78bfa", shadow: "0 0 6px #a78bfa" },
-      failed: { background: "#f87171", shadow: "0 0 6px #f87171" },
-      idle: { background: "#334155", shadow: "none" },
-    };
-
     Object.entries(mapping).forEach(([id, status]) => {
       const dot = document.getElementById(`sigess-dot-${id}`);
       if (dot) {
+        const active = isCaptureStatusSatisfied(status);
         dot.dataset.status = status;
-        dot.style.background = colors[status].background;
-        dot.style.boxShadow = colors[status].shadow;
+        dot.style.background = active ? "#10b981" : "#334155";
+        dot.style.boxShadow = active ? "0 0 6px #10b981" : "none";
       }
     });
 

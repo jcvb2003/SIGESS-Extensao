@@ -3,7 +3,7 @@ import { normalizeReapSettings } from "../../modules/reap-mpa/reap-settings";
 import { CadastroSourceSnapshot } from "../../modules/automation/cadastro/contracts";
 import { resolveCadastroPortalBySource } from "../../modules/automation/cadastro/portal-registry";
 import { normalizeCapturedValue, normalizePessoaData } from "../../modules/automation/cadastro/source-normalizer";
-import { projectSourceFields } from "../../modules/automation/cadastro/source-projections";
+import { hasMeaningfulSourceData, projectSourceFields } from "../../modules/automation/cadastro/source-projections";
 
 declare var chrome: any;
 declare var browser: any;
@@ -207,7 +207,7 @@ export class StorageService {
 
     // 4. Metadados e status das fontes
     consolidated.fontes ??= {};
-    consolidateFontes(consolidated, fonte, normalizedIn as Partial<PessoaData>);
+    consolidateFontes(consolidated, fonte, newRaw[fonte]);
 
     const newSettings: AppSettings = { 
       ...settings, 
@@ -332,6 +332,10 @@ function hasValidElectoralNumber(value: unknown): boolean {
  * Atualiza o status das fontes no objeto consolidado.
  */
 function consolidateFontes(consolidated: PessoaData, fonte: string, data: Partial<PessoaData>): void {
+  if (!hasMeaningfulSourceData(data)) {
+    delete consolidated.fontes![fonte];
+    return;
+  }
   consolidated.fontes![fonte] = {
     capturado: true,
     timestamp: Date.now()

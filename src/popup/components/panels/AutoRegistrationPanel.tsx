@@ -11,7 +11,7 @@ interface AutoRegistrationPanelProps {
 
 const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings, onUpdate, onClear }) => {
   const data = settings.pessoaData || {};
-  const captureStatuses = projectCaptureStatuses(data);
+  const captureStatuses = projectCaptureStatuses(data, undefined, settings.pessoaData_raw);
 
   const formatCPF = (cpf?: string) => {
     if (!cpf) return "---";

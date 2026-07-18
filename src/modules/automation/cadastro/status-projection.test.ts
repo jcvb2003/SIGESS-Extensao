@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CadastroSession, PessoaData } from "../../../shared/types";
 import { projectCaptureStatuses } from "./status-projection";
+import { hasMeaningfulSourceData } from "./source-projections";
 
 function createSession(): CadastroSession {
   return {
@@ -20,7 +21,7 @@ function createSession(): CadastroSession {
 describe("projeção canônica do status de coleta", () => {
   it("projeta estados da sessão sem inventar captura", () => {
     expect(projectCaptureStatuses({}, createSession())).toEqual({
-      cadunico: "collected",
+      cadunico: "idle",
       tse: "skipped",
       pesqbrasil: "waiting",
       caepf: "failed",
@@ -48,5 +49,15 @@ describe("projeção canônica do status de coleta", () => {
       fontes: { inss: { capturado: true, timestamp: 1 } },
     };
     expect(projectCaptureStatuses(data).cadunico).toBe("collected");
+  });
+
+  it("não considera payload vazio como dado capturado", () => {
+    expect(hasMeaningfulSourceData({})).toBe(false);
+    expect(hasMeaningfulSourceData({ nome: "" })).toBe(false);
+    expect(hasMeaningfulSourceData({ nome: "MARIA" })).toBe(true);
+    const data: PessoaData = {
+      fontes: { pesqbrasil: { capturado: true, timestamp: 1 } },
+    };
+    expect(projectCaptureStatuses(data, undefined, { pesqbrasil: {} }).pesqbrasil).toBe("idle");
   });
 });
