@@ -54,10 +54,11 @@ export async function evaluateTseRequirement(
   }
 
   const pesqBrasilFinalizado = ["concluido", "erro", "indisponivel"].includes(session.portais.pesqbrasil.status);
-  const inssPendente = session.portais.inss && !isCadastroPortalTerminal(session.portais.inss);
-  if (!pesqBrasilFinalizado || inssPendente) return;
+  if (!pesqBrasilFinalizado) return;
 
   const profile = resolveTseQueryProfile(settings);
+  const inssPendente = session.portais.inss && !isCadastroPortalTerminal(session.portais.inss);
+  if (!profile.isSufficient && inssPendente) return;
   if (!profile.isSufficient || !getTabManager) {
     session.portais.tse = { status: "erro", evidence: "dados_insuficientes_para_consulta", updatedAt: Date.now() };
     await saveCadastroSession(session);
