@@ -241,6 +241,11 @@ async function handleUpdateSettings(message: MessageRequest) {
   try {
     const current = await StorageService.getSettings();
     const newSettings = { ...current, ...message.settings };
+    if (message.settings.autoRegistrationEnabled === false && current.autoRegistrationEnabled) {
+      await cancelCadastroAutomatico();
+      const disabledSettings = await StorageService.disableAutomaticCapture();
+      return { success: true, settings: disabledSettings };
+    }
     if (message.settings.consultarGuias && message.settings.gerarGps) {
       if (message.settings.consultarGuias) newSettings.gerarGps = false;
       else if (message.settings.gerarGps) newSettings.consultarGuias = false;
