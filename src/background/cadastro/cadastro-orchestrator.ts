@@ -44,7 +44,7 @@ export async function evaluateTseRequirement(
   getTabManager?: () => any,
 ): Promise<void> {
   if (session.portais.tse) return;
-  if (!["concluido", "nao_encontrado"].includes(session.portais.cadunico.status)) return;
+  if (!["concluido", "nao_encontrado", "indisponivel"].includes(session.portais.cadunico.status)) return;
 
   const settings = await StorageService.getSettings();
   if (settings.pessoaData?.fontes?.tse?.capturado) {
