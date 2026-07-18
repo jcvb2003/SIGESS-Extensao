@@ -13,6 +13,7 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   "iniciarCadastroAutomatico",
   "cancelarCadastroAutomatico",
   "usarInssComoAlternativa",
+  "limparDadosCapturados",
 ]);
 
 const UPDATE_ALLOWED_MESSAGE_TYPES = new Set([

@@ -134,6 +134,10 @@ export async function routeMessage(
         return await reportGovBrContactConfirmation(sender);
       case "usarInssComoAlternativa":
         return await useInssAsCadastroAlternative(sender, getTabManager);
+      case "limparDadosCapturados": {
+        const settings = await StorageService.clearCapturedPessoaData();
+        return { success: true, settings };
+      }
       case "inssAuthenticated":
         return await navigateAuthenticatedCadastroInss(sender);
       case "downloadESocialGuide":
