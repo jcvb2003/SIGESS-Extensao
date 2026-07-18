@@ -37,11 +37,51 @@ async function clearStaleCadastroSession(session: CadastroSession): Promise<void
   await removeCadastroSession();
 }
 
+async function closeCadastroSessionTabs(session: CadastroSession): Promise<void> {
+  const tabIds = [
+    session.portais.cadunico.tabId,
+    session.portais.pesqbrasil?.tabId,
+    session.portais.ecac?.tabId,
+    session.portais.tse?.tabId,
+    session.portais.inss?.tabId,
+  ].filter((id): id is number => typeof id === "number");
+
+  for (const tabId of [...new Set(tabIds)]) {
+    try {
+      await browser.tabs.remove(tabId);
+    } catch {
+      // A aba pode já ter sido fechada pelo próprio portal ou pelo Firefox.
+    }
+  }
+}
+
 export async function cancelCadastroAutomatico(): Promise<MessageResponse> {
   const session = await getActiveCadastroSession();
   if (!session) return { success: true };
-  await clearStaleCadastroSession(session);
-  return { success: true };
+
+  const settings = await StorageService.getSettings();
+  const raw = (settings.pessoaData_projections || {}) as Record<string, Record<string, unknown>>;
+  const hasCapturedData = Object.values(raw).some((source) =>
+    Object.entries(source || {}).some(([key, value]) =>
+      key !== "fontes" && value !== undefined && value !== null && value !== "",
+    ),
+  );
+
+  // Publica a conclusão parcial antes de fechar as abas para impedir que
+  // eventos atrasados dos portais reativem a sessão durante o cancelamento.
+  session.sessionState = "complete";
+  if (hasCapturedData) session.mergeRequest = { raw: raw as any };
+  await saveCadastroSession(session);
+
+  await closeCadastroSessionTabs(session);
+  try {
+    await (browser as any).contextualIdentities.remove(session.cookieStoreId);
+  } catch {
+    // O container pode já ter sido removido por uma aba encerrada.
+  }
+
+  if (!hasCapturedData) await removeCadastroSession();
+  return { success: true, hasCapturedData };
 }
 
 export async function iniciarCadastroAutomatico(
