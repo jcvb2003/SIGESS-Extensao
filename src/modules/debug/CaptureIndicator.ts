@@ -74,6 +74,7 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
     root.appendChild(dotContainer);
 
     const inspectorButton = document.createElement("button");
+    inspectorButton.id = "sigess-inspector-button";
     inspectorButton.type = "button";
     inspectorButton.title = "Abrir Inspetor de Dados";
     inspectorButton.setAttribute("aria-label", "Abrir Inspetor de Dados");
@@ -95,6 +96,7 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
     root.appendChild(inspectorButton);
 
     const clearButton = document.createElement("button");
+    clearButton.id = "sigess-clear-button";
     clearButton.type = "button";
     clearButton.title = "Limpar dados capturados";
     clearButton.setAttribute("aria-label", "Limpar dados capturados");
@@ -208,6 +210,21 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
         dot.style.boxShadow = active ? "0 0 6px #10b981" : "none";
       }
     });
+
+    const hasCapturedData = [
+      ...(data ? Object.entries(data) : []),
+      ...Object.values(rawSources || {}).flatMap((source) => Object.entries(source || {})),
+    ].some(([key, value]) => {
+      if (key === "fontes" || value === undefined || value === null) return false;
+      if (typeof value === "string") return value.trim().length > 0;
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === "object") return Object.keys(value).length > 0;
+      return true;
+    });
+    const inspectorButton = document.getElementById("sigess-inspector-button");
+    const clearButton = document.getElementById("sigess-clear-button");
+    if (inspectorButton) inspectorButton.style.display = hasCapturedData ? "inline-block" : "none";
+    if (clearButton) clearButton.style.display = hasCapturedData ? "inline-block" : "none";
 
     const root = document.getElementById(ID_ROOT);
     if (root && data?.nome) {
