@@ -103,6 +103,10 @@ export async function iniciarCadastroAutomatico(
     return { success: false, error: "Containers Firefox não disponíveis. Ative a extensão Multi-Account Containers." };
   }
 
+  // Cada execução inicia um novo ciclo de coleta. Remove projeções,
+  // snapshots, fontes e dados sensíveis da pessoa anterior antes de abrir
+  // qualquer portal.
+  await StorageService.clearCapturedPessoaData();
   await StorageService.saveCadastroSenhaGovInss(senha);
   const sessionId = `cadastro-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
