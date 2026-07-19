@@ -140,6 +140,8 @@ export async function routeMessage(
         const settings = await StorageService.clearCapturedPessoaData();
         return { success: true, settings };
       }
+      case "abrirDataInspector":
+        return await openDataInspector();
       case "inssAuthenticated":
         return await navigateAuthenticatedCadastroInss(sender);
       case "checkReloginEligible":
@@ -743,6 +745,19 @@ async function handleCadastroPortalOutcome(
 
   await processCadastroPortalOutcome(session, portalKey, outcome, String(message.reason || outcome), getTabManager);
   return { success: true };
+}
+
+async function openDataInspector(): Promise<MessageResponse> {
+  const url = browser.runtime.getURL("data_inspector.html");
+  const existing = await browser.tabs.query({ url });
+  const tab = existing[0];
+  if (tab?.id !== undefined) {
+    await browser.tabs.update(tab.id, { active: true });
+    if (tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
+    return { success: true, tabId: tab.id, reused: true };
+  }
+  const created = await browser.tabs.create({ url });
+  return { success: true, tabId: created.id, reused: false };
 }
 
 async function handleGetESocialDownloadIdentity(

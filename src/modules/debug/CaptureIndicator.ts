@@ -90,8 +90,7 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
     `;
     inspectorButton.addEventListener("click", (event) => {
       event.stopPropagation();
-      const url = (globalThis.browser || globalThis.chrome).runtime.getURL("data_inspector.html");
-      (globalThis.browser || globalThis.chrome).tabs.create({ url });
+      void (globalThis.browser || globalThis.chrome).runtime.sendMessage({ action: "abrirDataInspector" });
     });
     root.appendChild(inspectorButton);
 
