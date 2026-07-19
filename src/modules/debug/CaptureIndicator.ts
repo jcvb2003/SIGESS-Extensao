@@ -73,6 +73,27 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
 
     root.appendChild(dotContainer);
 
+    const inspectorButton = document.createElement("button");
+    inspectorButton.type = "button";
+    inspectorButton.title = "Abrir Inspetor de Dados";
+    inspectorButton.setAttribute("aria-label", "Abrir Inspetor de Dados");
+    inspectorButton.textContent = "▣";
+    inspectorButton.style.cssText = `
+        border: 0;
+        background: transparent;
+        color: #93c5fd;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 0 0 0 2px;
+    `;
+    inspectorButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const url = (globalThis.browser || globalThis.chrome).runtime.getURL("data_inspector.html");
+      (globalThis.browser || globalThis.chrome).tabs.create({ url });
+    });
+    root.appendChild(inspectorButton);
+
     const clearButton = document.createElement("button");
     clearButton.type = "button";
     clearButton.title = "Limpar dados capturados";

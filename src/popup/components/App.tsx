@@ -3,7 +3,7 @@ import { UserCredentials } from "../../shared/types";
 import { LoginSection } from "./panels/LoginSection";
 
 import ReapMpaPanel from "./panels/ReapMpaPanel";
-import AutoRegistrationPanel from "./panels/AutoRegistrationPanel";
+import AutoRegistrationPanel from "./panels/AutoRegistrationSettingsPanel";
 import SDPAPanel from "./panels/SDPAPanel";
 import BatchLoginModal from "./ui/BatchLoginModal";
 import { LicenseInfo } from "./ui/LicenseInfo";
@@ -177,7 +177,7 @@ const AppContent: React.FC = () => {
     verified: licenseVerified,
     activate,
   } = useLicense();
-  const { settings, loading: settingsLoading, updateSettings, clearCapturedPessoaData } = useSettings();
+  const { settings, loading: settingsLoading, updateSettings } = useSettings();
   const { showToast } = useToast();
 
   const handleActivate = async (key: string, deviceName: string) => {
@@ -326,7 +326,6 @@ const AppContent: React.FC = () => {
               <AutoRegistrationPanel
                 settings={settings}
                 onUpdate={updateSettings}
-                onClear={clearCapturedPessoaData}
               />
             </div>
           </div>
