@@ -36,7 +36,7 @@ export function projectCaptureStatuses(
   const tseCollected = sourceCollected(["tse"]) || Boolean(sources.tse?.capturado && hasElectoralData);
   const pesqBrasilCollected = sourceCollected(["pesqbrasil", "pesq_brasil"]);
   const caepfCollected = sourceCollected(["ecac_caepf", "caepf", "esocial"]);
-  const ecacCollected = sourceCollected(["ecac_cpf", "ecac_caepf"]);
+  const ecacCollected = sourceCollected(["ecac_cpf"]);
 
   return {
     cadunico: cadUnicoCollected || inssCollected ? "collected" : projectPortal(session?.portais.cadunico),

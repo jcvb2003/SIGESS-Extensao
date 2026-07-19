@@ -40,7 +40,7 @@ describe("projeção canônica do status de coleta", () => {
     const projected = projectCaptureStatuses(data, createSession());
     expect(projected.pesqbrasil).toBe("collected");
     expect(projected.caepf).toBe("collected");
-    expect(projected.ecac).toBe("collected");
+    expect(projected.ecac).toBe("failed");
     expect(projected.tse).toBe("collected");
   });
 
