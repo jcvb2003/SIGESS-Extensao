@@ -23,6 +23,9 @@ type PendingGpsClosureState = {
   competencia: string;
   valorComercializado?: string;
   enviaRemuneracoesBody?: string;
+  listagemNavigationStartedAt?: number;
+  fechamentoNavigationStartedAt?: number;
+  fechamentoSubmittedAt?: number;
   step: "awaiting_remuneracoes_page" | "awaiting_closure_page" | "awaiting_closure_result";
 };
 
@@ -73,6 +76,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     competencia,
     valorComercializado,
     enviaRemuneracoesBody: enviaRemuneracoesParams.toString(),
+    listagemNavigationStartedAt: Date.now(),
     step: "awaiting_remuneracoes_page",
   });
   console.debug("[SIGESS] Navegando para ListarPagamentos antes do EnviaRemuneracoes:", {
@@ -503,6 +507,9 @@ function submitNativeFechamentoForm(doc: Document, competencia: string) {
     competencia,
     valorComercializado: currentState?.valorComercializado,
     enviaRemuneracoesBody: currentState?.enviaRemuneracoesBody,
+    listagemNavigationStartedAt: currentState?.listagemNavigationStartedAt,
+    fechamentoNavigationStartedAt: currentState?.fechamentoNavigationStartedAt,
+    fechamentoSubmittedAt: Date.now(),
     step: "awaiting_closure_result",
   });
 
@@ -531,10 +538,13 @@ function submitNativeEnviaRemuneracoes(
   });
 
   document.body.appendChild(form);
+  const currentState = getPendingGpsClosureState();
   setPendingGpsClosureState({
     competencia,
     valorComercializado,
     enviaRemuneracoesBody: params.toString(),
+    listagemNavigationStartedAt: currentState?.listagemNavigationStartedAt,
+    fechamentoNavigationStartedAt: Date.now(),
     step: "awaiting_closure_page",
   });
 
@@ -689,6 +699,53 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForDocumentBody(): Promise<void> {
+  if (document.body) return;
+
+  await new Promise<void>((resolve) => {
+    const observer = new MutationObserver(() => {
+      if (!document.body) return;
+      observer.disconnect();
+      resolve();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  });
+}
+
+async function waitForDocumentReady(): Promise<void> {
+  if (document.readyState !== "loading") return;
+  await new Promise<void>((resolve) => {
+    document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
+  });
+}
+
+async function waitForNativeFechamentoForm(doc: Document): Promise<void> {
+  if (doc.querySelector("form")) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const observer = new MutationObserver(() => {
+      if (!doc.querySelector("form")) return;
+      observer.disconnect();
+      clearTimeout(timeoutId);
+      resolve();
+    });
+    const timeoutId = window.setTimeout(() => {
+      observer.disconnect();
+      reject(new Error("Nao foi possivel localizar o formulario real de fechamento."));
+    }, 15000);
+    observer.observe(doc.documentElement, { childList: true, subtree: true });
+  });
+}
+
+function logGpsNavigationTiming(step: string, startedAt: number | undefined, competencia: string) {
+  if (!startedAt) return;
+  console.info("[SIGESS] Tempo de navegacao do eSocial:", {
+    step,
+    competencia,
+    durationMs: Date.now() - startedAt,
+  });
+}
+
 export async function resumePendingGpsFlow(): Promise<boolean> {
   const pending = getPendingGpsClosureState();
   if (!pending) {
@@ -713,6 +770,8 @@ export async function resumePendingGpsFlow(): Promise<boolean> {
       throw new Error("Nao foi possivel retomar o EnviaRemuneracoes: corpo pendente ausente.");
     }
 
+    await waitForDocumentBody();
+    logGpsNavigationTiming("ListarPagamentos pronto", pending.listagemNavigationStartedAt, pending.competencia);
     console.debug("[SIGESS] Retomando EnviaRemuneracoes a partir da tela real de ListarPagamentos");
     submitNativeEnviaRemuneracoes(
       new URLSearchParams(body),
@@ -727,13 +786,17 @@ export async function resumePendingGpsFlow(): Promise<boolean> {
   }
 
   if (pending.step === "awaiting_closure_page") {
+    await waitForNativeFechamentoForm(document);
+    logGpsNavigationTiming("FechamentoFolha pronto", pending.fechamentoNavigationStartedAt, pending.competencia);
     console.debug("[SIGESS] Campos da tela de fechamento:", snapshotFormFields(document));
     submitNativeFechamentoForm(document, pending.competencia);
     return true;
   }
 
+  await waitForDocumentReady();
   const fechamentoHtml = document.documentElement?.outerHTML || "";
   const fechamentoDoc = document;
+  logGpsNavigationTiming("FechamentoFolha respondeu", pending.fechamentoSubmittedAt, pending.competencia);
   console.debug("[SIGESS] Fechamento POST markers:", {
     competencia: pending.competencia,
     hasTabsResumo: !!fechamentoDoc.querySelector("#tabs-resumo"),

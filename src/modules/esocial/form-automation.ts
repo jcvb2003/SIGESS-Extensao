@@ -119,11 +119,15 @@ async function resolveESocialSettingsForCurrentTab(settings: AppSettings): Promi
   }
 }
 
-function start(settings: AppSettings) {
+async function start(settings: AppSettings) {
   if (settings.gerarGps) {
     hydrateEsocialProgressOverlay();
   } else {
     clearEsocialProgressOverlay();
+  }
+
+  if (await resumePendingGpsFlow()) {
+    return;
   }
 
   observarBotaoEmitirGuia();
@@ -157,7 +161,7 @@ async function init() {
     selectedMonth: ctx.selectedMonth ?? "",
     valorComercializado: ctx.valorComercializado ?? "",
   } as AppSettings;
-  start(settings);
+  await start(settings);
 }
 
 void init();
