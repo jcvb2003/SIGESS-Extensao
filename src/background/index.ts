@@ -9,7 +9,6 @@ import { LicenseService } from "../shared/services/license";
 import { RealtimeLicenseService } from "./services/realtime-license";
 
 let tabManager: TabManager | null = null;
-const ESOCIAL_PENDING_DOWNLOAD_HINT_KEY = "sigess_esocial_pending_download_hint";
 
 function getTabManager() {
   tabManager ??= new TabManager();
@@ -127,16 +126,8 @@ setInterval(() => {
   });
 }, 10000);
 
-const downloadsApi = (browser as any).downloads;
-
-if (downloadsApi?.onDeterminingFilename?.addListener) {
-  downloadsApi.onDeterminingFilename.addListener((downloadItem: any, suggest: any) => {
-    void handleEsocialFilename(downloadItem, suggest);
-    return true;
-  });
-}
-
-async function handleEsocialFilename(downloadItem: any, suggest: any): Promise<void> {
+export async function handleEsocialFilename(downloadItem: any, suggest: any): Promise<void> {
+  const ESOCIAL_PENDING_DOWNLOAD_HINT_KEY = "sigess_esocial_pending_download_hint";
   try {
     const sourceUrl = downloadItem.finalUrl || downloadItem.url || "";
     const currentFilename = downloadItem.filename || "";

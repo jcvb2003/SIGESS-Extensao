@@ -2,7 +2,6 @@ import { logger } from "../../../shared/services/logger";
 import {
   HOOKED_BUTTON_ATTR,
   GUIDE_OBSERVER_ATTR,
-  ESOCIAL_PENDING_DOWNLOAD_HINT_KEY,
   MANUAL_GUIDE_DOWNLOAD_KEY,
 } from "../utils/esocial-constants";
 import { resolveGuiaDownloadUrlFromAnchor } from "../services/guide-url-resolver";
@@ -13,7 +12,7 @@ import {
   resolvePdfUrlFromHtml,
 } from "../services/document-parser";
 import { buildEsocialFilename, formatCompetencia } from "../utils/file-naming";
-import { getBestCpf, getBestNome, extractCompetenciaFromUrl, extractCompetenciaFromDom } from "../utils/esocial-extractors";
+import { extractCompetenciaFromUrl, extractCompetenciaFromDom } from "../utils/esocial-extractors";
 import { reportBatchStatus } from "./overlay-ui";
 import { esocialMessages } from "../utils/status-messages";
 
@@ -23,6 +22,11 @@ type BoletoValores = {
   valorComercializado?: number;
   valorDeclarado?: number;
   valorPago?: number;
+};
+
+type EsocialDownloadIdentity = {
+  cpf: string;
+  nome: string;
 };
 
 function baixarGuiaPdfDirecto(
@@ -191,11 +195,9 @@ async function baixarGuiaPdf(
       }
 
       if (html && looksLikeHtmlDocument(html)) {
-        const cpf = await getBestCpf();
-        const nomeBruto = await getBestNome();
-        const filename = buildEsocialFilename(nomeBruto, cpf, competencia);
+        const identity = await getEsocialDownloadIdentity();
+        const filename = buildEsocialFilename(identity.nome, identity.cpf, competencia);
 
-        await savePendingEsocialDownloadHint(filename);
         openBlobInNewTab(blob, contentType || "text/html");
         const tabMsg = esocialMessages.guideOpenedInNewTab(filename);
         logger.info("eSocial", tabMsg.title);
@@ -222,9 +224,8 @@ async function baixarGuiaPdf(
       );
     }
 
-    const cpf = await getBestCpf();
-    const nomeBruto = await getBestNome();
-    const filename = buildEsocialFilename(nomeBruto, cpf, competencia);
+    const identity = await getEsocialDownloadIdentity();
+    const filename = buildEsocialFilename(identity.nome, identity.cpf, competencia);
 
     const successMsg = esocialMessages.pdfDownloadedSuccessfully(filename);
     logger.info("eSocial", successMsg.title);
@@ -252,8 +253,6 @@ async function baixarGuiaPdf(
 
 async function triggerLocalDownload(blob: Blob, filename: string) {
   const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
-  await savePendingEsocialDownloadHint(filename);
-
   const objectUrl = URL.createObjectURL(pdfBlob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
@@ -275,18 +274,15 @@ function openBlobInNewTab(blob: Blob, mimeType: string) {
   }, 60_000);
 }
 
-async function savePendingEsocialDownloadHint(filename: string) {
-  try {
-    const browserAPI = typeof browser !== "undefined" ? browser : (window as any).chrome;
-    await browserAPI.storage?.local?.set?.({
-      [ESOCIAL_PENDING_DOWNLOAD_HINT_KEY]: {
-        filename,
-        expiresAt: Date.now() + 2 * 60 * 1000,
-      },
-    });
-  } catch (error) {
-    console.debug("[SIGESS] Nao foi possivel salvar dica de rename do eSocial:", error);
+async function getEsocialDownloadIdentity(): Promise<EsocialDownloadIdentity> {
+  const browserAPI = typeof browser !== "undefined" ? browser : (window as any).chrome;
+  const response = await browserAPI.runtime.sendMessage({ action: "getESocialDownloadIdentity" });
+
+  if (!response?.success || !response.data?.cpf || !response.data?.nome) {
+    throw new Error(response?.error || "NÃ£o foi possÃ­vel identificar o associado do boleto.");
   }
+
+  return response.data as EsocialDownloadIdentity;
 }
 
 function isEmitirGuiaAnchor(anchor: HTMLAnchorElement): boolean {

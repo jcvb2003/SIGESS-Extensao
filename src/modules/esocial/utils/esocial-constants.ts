@@ -10,7 +10,6 @@ export const GPS_FLOW_PENDING_STATE_KEY = "sigess_gps_flow_pending_state";
 export const MANUAL_GUIDE_DOWNLOAD_KEY = "sigess_manual_guide_download_until";
 export const ESOCIAL_PROGRESS_OVERLAY_ID = "sigess-esocial-progress-overlay";
 export const ESOCIAL_PROGRESS_OVERLAY_STORAGE_KEY = "sigess_esocial_progress_overlay";
-export const ESOCIAL_PENDING_DOWNLOAD_HINT_KEY = "sigess_esocial_pending_download_hint";
 
 // Compiled regexes for performance
 export const MONEY_VALUE_REGEX = /\d{1,3}(?:\.\d{3})*,\d{2}/g;

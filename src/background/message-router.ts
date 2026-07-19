@@ -114,6 +114,8 @@ export async function routeMessage(
         return await handleGetESocialAutomationSettings();
       case "getESocialAutomationContext":
         return await handleGetESocialAutomationContext(sender);
+      case "getESocialDownloadIdentity":
+        return await handleGetESocialDownloadIdentity(sender);
       case "getAutoRegistrationSnapshot":
         return await handleGetAutoRegistrationSnapshot();
       case "updateGovBatchStatus":
@@ -140,8 +142,6 @@ export async function routeMessage(
       }
       case "inssAuthenticated":
         return await navigateAuthenticatedCadastroInss(sender);
-      case "downloadESocialGuide":
-        return await handleDownloadESocialGuide(message);
       case "checkReloginEligible":
         return await handleCheckReloginEligible(sender);
       case "triggerRelogin":
@@ -745,6 +745,27 @@ async function handleCadastroPortalOutcome(
   return { success: true };
 }
 
+async function handleGetESocialDownloadIdentity(
+  sender?: browser.runtime.MessageSender,
+): Promise<MessageResponse> {
+  const tabId = sender?.tab?.id;
+  const credentials = typeof tabId === "number"
+    ? await StorageService.getCredentials(tabId)
+    : null;
+
+  if (!credentials || credentials.portalType !== "esocial") {
+    return { success: false, error: "NÃ£o foi possÃ­vel identificar a aba do eSocial." };
+  }
+
+  return {
+    success: true,
+    data: {
+      cpf: String(credentials.cpf || "").replace(/\D/g, ""),
+      nome: credentials.nome || credentials.cpf,
+    },
+  };
+}
+
 function isRegisteredCadastroPortalSender(
   session: CadastroSession,
   portal: keyof CadastroSession["portais"],
@@ -773,7 +794,7 @@ async function handleTriggerRelogin(
   return { success: true };
 }
 
-async function handleDownloadESocialGuide(message: MessageRequest) {
+export async function handleDownloadESocialGuide(message: MessageRequest) {
   const { dataUrl, filename } = message;
   if (!dataUrl || !filename) {
     return { success: false, error: "Dados do download não fornecidos." };
