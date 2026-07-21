@@ -14,6 +14,7 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   "cancelarCadastroAutomatico",
   "usarInssComoAlternativa",
   "limparDadosCapturados",
+  "abrirDataInspector",
 ]);
 
 const UPDATE_ALLOWED_MESSAGE_TYPES = new Set([
