@@ -237,6 +237,7 @@ async function handleGetAutoRegistrationSnapshot(): Promise<MessageResponse> {
       enabled: Boolean(settings.autoRegistrationEnabled),
       hasData: Boolean(pessoaData?.nome && pessoaData?.cpf),
       data: pessoaData,
+      raw: settings.pessoaData_projections || {},
     },
   };
 }
