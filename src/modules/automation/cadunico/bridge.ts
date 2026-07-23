@@ -9,6 +9,8 @@
 
   let lastSentHash = '';
   let lastSentTime = 0;
+  let lastProfileRequestAt = 0;
+  let profileRefreshInFlight = false;
 
   function checkAndSendTokens(profile: { identificador: number; numeroFamiliar: number } | null) {
     if (capturedBearer && capturedXSRF && capturedCpf) {
@@ -60,6 +62,31 @@
 
   function isProfileRequest(url: string): boolean {
     return url.toLowerCase().includes('/tipos-perfil');
+  }
+
+  function isFamilySituationRequest(url: string): boolean {
+    return url.toLowerCase().includes('/precadastro/situacao-familia/');
+  }
+
+  function requestProfileIfMissing() {
+    if (!capturedBearer || !capturedXSRF || !capturedCpf || profileRefreshInFlight) return;
+    if (Date.now() - lastProfileRequestAt < 1500) return;
+
+    profileRefreshInFlight = true;
+    const headers = {
+      Authorization: capturedBearer,
+      'X-XSRF-TOKEN': capturedXSRF,
+      CnasVersao: capturedCnas || '1.36.02',
+      Accept: 'application/json',
+    };
+
+    console.log('SIGESS: Recuperando perfil do CadÚnico após situacao-familia...');
+    globalThis.fetch(
+      `/transacional/api/transacional-api/v1/pessoa/${capturedCpf}/tipos-perfil`,
+      { headers },
+    ).finally(() => {
+      profileRefreshInFlight = false;
+    }).catch(() => {});
   }
 
   function getHeader(headers: any, name: string): string | null {
@@ -116,12 +143,20 @@
     }
 
     if (url && typeof url === 'string' && isProfileRequest(url)) {
+      lastProfileRequestAt = Date.now();
       resPromise.then(response => {
         if (!response.ok) return;
         response.clone().text().then(text => {
           const outcome = readProfileOutcome(text);
           if (outcome !== undefined) checkAndSendTokens(outcome);
         }).catch(() => {});
+      }).catch(() => {});
+    }
+
+    if (url && typeof url === 'string' && isFamilySituationRequest(url)) {
+      resPromise.then(response => {
+        if (!response.ok) return;
+        setTimeout(requestProfileIfMissing, 500);
       }).catch(() => {});
     }
 
@@ -166,9 +201,13 @@
               console.log("SIGESS: CPF capturado via Suporte API (XHR): " + capturedCpf);
             }
         }
+        if (isProfileRequest(urlStr)) lastProfileRequestAt = Date.now();
         if (isProfileRequest(urlStr) && xhr.status === 200) {
           const outcome = readProfileOutcome(xhr.responseText || '');
           if (outcome !== undefined) checkAndSendTokens(outcome);
+        }
+        if (isFamilySituationRequest(urlStr) && xhr.status === 200) {
+          setTimeout(requestProfileIfMissing, 500);
         }
     });
     return (send as any).apply(this, arguments);
