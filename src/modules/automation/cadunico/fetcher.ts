@@ -38,7 +38,7 @@ export async function fetchCadUnicoAdvanced(
     const perfil = profile;
 
     const [details, family, address] = await Promise.all([
-      fetchDetails(perfil.identificador, cpf, headers),
+      fetchDetailsWithRetry(perfil.identificador, cpf, headers),
       fetchFamily(perfil.numeroFamiliar, headers),
       fetchAddress(perfil.numeroFamiliar, headers)
     ]);
@@ -80,6 +80,35 @@ interface PerfilResult {
 }
 
 // ── Funções internas de fetch ────────────────────────────────────────────
+
+const DETAILS_MAX_ATTEMPTS = 3;
+const DETAILS_RETRY_DELAYS_MS = [800, 1600];
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchDetailsWithRetry(
+  pessoaId: number,
+  cpf: string,
+  headers: CadUnicoHeaders,
+): Promise<Partial<PessoaData>> {
+  for (let attempt = 1; attempt <= DETAILS_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await fetchDetails(pessoaId, cpf, headers);
+    } catch (error) {
+      const isEmptyDetails = error instanceof Error && error.message === "detalhes_resposta_vazia";
+      if (!isEmptyDetails || attempt === DETAILS_MAX_ATTEMPTS) throw error;
+
+      console.warn(
+        `SIGESS: CadÚnico retornou detalhes vazios; repetindo consulta (${attempt + 1}/${DETAILS_MAX_ATTEMPTS}).`,
+      );
+      await wait(DETAILS_RETRY_DELAYS_MS[attempt - 1]);
+    }
+  }
+
+  throw new Error("detalhes_resposta_vazia");
+}
 
 async function fetchDetails(pessoaId: number, cpf: string, headers: CadUnicoHeaders): Promise<Partial<PessoaData>> {
   const res = await fetch(
