@@ -1,5 +1,6 @@
 import { StorageService } from "./storage";
 import { BadgeManager } from "./badge-manager";
+import { XPI_DOWNLOAD_URL } from "../../shared/services/update-block";
 
 const GITHUB_API_URL = "https://api.github.com/repos/jcvb2003/SIGESS-Extensao/releases/latest";
 
@@ -25,7 +26,7 @@ export class VersionChecker {
         await StorageService.set({
           updateAvailable: {
             version: latestVersion,
-            url: release.html_url,
+            url: XPI_DOWNLOAD_URL,
           },
         });
         

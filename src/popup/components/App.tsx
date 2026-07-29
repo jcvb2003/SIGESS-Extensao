@@ -14,7 +14,10 @@ import { ExpandIcon } from "./ui/icons";
 import { useLicense } from "../hooks/useLicense";
 import { useSettings } from "../hooks/useSettings";
 import { ShieldCheck, Info } from "lucide-react";
-import { UpdateAvailableInfo } from "../../shared/services/update-block";
+import {
+  UpdateAvailableInfo,
+  XPI_DOWNLOAD_URL,
+} from "../../shared/services/update-block";
 
 function useUpdateAvailable(): UpdateAvailableInfo | null {
   const [info, setInfo] = useState<UpdateAvailableInfo | null>(null);
@@ -132,9 +135,7 @@ const UpdateBlockScreen: React.FC<{ info: UpdateAvailableInfo }> = ({ info }) =>
       )}
 
       <a
-        href="https://github.com/jcvb2003/SIGESS-Extensao/releases/latest/download/sigess.xpi"
-        target="_blank"
-        rel="noreferrer"
+        href={XPI_DOWNLOAD_URL}
         style={{
           display: "inline-flex",
           alignItems: "center",

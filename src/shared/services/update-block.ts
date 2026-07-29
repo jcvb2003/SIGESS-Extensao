@@ -3,6 +3,9 @@ export interface UpdateAvailableInfo {
   url?: string;
 }
 
+export const XPI_DOWNLOAD_URL =
+  "https://downloads.sigess.com.br/sigess.xpi";
+
 const OVERLAY_ID = "sigess-update-required-overlay";
 const STYLE_ID = "sigess-update-required-style";
 
@@ -149,7 +152,7 @@ export async function ensureUpdateRequiredOverlay(
   const actionsEl = overlay.querySelector(".sigess-update-actions");
   if (actionsEl) {
     actionsEl.innerHTML = resolvedInfo.url
-      ? `<a class="sigess-update-button" href="${resolvedInfo.url}" target="_blank" rel="noreferrer">Atualizar extensão</a>`
+      ? `<a class="sigess-update-button" href="${resolvedInfo.url}">Atualizar extensão</a>`
       : "";
   }
 }

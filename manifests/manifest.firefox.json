@@ -143,7 +143,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "{e9df396f-bdd8-4e79-bc7c-92017a928891}",
-      "update_url": "https://downloads.sigess.com.br/updates.json"
+      "update_url": "https://raw.githubusercontent.com/jcvb2003/SIGESS-Extensao/main/updates.json"
     }
   }
 }
