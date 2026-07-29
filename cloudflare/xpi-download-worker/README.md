@@ -1,14 +1,15 @@
 # SIGESS XPI Download Worker
 
-Expõe o XPI assinado da versão mais recente sem redirecionar o navegador para
-o GitHub.
+Expõe o manifesto de atualização e os XPIs assinados sem redirecionar o
+navegador para o GitHub.
 
 ## Endpoints
 
-- `GET /sigess.xpi`: transmite o XPI com `application/x-xpinstall`.
+- `GET /sigess.xpi`: transmite o XPI mais recente com `application/x-xpinstall`.
 - `HEAD /sigess.xpi`: retorna os mesmos cabeçalhos sem corpo.
+- `GET /updates.json`: transmite o manifesto de atualização do Firefox.
+- `GET /releases/vX.Y.Z/sigess.xpi`: transmite uma versão assinada específica.
 - `GET /health`: verificação simples de disponibilidade do Worker.
 
-O `workers.dev` deve permanecer habilitado apenas durante a validação inicial.
-Depois que `downloads.sigess.com.br` estiver ativo, altere `workers_dev` para
-`false` e implante novamente.
+O `workers.dev` deve permanecer desativado. A superfície pública oficial é
+`downloads.sigess.com.br`.
