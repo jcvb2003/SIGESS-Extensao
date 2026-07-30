@@ -96,11 +96,7 @@ export const useLicense = (): UseLicenseReturn => {
       setActivating(true);
       try {
         await LicenseService.saveKey(key);
-        if (deviceName?.trim()) {
-          await LicenseService.updateDeviceName(deviceName.trim());
-        }
-
-        const result = await LicenseService.activate();
+        const result = await LicenseService.activate(deviceName?.trim());
         setLicense(result);
         setVerified(true);
         return result;

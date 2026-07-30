@@ -62,7 +62,8 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     setActivating(true);
     try {
       await LicenseService.saveKey(inputKey.trim());
-      await loadLicense(true, 'activate');
+      const result = await LicenseService.activate(deviceName.trim());
+      setLicense(result);
       setInputKey("");
     } catch (error) {
       console.error("Erro na ativação:", error);

@@ -16,7 +16,7 @@ import { useSettings } from "../hooks/useSettings";
 import { ShieldCheck, Info } from "lucide-react";
 import {
   UpdateAvailableInfo,
-  XPI_DOWNLOAD_URL,
+  XPI_INSTALL_URL,
 } from "../../shared/services/update-block";
 
 function useUpdateAvailable(): UpdateAvailableInfo | null {
@@ -43,118 +43,46 @@ function useUpdateAvailable(): UpdateAvailableInfo | null {
   return info;
 }
 
-const UpdateBlockScreen: React.FC<{ info: UpdateAvailableInfo }> = ({ info }) => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-      minHeight: "260px",
-      padding: "18px",
-      background: "linear-gradient(180deg, #fff 0%, #fff8f8 100%)",
-    }}
-  >
-    <div
-      style={{
-        border: "1px solid rgba(248, 113, 113, 0.2)",
-        borderRadius: "18px",
-        background: "#ffffff",
-        boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-        padding: "18px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "14px",
-      }}
-    >
-      <div
-        style={{
-          display: "inline-flex",
-          alignSelf: "flex-start",
-          padding: "6px 12px",
-          borderRadius: "999px",
-          background: "#fff1f2",
-          color: "#be123c",
-          fontSize: "10px",
-          fontWeight: 800,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-        }}
-      >
-        Atualização obrigatória
-      </div>
+interface UpdateBlockScreenProps {
+  info: UpdateAvailableInfo;
+  onUpdate?: React.MouseEventHandler<HTMLAnchorElement>;
+}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        <h2
-          style={{
-            margin: 0,
-            fontSize: "20px",
-            fontWeight: 900,
-            color: "#881337",
-            lineHeight: 1.15,
-          }}
-        >
-          Nova versão disponível
-        </h2>
-        <p
-          style={{
-            margin: 0,
-            fontSize: "13px",
-            color: "#475569",
-            lineHeight: 1.55,
-          }}
-        >
-          Atualize a extensão para continuar usando as funções do SIGESS.
-        </p>
-      </div>
+export const UpdateBlockScreen: React.FC<UpdateBlockScreenProps> = ({
+  info,
+  onUpdate,
+}) => (
+  <main className="update-block-screen">
+    <header className="update-block-header">
+      <img src="../../icon.png" alt="" />
+      <span>SIGESS</span>
+    </header>
 
+    <section className="update-block-notice" aria-labelledby="update-block-title">
+      <p className="update-block-label">Atualização necessária</p>
+      <h2 id="update-block-title">Uma nova versão do SIGESS está disponível</h2>
+      <p className="update-block-description">
+        Para continuar utilizando a extensão, instale a atualização disponível.
+      </p>
+    </section>
+
+    <footer className="update-block-footer">
       {info.version && (
-        <div
-          style={{
-            borderRadius: "14px",
-            border: "1px solid rgba(148, 163, 184, 0.2)",
-            background: "#f8fafc",
-            padding: "10px 12px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "10px",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "#64748b",
-              marginBottom: "4px",
-            }}
-          >
-            Versão disponível
-          </div>
-          <div style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
-            v{info.version}
-          </div>
-        </div>
+        <dl className="update-block-version">
+          <dt>Versão disponível</dt>
+          <dd>v{info.version}</dd>
+        </dl>
       )}
 
       <a
-        href={XPI_DOWNLOAD_URL}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "44px",
-          padding: "0 18px",
-          borderRadius: "12px",
-          background: "linear-gradient(135deg, #dc2626 0%, #be123c 100%)",
-          color: "#fff",
-          textDecoration: "none",
-          fontSize: "13px",
-          fontWeight: 800,
-          boxShadow: "0 10px 24px rgba(190, 24, 93, 0.22)",
-        }}
+        href={XPI_INSTALL_URL}
+        className="update-block-action"
+        onClick={onUpdate}
       >
         Atualizar extensão
       </a>
-    </div>
-  </div>
+    </footer>
+  </main>
 );
 
 const AppContent: React.FC = () => {
@@ -255,8 +183,27 @@ const AppContent: React.FC = () => {
     });
   };
 
+  const handleUpdateClick: React.MouseEventHandler<HTMLAnchorElement> = (
+    event,
+  ) => {
+    event.preventDefault();
+
+    void browser.runtime
+      .sendMessage({ action: "openExtensionUpdate" })
+      .catch((error: unknown) => {
+        console.error("Falha ao abrir a atualização da extensão:", error);
+      });
+
+    window.close();
+  };
+
   if (updateInfo) {
-    return <UpdateBlockScreen info={updateInfo} />;
+    return (
+      <UpdateBlockScreen
+        info={updateInfo}
+        onUpdate={handleUpdateClick}
+      />
+    );
   }
 
   if (licenseLoading || settingsLoading) {

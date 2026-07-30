@@ -37,6 +37,7 @@ import {
   processCadastroDataArrival,
   processCadastroPortalOutcome,
 } from "./cadastro/cadastro-orchestrator";
+import { XPI_INSTALL_URL } from "../shared/services/update-block";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -44,6 +45,7 @@ const UPDATE_ALLOWED_ACTIONS = new Set([
   "getGovBatchStatuses",
   "getESocialAutomationSettings",
   "getAutoRegistrationSnapshot",
+  "openExtensionUpdate",
 ]);
 
 function formatCpf(cpf: string): string {
@@ -142,6 +144,8 @@ export async function routeMessage(
       }
       case "abrirDataInspector":
         return await openDataInspector();
+      case "openExtensionUpdate":
+        return await handleOpenExtensionUpdate();
       case "inssAuthenticated":
         return await navigateAuthenticatedCadastroInss(sender);
       case "checkReloginEligible":
@@ -759,6 +763,23 @@ async function openDataInspector(): Promise<MessageResponse> {
   }
   const created = await browser.tabs.create({ url });
   return { success: true, tabId: created.id, reused: false };
+}
+
+async function handleOpenExtensionUpdate(): Promise<MessageResponse> {
+  const [activeTab] = await browser.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+
+  if (activeTab?.id === undefined) {
+    return {
+      success: false,
+      error: "Não foi possível localizar a aba ativa para instalar a atualização.",
+    };
+  }
+
+  await browser.tabs.update(activeTab.id, { url: XPI_INSTALL_URL });
+  return { success: true, tabId: activeTab.id };
 }
 
 async function handleGetESocialDownloadIdentity(

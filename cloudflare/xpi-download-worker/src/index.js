@@ -1,8 +1,10 @@
 const UPSTREAM_XPI_URL =
   "https://github.com/jcvb2003/SIGESS-Extensao/releases/latest/download/sigess.xpi";
 
+const INSTALL_PATH = "/instalar";
 const DOWNLOAD_PATH = "/sigess.xpi";
 const CACHE_SECONDS = 300;
+const REDIRECT_DELAY_SECONDS = 3;
 
 const FORWARDED_REQUEST_HEADERS = [
   "if-modified-since",
@@ -32,6 +34,65 @@ function jsonResponse(payload, status, extraHeaders = {}) {
 function methodNotAllowed() {
   return jsonResponse({ error: "method_not_allowed" }, 405, {
     Allow: "GET, HEAD",
+  });
+}
+
+function installPageResponse(request) {
+  const downloadUrl = new URL(DOWNLOAD_PATH, request.url).toString();
+  const html = `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="${REDIRECT_DELAY_SECONDS};url=${downloadUrl}">
+  <title>Atualizar extensão SIGESS</title>
+  <style>
+    :root { color-scheme: light; font-family: "Segoe UI", system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: #f4f7f7; color: #253238; }
+    main { width: min(520px, 100%); padding: 36px; border: 1px solid #d5dede; background: #fff; box-shadow: 0 18px 50px rgba(35, 55, 60, .1); }
+    .label { margin: 0 0 12px; color: #176b68; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: 25px; line-height: 1.25; }
+    p { margin: 16px 0 0; color: #5d6a70; line-height: 1.6; }
+    strong { color: #253238; }
+    a { display: inline-flex; justify-content: center; width: 100%; min-height: 44px; margin-top: 26px; padding: 12px 18px; background: #176b68; color: #fff; font-weight: 700; text-decoration: none; }
+    a:hover, a:focus-visible { background: #0d514f; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="label">Atualização segura</p>
+    <h1>Preparando a extensão SIGESS</h1>
+    <p>O download começará automaticamente em <strong id="countdown">${REDIRECT_DELAY_SECONDS}</strong> segundos.</p>
+    <p>Se o Firefox não continuar automaticamente, use o botão abaixo.</p>
+    <a href="${downloadUrl}">Baixar extensão agora</a>
+  </main>
+  <script>
+    let remaining = ${REDIRECT_DELAY_SECONDS};
+    const countdown = document.getElementById("countdown");
+    const timer = setInterval(() => {
+      remaining -= 1;
+      countdown.textContent = String(Math.max(remaining, 0));
+      if (remaining <= 0) {
+        clearInterval(timer);
+        window.location.assign(${JSON.stringify(downloadUrl)});
+      }
+    }, 1000);
+  </script>
+</body>
+</html>`;
+
+  return new Response(request.method === "HEAD" ? null : html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Content-Security-Policy":
+        "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+    },
   });
 }
 
@@ -118,7 +179,15 @@ export default {
         return methodNotAllowed();
       }
 
-      return Response.redirect(new URL(DOWNLOAD_PATH, url), 307);
+      return Response.redirect(new URL(INSTALL_PATH, url), 307);
+    }
+
+    if (url.pathname === INSTALL_PATH) {
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        return methodNotAllowed();
+      }
+
+      return installPageResponse(request);
     }
 
     if (url.pathname !== DOWNLOAD_PATH) {

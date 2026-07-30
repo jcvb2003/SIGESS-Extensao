@@ -18,7 +18,7 @@ const FilePicker = () => {
       browser.storage.local
         .set({ sigessReapPdfCache: { b64, filename: file.name } })
         .then(() => {
-          setStatus(`✅ ${file.name} salvo!`);
+          setStatus(`✓ ${file.name} salvo!`);
           setTimeout(() => window.close(), 800);
         })
         .catch((err: any) => setError(`Erro ao salvar: ${err.message}`));
@@ -28,15 +28,24 @@ const FilePicker = () => {
   };
 
   return (
-    <div className="card">
-      <h2>Documento Comprobatório</h2>
-      <p>Selecione o PDF que será anexado automaticamente nos meses sem pesca.</p>
-      <label>
-        📄 Selecionar PDF
-        <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={handleChange} />
-      </label>
-      <div className={`status ${error ? 'error' : ''}`}>{error || status}</div>
-    </div>
+    <main className="file-picker-page">
+      <section className="file-picker-content" aria-labelledby="file-picker-title">
+        <h1 id="file-picker-title">Documento comprobatório</h1>
+        <p>Selecione o PDF que será anexado automaticamente nos meses sem pesca.</p>
+
+        <div className="file-action">
+          <label className="select-button">
+            Selecionar PDF
+            <input type="file" accept=".pdf" onChange={handleChange} />
+          </label>
+          <span>Somente arquivos PDF</span>
+        </div>
+
+        <div className={`status ${error ? 'error' : ''}`} role="status" aria-live="polite">
+          {error || status}
+        </div>
+      </section>
+    </main>
   );
 };
 

@@ -44,8 +44,28 @@ describe("SIGESS XPI download worker", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "https://downloads.sigess.com.br/sigess.xpi",
+      "https://downloads.sigess.com.br/instalar",
     );
+  });
+
+  it("serves an installation page that redirects to the XPI after 3 seconds", async () => {
+    const response = await worker.fetch(
+      new Request("https://downloads.sigess.com.br/instalar"),
+    );
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/html; charset=utf-8",
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(html).toContain(
+      'content="3;url=https://downloads.sigess.com.br/sigess.xpi"',
+    );
+    expect(html).toContain(
+      'href="https://downloads.sigess.com.br/sigess.xpi"',
+    );
+    expect(html).not.toContain("github.com");
   });
 
   it("rejects unsupported methods and paths", async () => {
@@ -61,5 +81,16 @@ describe("SIGESS XPI download worker", () => {
     expect(methodResponse.status).toBe(405);
     expect(methodResponse.headers.get("allow")).toBe("GET, HEAD");
     expect(pathResponse.status).toBe(404);
+  });
+
+  it("supports HEAD on the installation page without returning a body", async () => {
+    const response = await worker.fetch(
+      new Request("https://downloads.sigess.com.br/instalar", {
+        method: "HEAD",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("");
   });
 });

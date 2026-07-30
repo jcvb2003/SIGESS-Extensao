@@ -1,73 +1,103 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, expect, it } from "vitest";
+import {
+  isAuthoritativeLicenseRejection,
+  verifyEntitlementToken,
+} from "../../src/shared/services/license";
 
-(globalThis as any).VITE_APP_SECRET_MOCK = 'test-secret';
+function base64Url(value: Uint8Array | string): string {
+  const bytes = typeof value === "string"
+    ? new TextEncoder().encode(value)
+    : value;
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
 
-import { LicenseService } from '../../src/shared/services/license';
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(
+    new Uint8Array(digest),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
 
-describe('License Security (Multi-Device)', () => {
-    it('should verify signature correctly with devices and max_devices', async () => {
-        const data = {
-            ok: true,
-            plan: 'paid',
-            usage_count: 5,
-            devices: 1,
-            max_devices: 2,
-            valid_until: '2026-12-31T23:59:59.000Z'
-        };
+async function createEntitlement(overrides: Record<string, unknown> = {}) {
+  const pair = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"],
+  );
+  const publicJwk = {
+    ...await crypto.subtle.exportKey("jwk", pair.publicKey),
+    kid: "test-v1",
+  };
+  const header = base64Url(JSON.stringify({ alg: "ES256", kid: "test-v1" }));
+  const claims = base64Url(JSON.stringify({
+    sub: "license-test",
+    fp: await sha256Hex("fingerprint-test"),
+    plan: "paid",
+    ver: 4,
+    iss: "https://api.sigess.com.br",
+    aud: "sigess-extension",
+    exp: Math.floor(Date.now() / 1000) + 300,
+    typ: "entitlement",
+    ...overrides,
+  }));
+  const signed = `${header}.${claims}`;
+  const signature = new Uint8Array(await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    pair.privateKey,
+    new TextEncoder().encode(signed),
+  ));
+  return {
+    token: `${signed}.${base64Url(signature)}`,
+    publicJwk: publicJwk as JsonWebKey & { kid: string },
+  };
+}
 
-        const secret = (import.meta as any).env?.VITE_APP_SECRET || 'test-secret';
-        
-        // Simular o que a Edge Function faria (assinatura HMAC SHA-256)
-        const msg = `${data.ok}${data.plan || ""}${data.usage_count || ""}${data.devices || ""}${data.max_devices || ""}${data.valid_until}`;
-        console.log('Test MSG:', msg);
-        console.log('Secret used:', secret);
-        
-        const encoder = new TextEncoder();
-        const keyData = encoder.encode(secret);
-        const msgData = encoder.encode(msg);
-        
-        const cryptoKey = await crypto.subtle.importKey(
-            "raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-        );
-        const sigBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData);
-        const sig = Array.from(new Uint8Array(sigBuffer))
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('');
+describe("segurança da licença", () => {
+  it("nunca aplica fail-open após uma rejeição autoritativa da API", () => {
+    expect(isAuthoritativeLicenseRejection(401)).toBe(true);
+    expect(isAuthoritativeLicenseRejection(403)).toBe(true);
+    expect(isAuthoritativeLicenseRejection(409)).toBe(true);
+    expect(isAuthoritativeLicenseRejection(500)).toBe(false);
+    expect(isAuthoritativeLicenseRejection()).toBe(false);
+  });
 
-        // Verificar na classe LicenseService enviando a assinatura gerada
-        // Nota: verifySignature é privado, mas performLiveCheck/checkLicense a utilizam internamente.
-        // Como o objetivo é testar a lógica do HMAC, verificamos o funcionamento via mock de fetch se necessário
-        // ou acessando o método privado via casting (apenas para teste)
-        
-        const isAuthentic = await (LicenseService as any).verifySignature(data, sig);
-        expect(isAuthentic).toBe(true);
+  it("aceita um entitlement ES256 íntegro e vinculado ao dispositivo", async () => {
+    const { token, publicJwk } = await createEntitlement();
+    const claims = await verifyEntitlementToken(
+      token,
+      "fingerprint-test",
+      "license-test",
+      publicJwk,
+    );
+    expect(claims).toMatchObject({
+      sub: "license-test",
+      fp: await sha256Hex("fingerprint-test"),
+      ver: 4,
     });
+  });
 
-    it('should fail if devices count is tampered with', async () => {
-        const data = {
-            ok: true,
-            plan: 'paid',
-            usage_count: 5,
-            devices: 1,
-            max_devices: 2,
-            valid_until: '2026-12-31T23:59:59.000Z'
-        };
+  it("rejeita entitlement destinado a outro dispositivo", async () => {
+    const { token, publicJwk } = await createEntitlement();
+    await expect(
+      verifyEntitlementToken(token, "fingerprint-adulterado", "license-test", publicJwk),
+    ).resolves.toBeNull();
+  });
 
-        // Assinatura para devices: 1
-        const sig = '...'; // Não importa o valor real aqui, o SignatureService deve recusar se os dados mudarem
-
-        const tamperedData = { ...data, devices: 2 }; // Usuário tenta dizer que tem 2 devices
-        
-        // Regenerate real sig for comparison
-        const msg = `${data.ok}${data.plan}${data.usage_count}${data.devices}${data.max_devices}${data.valid_until}`;
-        const encoder = new TextEncoder();
-        const cryptoKey = await crypto.subtle.importKey(
-            "raw", encoder.encode('test-secret'), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-        );
-        const sigBuffer = await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(msg));
-        const validSig = Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-        const isAuthentic = await (LicenseService as any).verifySignature(tamperedData, validSig);
-        expect(isAuthentic).toBe(false);
+  it("rejeita entitlement expirado", async () => {
+    const { token, publicJwk } = await createEntitlement({
+      exp: Math.floor(Date.now() / 1000) - 1,
     });
+    await expect(
+      verifyEntitlementToken(token, "fingerprint-test", "license-test", publicJwk),
+    ).resolves.toBeNull();
+  });
 });

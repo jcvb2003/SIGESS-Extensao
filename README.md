@@ -27,7 +27,7 @@ Extensão Firefox/Chrome que automatiza tarefas repetitivas em sistemas governam
 ## Início rápido
 
 ```bash
-cp .env.example .env       # VITE_SUPABASE_ANON_KEY + VITE_APP_SECRET
+cp .env.example .env       # apenas variáveis não sensíveis de desenvolvimento
 npm install
 
 npm run build:firefox      # → dist/firefox/
@@ -39,8 +39,8 @@ npm run test               # vitest
 ### Variáveis de ambiente
 
 ```env
-VITE_SUPABASE_ANON_KEY=eyJ...
-VITE_APP_SECRET=...
+O licenciamento usa `https://api.sigess.com.br`; nenhum segredo de validação
+é incorporado ao XPI. A extensão contém somente a chave pública ES256.
 ```
 
 ## Estrutura

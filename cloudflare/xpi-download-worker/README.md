@@ -5,6 +5,7 @@ o GitHub.
 
 ## Endpoints
 
+- `GET /instalar`: exibe uma página segura e inicia o download após 3 segundos.
 - `GET /sigess.xpi`: transmite o XPI com `application/x-xpinstall`.
 - `HEAD /sigess.xpi`: retorna os mesmos cabeçalhos sem corpo.
 - `GET /health`: verificação simples de disponibilidade do Worker.
