@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   isAuthoritativeLicenseRejection,
+  LicenseService,
+  shouldActivateDevice,
   verifyEntitlementToken,
 } from "../../src/shared/services/license";
+import { reconnectDelayMs } from "../../src/background/services/realtime-license";
 
 function base64Url(value: Uint8Array | string): string {
   const bytes = typeof value === "string"
@@ -62,12 +65,58 @@ async function createEntitlement(overrides: Record<string, unknown> = {}) {
 }
 
 describe("segurança da licença", () => {
+  it("aplica jitter ao backoff sem criar polling de licença", () => {
+    expect(reconnectDelayMs(0, () => 0)).toBe(4_000);
+    expect(reconnectDelayMs(0, () => 1)).toBe(6_000);
+    expect(reconnectDelayMs(10, () => 0.5)).toBe(60_000);
+  });
+
+  it("não reativa automaticamente um dispositivo revogado", () => {
+    expect(shouldActivateDevice("status", false, true)).toBe(false);
+    expect(shouldActivateDevice("status", false, false)).toBe(true);
+    expect(shouldActivateDevice("activate", false, true)).toBe(true);
+  });
+
   it("nunca aplica fail-open após uma rejeição autoritativa da API", () => {
     expect(isAuthoritativeLicenseRejection(401)).toBe(true);
     expect(isAuthoritativeLicenseRejection(403)).toBe(true);
     expect(isAuthoritativeLicenseRejection(409)).toBe(true);
+    expect(isAuthoritativeLicenseRejection(429)).toBe(false);
     expect(isAuthoritativeLicenseRejection(500)).toBe(false);
     expect(isAuthoritativeLicenseRejection()).toBe(false);
+  });
+
+  it("reutiliza a chave de idempotencia enquanto a ativacao estiver pendente", async () => {
+    const values = new Map<string, unknown>();
+    const local = {
+      get: vi.fn(async (keys: string | string[]) => {
+        const requested = Array.isArray(keys) ? keys : [keys];
+        return Object.fromEntries(requested.map((key) => [key, values.get(key)]));
+      }),
+      set: vi.fn(async (entries: Record<string, unknown>) => {
+        for (const [key, value] of Object.entries(entries)) values.set(key, value);
+      }),
+      remove: vi.fn(async (keys: string | string[]) => {
+        for (const key of Array.isArray(keys) ? keys : [keys]) values.delete(key);
+      }),
+    };
+    vi.stubGlobal("browser", { storage: { local } });
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await LicenseService.saveKey("SINP-TEST-TEST-TEST-TEST");
+    await LicenseService.activate("Desktop");
+    await LicenseService.activate("Desktop");
+
+    const headers = fetchMock.mock.calls.map(([, init]) =>
+      (init?.headers as Record<string, string>)["Idempotency-Key"]
+    );
+    expect(headers).toHaveLength(2);
+    expect(headers[0]).toMatch(
+      /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u,
+    );
+    expect(headers[1]).toBe(headers[0]);
+    vi.unstubAllGlobals();
   });
 
   it("aceita um entitlement ES256 íntegro e vinculado ao dispositivo", async () => {

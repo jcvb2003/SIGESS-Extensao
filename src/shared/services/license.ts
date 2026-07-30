@@ -18,6 +18,8 @@ const STORAGE_KEYS = {
   key: "license_key",
   licenseId: "license_api_id",
   deviceToken: "license_device_token",
+  revoked: "license_device_revoked",
+  activationIdempotencyKey: "license_activation_idempotency_key",
 } as const;
 
 export type LicenseReason =
@@ -46,6 +48,8 @@ type DeviceCredentials = {
   licenseId: string;
   deviceToken: string;
 };
+
+type LicenseAction = "status" | "activate" | "update_name";
 
 type EntitlementClaims = {
   sub: string;
@@ -96,7 +100,15 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 export function isAuthoritativeLicenseRejection(status?: number): boolean {
-  return status !== undefined && status >= 400 && status < 500;
+  return status !== undefined && status >= 400 && status < 500 && status !== 429;
+}
+
+export function shouldActivateDevice(
+  action: LicenseAction,
+  hasCredentials: boolean,
+  revoked: boolean,
+): boolean {
+  return action === "activate" || (!hasCredentials && !revoked);
 }
 
 export async function verifyEntitlementToken(
@@ -178,11 +190,46 @@ export class LicenseService {
     ]);
   }
 
+  private static async getActivationIdempotencyKey(): Promise<string> {
+    const stored = await browser.storage.local.get(
+      STORAGE_KEYS.activationIdempotencyKey,
+    );
+    const current = stored[STORAGE_KEYS.activationIdempotencyKey];
+    if (typeof current === "string" && current.length > 0) return current;
+
+    const created = crypto.randomUUID();
+    await browser.storage.local.set({
+      [STORAGE_KEYS.activationIdempotencyKey]: created,
+    });
+    return created;
+  }
+
+  private static async clearActivationIdempotencyKey(): Promise<void> {
+    await browser.storage.local.remove(STORAGE_KEYS.activationIdempotencyKey);
+  }
+
+  static async isDeviceRevoked(): Promise<boolean> {
+    const stored = await browser.storage.local.get(STORAGE_KEYS.revoked);
+    return stored[STORAGE_KEYS.revoked] === true;
+  }
+
+  private static async markDeviceRevoked(): Promise<void> {
+    await browser.storage.local.set({ [STORAGE_KEYS.revoked]: true });
+    await this.resetDeviceCredentials();
+    await this.resetCache();
+  }
+
   static async saveKey(key: string): Promise<void> {
     const normalized = key.trim();
     const previous = await this.getSavedKey();
     await browser.storage.local.set({ [STORAGE_KEYS.key]: normalized });
-    if (previous !== normalized) await this.resetDeviceCredentials();
+    if (previous !== normalized) {
+      await this.resetDeviceCredentials();
+      await browser.storage.local.remove([
+        STORAGE_KEYS.revoked,
+        STORAGE_KEYS.activationIdempotencyKey,
+      ]);
+    }
     await this.resetCache();
   }
 
@@ -258,6 +305,7 @@ export class LicenseService {
       case "invalid_request": return "missing_parameters";
       case "upstream_error":
       case "upstream_network_error": return "database_error";
+      case "rate_limited": return "network_error";
       default: return "internal_error";
     }
   }
@@ -265,11 +313,17 @@ export class LicenseService {
   private static async apiRequest(
     path: string,
     body: Record<string, unknown>,
+    idempotencyKey?: string,
   ): Promise<ApiSuccess> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+
     const response = await fetch(`${LICENSE_API_URL}${path}`, {
       method: "POST",
       credentials: "omit",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
     });
     const payload = await response.json() as ApiSuccess & {
@@ -319,7 +373,7 @@ export class LicenseService {
   }
 
   private static async performLiveCheck(
-    action: "status" | "activate" | "update_name" = "status",
+    action: LicenseAction = "status",
     deviceName?: string,
   ): Promise<LicenseResult> {
     const key = await this.getSavedKey();
@@ -327,6 +381,14 @@ export class LicenseService {
     try {
       const fingerprint = await getFingerprint();
       const credentials = await this.getDeviceCredentials();
+      const revoked = await this.isDeviceRevoked();
+      if (
+        action !== "activate" &&
+        !credentials &&
+        revoked
+      ) {
+        return { ok: false, reason: "wrong_device" };
+      }
 
       if (action === "update_name" && credentials) {
         const payload = await this.apiRequest("/v1/licenses/device", {
@@ -334,16 +396,17 @@ export class LicenseService {
           device_token: credentials.deviceToken,
           fingerprint,
           device_name: deviceName,
-        });
+        }, crypto.randomUUID());
         return this.cacheApiResult(payload, this.memoryCache ?? undefined);
       }
 
-      if (action === "activate" || !credentials) {
+      if (shouldActivateDevice(action, Boolean(credentials), revoked)) {
+        const idempotencyKey = await this.getActivationIdempotencyKey();
         const payload = await this.apiRequest("/v1/licenses/activate", {
           key,
           fingerprint,
           device_name: deviceName,
-        });
+        }, idempotencyKey);
         if (!payload.license_id || !payload.device_token) {
           return { ok: false, reason: "internal_error" };
         }
@@ -351,8 +414,11 @@ export class LicenseService {
           [STORAGE_KEYS.licenseId]: payload.license_id,
           [STORAGE_KEYS.deviceToken]: payload.device_token,
         });
+        await browser.storage.local.remove(STORAGE_KEYS.revoked);
+        await this.clearActivationIdempotencyKey();
         return this.cacheApiResult(payload);
       }
+      if (!credentials) return { ok: false, reason: "wrong_device" };
 
       const payload = await this.apiRequest("/v1/licenses/refresh", {
         license_id: credentials.licenseId,
@@ -363,10 +429,12 @@ export class LicenseService {
     } catch (error) {
       const apiError = error as Error & { reason?: LicenseReason; status?: number };
       if (apiError.status === 401) {
-        await this.resetDeviceCredentials();
-        await this.resetCache();
+        await this.markDeviceRevoked();
       }
       if (isAuthoritativeLicenseRejection(apiError.status)) {
+        if (action === "activate") {
+          await this.clearActivationIdempotencyKey();
+        }
         await this.resetCache();
         return { ok: false, reason: apiError.reason ?? "unauthorized_access" };
       }
@@ -411,6 +479,11 @@ export class LicenseService {
     return this.performLiveCheck("update_name", name);
   }
 
+  static async handleRemoteInvalidation(): Promise<LicenseResult> {
+    await this.resetCache();
+    return this.checkLicense(true);
+  }
+
   static async createSessionUrl(): Promise<string | null> {
     const credentials = await this.getDeviceCredentials();
     if (!credentials) return null;
@@ -421,7 +494,9 @@ export class LicenseService {
         fingerprint: await getFingerprint(),
       });
       return payload.websocket_url || null;
-    } catch {
+    } catch (error) {
+      const apiError = error as Error & { status?: number };
+      if (apiError.status === 401) await this.markDeviceRevoked();
       return null;
     }
   }
