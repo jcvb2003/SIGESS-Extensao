@@ -42,7 +42,7 @@ export interface UserCredentials {
   valorComercializado?: string;
   isCadastroAutomatico?: boolean;
   cadastroSessionId?: string;
-  portalType?: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss" | "cadunico" | "ecac" | "tse";
+  portalType?: "mte" | "pesqbrasil_mpa" | "esocial" | "inss" | "cadunico" | "ecac" | "tse";
   gerarGps?: boolean;
   consultarGuias?: boolean;
   selectedYear?: string;
@@ -98,7 +98,7 @@ export interface MultiLoginItem {
   consultarGuias?: boolean;
   selectedYear?: string;
   selectedMonth?: string;
-  type: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss";
+  type: "mte" | "pesqbrasil_mpa" | "esocial" | "inss";
   timestamp: number;
 }
 

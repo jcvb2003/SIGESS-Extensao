@@ -147,8 +147,8 @@ async function baixarGuiaPdf(
     overlayState: {
       step: 3,
       total: 3,
-      title: "Executando script no eSocial",
-      description: `Preparando download do boleto de ${formatCompetencia(competencia)}...`,
+      title: "Preparando o download do boleto",
+      description: `Preparando o download do boleto de ${formatCompetencia(competencia)}...`,
     },
   });
 

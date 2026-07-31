@@ -14,6 +14,7 @@ import { CADUNICO_HOME_URL, isCadUnicoUrl } from "../../modules/automation/cadun
 import { INSS_DATA_URL, isInssDataUrl, isInssUrl } from "../../modules/automation/inss/routes";
 import { ECAC_COLLECTION_URL, ECAC_LOGIN_URL, isEcacCaepfCollectionUrl, isEcacUrl } from "../../modules/automation/ecac/routes";
 import { PESQBRASIL_MPA_URL, isPesqBrasilMpaUrl } from "../../modules/automation/pesqbrasil/routes";
+import { isMteUrl } from "../../modules/automation/mte/routes";
 
 export class TabManager {
   private readonly strategies: AuthStrategy[] = [];
@@ -78,7 +79,7 @@ export class TabManager {
     senha: string,
     index: number,
     nome?: string,
-    portalType?: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss",
+    portalType?: "mte" | "pesqbrasil_mpa" | "esocial" | "inss",
     valorComercializado?: string,
     gerarGps?: boolean,
     consultarGuias?: boolean,
@@ -91,7 +92,8 @@ export class TabManager {
         (url.includes("esocial") ? "esocial"
           : isInssUrl(url) ? "inss"
           : isPesqBrasilMpaUrl(url) ? "pesqbrasil_mpa"
-          : "pesqbrasil_agro");
+          : isMteUrl(url) ? "mte"
+          : "mte");
 
       let tab: browser.tabs.Tab;
 
@@ -423,11 +425,11 @@ export class TabManager {
     const credentials = await StorageService.getCredentials(tabId);
     if (!credentials) return;
 
-    const portalType = credentials.portalType || "pesqbrasil_agro";
+    const portalType = credentials.portalType || "mte";
     const strategyName = portalType === "esocial" ? "eSocial"
       : portalType === "inss" ? "INSS"
       : portalType === "pesqbrasil_mpa" ? "PesqBrasilMPA"
-      : "PesqBrasil";
+      : "MTE";
     const strategy = this.strategies.find((s) => s.name === strategyName);
     if (!strategy) return;
 

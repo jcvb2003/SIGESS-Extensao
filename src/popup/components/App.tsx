@@ -89,7 +89,7 @@ const AppContent: React.FC = () => {
   const updateInfo = useUpdateAvailable();
   const [loading, setLoading] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState<
-    "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss" | null
+    "mte" | "pesqbrasil_mpa" | "esocial" | "inss" | null
   >(null);
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   const [openSections, setOpenSections] = useState({
@@ -139,7 +139,7 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleMultiLoginBatch = async (type: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss") => {
+  const handleMultiLoginBatch = async (type: "mte" | "pesqbrasil_mpa" | "esocial" | "inss") => {
     const queue = settings.multiLoginQueue || [];
     const itemsToOpen = queue.filter((item) => item.type === type);
 

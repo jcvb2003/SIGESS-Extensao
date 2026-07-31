@@ -7,8 +7,7 @@ import {
   RefreshCw,
   ExternalLink,
   Monitor,
-  Plus,
-  CreditCard
+  Plus
 } from "lucide-react";
 import { LicenseService, LicenseResult } from "../../../shared/services/license";
 import { Skeleton } from "./Skeleton";
@@ -115,7 +114,7 @@ export const LicenseInfo: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         {renderStatusItem("Status", "VERIFICADO", "Licença autêntica", <ShieldCheck size={18} />, "#f59e0b")}
-        {renderStatusItem("Plano", "SIGESS", "Acesso completo", <CreditCard size={18} />, "#8b5cf6")}
+        {renderStatusItem("Computador", license?.device_name || deviceName || "Não informado", "Nome deste computador", <Monitor size={18} />, "#0f766e")}
       </div>
       
       <button onClick={() => loadLicense(true)} disabled={refreshing} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', cursor: refreshing ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', color: 'var(--color-text)', transition: 'all 0.2s', marginTop: '8px' }}>

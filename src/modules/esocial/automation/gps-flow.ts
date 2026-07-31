@@ -1095,11 +1095,11 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
       progressStep: 2,
       progressTotal: 3,
       overlayState: {
-        step: 2,
-        total: 3,
-        title: "Gerando boleto",
-        description: `Executando fluxo de GPS para ${competencia}...`,
-      },
+      step: 2,
+      total: 3,
+      title: "Gerando boleto",
+      description: `Preparando a guia de ${competencia}...`,
+    },
     });
 
     await executarFluxoDiretoGps(settings, competencia);

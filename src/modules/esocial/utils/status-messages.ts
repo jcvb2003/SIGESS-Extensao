@@ -43,8 +43,8 @@ export const esocialMessages = {
 
   initializingGuideGeneration: (competencia: string): StatusMessage => ({
     status: "processando",
-    title: `Gerando boleto de ${competencia}...`,
-    description: "Executando fluxo de geração...",
+    title: `Preparando boleto de ${competencia}`,
+    description: "As informações estão sendo registradas no eSocial.",
   }),
 
   savingCommercializationDraft: (): StatusMessage => ({
@@ -110,7 +110,7 @@ export const esocialMessages = {
   failedToGenerateGuide: (): StatusMessage => ({
     status: "erro",
     title: "Erro ao gerar boleto",
-    description: "Não consegui concluir a geração automática. Tente novamente.",
+    description: "Não foi possível concluir a emissão. Tente novamente.",
   }),
 
   manualEmitGuideDetected: (): StatusMessage => ({

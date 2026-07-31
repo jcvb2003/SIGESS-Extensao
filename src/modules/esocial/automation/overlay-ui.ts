@@ -43,30 +43,33 @@ export function renderEsocialProgressOverlay(state: EsocialOverlayState) {
   const segments = Array.from({ length: overlayTotal })
     .map((_, index) => {
       const filled = index < overlayStep;
-      return `<span style="height: 8px; flex: 1; border-radius: 999px; background: ${
-        filled ? "#007bff" : "#d9e2ec"
+      return `<span style="height: 4px; flex: 1; background: ${
+        filled ? "#0f766e" : "#d9e2ec"
       }; transition: background 0.2s ease;"></span>`;
     })
     .join("");
 
-  overlay.innerHTML = `<div style="background: white; padding: 24px 28px; border-radius: 14px; width: min(420px, calc(100vw - 32px)); font-family: sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.3); color: #0f172a; display: flex; flex-direction: column; align-items: stretch; gap: 14px;">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="width: 30px; height: 30px; border: 4px solid #f3f3f3; border-top: 4px solid ${
-          state.complete ? "#16a34a" : "#007bff"
+  overlay.innerHTML = `<section role="status" aria-live="polite" style="background: #ffffff; padding: 26px 28px; border-left: 3px solid ${
+    state.complete ? "#0f766e" : "#176b68"
+  }; width: min(420px, calc(100vw - 32px)); font-family: 'Segoe UI', Tahoma, sans-serif; box-shadow: 0 14px 32px rgba(15, 23, 42, 0.22); color: #1f2937; display: flex; flex-direction: column; align-items: stretch; gap: 18px;">
+      <div style="display:flex; align-items:flex-start; gap:12px;">
+        <div aria-hidden="true" style="margin-top:2px; width: 24px; height: 24px; border: 3px solid #dfe8e7; border-top-color: ${
+          state.complete ? "#16a34a" : "#176b68"
         }; border-radius: 50%; animation: ${
           state.complete ? "none" : "sigessEsocialSpin 1s linear infinite"
         };"></div>
         <div style="display:flex; flex-direction:column; gap:4px;">
-          <strong style="font-size: 16px; color: #0f172a;">${escapeHtml(state.title)}</strong>
-          <span style="font-size: 12px; color: #475569;">${escapeHtml(state.description)}</span>
+          <span style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#176b68;">SIGESS · eSocial</span>
+          <strong style="font-size: 16px; color: #1f2937; line-height:1.35;">${escapeHtml(state.title)}</strong>
+          <span style="font-size: 12px; color: #667085; line-height:1.5;">${escapeHtml(state.description)}</span>
         </div>
       </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#475569;">
-        <span>Progresso do script</span>
-        <span>${overlayStep}/${overlayTotal}</span>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding-top:14px; border-top:1px solid #e5eaed; font-size:11px; color:#667085;">
+        <span>Andamento da emissão</span>
+        <span>Etapa ${overlayStep} de ${overlayTotal}</span>
       </div>
       <div style="display:flex; gap:6px;">${segments}</div>
-    </div>
+    </section>
     <style>@keyframes sigessEsocialSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
   overlay.style.display = "flex";
 

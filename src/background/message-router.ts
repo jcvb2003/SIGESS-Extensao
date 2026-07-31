@@ -13,10 +13,10 @@ import {
 import { BadgeManager } from "./services/badge-manager";
 import { INSS_LOGIN_URL, isInssUrl } from "../modules/automation/inss/routes";
 import {
-  PESQBRASIL_AGRO_URL,
   PESQBRASIL_MPA_URL,
   isPesqBrasilMpaUrl,
 } from "../modules/automation/pesqbrasil/routes";
+import { MTE_URL } from "../modules/automation/mte/routes";
 import {
   getActiveCadastroSession,
 } from "./cadastro/cadastro-session-store";
@@ -294,7 +294,7 @@ async function handleStartBatchLogin(
     return { success: false, error: "Lista de credenciais vazia" };
   }
   const urlMap: Record<string, string> = {
-    pesqbrasil_agro: PESQBRASIL_AGRO_URL,
+    mte: MTE_URL,
     pesqbrasil_mpa: PESQBRASIL_MPA_URL,
     esocial: "https://login.esocial.gov.br/",
     inss: INSS_LOGIN_URL,
@@ -325,7 +325,7 @@ async function handleStartBatchLogin(
         cred.senha,
         index + 1,
         cred.nome || formatCpf(cred.cpf),
-        type as "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss",
+        type as "mte" | "pesqbrasil_mpa" | "esocial" | "inss",
         cred.valorComercializado,
         cred.gerarGps,
         cred.consultarGuias,
@@ -397,7 +397,7 @@ async function handleAbrirAbaContainer(
       type: url.includes("esocial") ? "esocial"
         : isInssUrl(url) ? "inss"
         : isPesqBrasilMpaUrl(url) ? "pesqbrasil_mpa"
-        : "pesqbrasil_agro",
+        : "mte",
       timestamp: Date.now(),
     };
 
@@ -418,7 +418,7 @@ async function handleAbrirAbaContainer(
     url.includes("esocial") ? "esocial"
       : isInssUrl(url) ? "inss"
       : isPesqBrasilMpaUrl(url) ? "pesqbrasil_mpa"
-      : "pesqbrasil_agro",
+      : "mte",
     valorComercializado,
   );
   return { success: true };

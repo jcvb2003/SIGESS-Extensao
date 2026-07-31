@@ -20,7 +20,7 @@ export async function injectGovBrReloginButton(): Promise<void> {
     button.type = "button";
     button.textContent = "Relogin SIGESS";
     button.style.cssText = [
-      "margin-left:8px", "padding:0 16px", "height:40px", "border-radius:4px",
+      "margin-left:8px", "padding:0 16px", "height:40px", "border-radius:999px",
       "border:2px solid #1351b4", "background:#fff", "color:#1351b4",
       "font-size:14px", "font-weight:600", "cursor:pointer", "vertical-align:middle",
     ].join(";");

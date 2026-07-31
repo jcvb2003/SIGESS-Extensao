@@ -8,8 +8,8 @@ interface LoginSectionProps {
   loading: boolean;
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void;
-  onShowModal: (type: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss") => void;
-  onOpenBatch: (type: "pesqbrasil_agro" | "pesqbrasil_mpa" | "esocial" | "inss") => void;
+  onShowModal: (type: "mte" | "pesqbrasil_mpa" | "esocial" | "inss") => void;
+  onOpenBatch: (type: "mte" | "pesqbrasil_mpa" | "esocial" | "inss") => void;
 }
 
 export const LoginSection: React.FC<LoginSectionProps> = ({
@@ -76,16 +76,16 @@ export const LoginSection: React.FC<LoginSectionProps> = ({
                 className="btn btn-primary"
                 onClick={() =>
                   settings.multiLoginEnabled
-                    ? onOpenBatch("pesqbrasil_agro")
-                    : onShowModal("pesqbrasil_agro")
+                    ? onOpenBatch("mte")
+                    : onShowModal("mte")
                 }
                 disabled={loading}
               >
                 <GlobeIcon />
                 <span className="btn-text">
                   {settings.multiLoginEnabled
-                    ? `PesqBrasil Agro (${queue.filter((i) => i.type === "pesqbrasil_agro").length})`
-                    : "PesqBrasil Agro"}
+                    ? `MTE (${queue.filter((i) => i.type === "mte").length})`
+                    : "MTE"}
                 </span>
               </button>
               <button

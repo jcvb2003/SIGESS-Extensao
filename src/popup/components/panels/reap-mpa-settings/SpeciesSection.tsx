@@ -16,14 +16,6 @@ function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function clampRange([rawLo, rawHi]: [number, number], min: number, max: number): [number, number] {
-  const clamp = (value: number) => Math.min(max, Math.max(min, value));
-  const lo = clamp(Number.isFinite(rawLo) ? rawLo : min);
-  const hi = clamp(Number.isFinite(rawHi) ? rawHi : max);
-
-  return lo <= hi ? [lo, hi] : [hi, lo];
-}
-
 function calculateProductionSlice(settings: AppSettings) {
   const productiveMonths = 12 - new Set(
     (settings.mpaDefesoMonths || []).filter((month) => Number.isInteger(month) && month >= 1 && month <= 12),
@@ -409,16 +401,8 @@ export function ReapSpeciesSection({
 
           const prodAbsMin = productionSlice.min;
           const prodAbsMax = productionSlice.max;
-          const [mascProdAnnualMin, mascProdAnnualMax] = clampRange(
-            [settings.mpaMascProductionAnnualMin ?? prodAbsMin, settings.mpaMascProductionAnnualMax ?? prodAbsMax],
-            prodAbsMin,
-            prodAbsMax,
-          );
-          const [femProdAnnualMin, femProdAnnualMax] = clampRange(
-            [settings.mpaFemProductionAnnualMin ?? prodAbsMin, settings.mpaFemProductionAnnualMax ?? prodAbsMax],
-            prodAbsMin,
-            prodAbsMax,
-          );
+          const [mascProdAnnualMin, mascProdAnnualMax] = [prodAbsMin, prodAbsMax];
+          const [femProdAnnualMin, femProdAnnualMax] = [prodAbsMin, prodAbsMax];
 
           const panelColors: Record<string, { accent: string; soft: string }> = {
             MASCULINO: { accent: "#2563eb", soft: "rgba(37,99,235,0.08)" },
@@ -469,7 +453,7 @@ export function ReapSpeciesSection({
                   prodAbsMax,
                   prodAnnualMin: mascProdAnnualMin,
                   prodAnnualMax: mascProdAnnualMax,
-                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({ mpaMascProductionAnnualMin: lo, mpaMascProductionAnnualMax: hi }),
+                  onProdChange: () => undefined,
                 },
                 {
                   label: "FEMININO",
@@ -491,7 +475,7 @@ export function ReapSpeciesSection({
                   prodAbsMax,
                   prodAnnualMin: femProdAnnualMin,
                   prodAnnualMax: femProdAnnualMax,
-                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({ mpaFemProductionAnnualMin: lo, mpaFemProductionAnnualMax: hi }),
+                  onProdChange: () => undefined,
                 },
               ].map((panel) => (
                 <div key={panel.label} style={panelStyle(panel.label)}>

@@ -59,7 +59,7 @@ export type UpdateGovBatchStatusResponse = z.infer<typeof UpdateGovBatchStatusRe
 // ============ Batch Login Messages ============
 export const StartBatchLoginRequestSchema = z.object({
   action: z.literal("startBatchLogin"),
-  type: z.enum(["pesqbrasil_agro", "pesqbrasil_mpa", "esocial", "inss"]),
+  type: z.enum(["mte", "pesqbrasil_mpa", "esocial", "inss"]),
   credentials: z.array(
     z.object({
       cpf: z.string(),
