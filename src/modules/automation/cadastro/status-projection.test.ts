@@ -60,6 +60,16 @@ describe("projeção canônica do status de coleta", () => {
     expect(projectCaptureStatuses(data).cadunico).toBe("collected");
   });
 
+  it("encerra o e-CAC como nao encontrado quando a pesquisa CAEPF retorna vazia", () => {
+    const session = createSession();
+    session.portais.ecac = { status: "nao_encontrado", evidence: "caepf_pesquisa_vazia" };
+
+    expect(projectCaptureStatuses({}, session)).toMatchObject({
+      caepf: "not_found",
+      ecac: "not_found",
+    });
+  });
+
   it("não considera payload vazio como dado capturado", () => {
     expect(hasMeaningfulSourceData({})).toBe(false);
     expect(hasMeaningfulSourceData({ nome: "" })).toBe(false);

@@ -159,5 +159,22 @@ export async function processCadastroPortalOutcome(
     await openCadastroInss(session, getTabManager);
   }
   await evaluateTseRequirement(session, getTabManager);
+
+  // Todo resultado terminal encerra a aba do portal. O CadÚnico é a única
+  // exceção: o TSE pode ainda precisar da sessão autenticada dessa aba.
+  const portal = session.portais[portalId];
+  const cadunicoDependenciesOpened =
+    typeof session.portais.pesqbrasil.tabId === "number" &&
+    typeof session.portais.ecac.tabId === "number";
+  const canCloseTab = portalId !== "cadunico" ||
+    (cadunicoDependenciesOpened && Boolean(session.portais.tse));
+  if (portal && canCloseTab && typeof portal.tabId === "number") {
+    try {
+      await browser.tabs.remove(portal.tabId);
+    } catch {
+      // A aba pode já ter sido fechada pelo portal ou pelo navegador.
+    }
+  }
+
   if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
 }

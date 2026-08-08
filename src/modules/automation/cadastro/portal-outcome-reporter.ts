@@ -1,6 +1,6 @@
 import type { CadastroPortalId, CadastroPortalOutcomeKind } from "./contracts";
 
-type ReportablePortal = Extract<CadastroPortalId, "cadunico" | "tse" | "inss">;
+type ReportablePortal = Extract<CadastroPortalId, "cadunico" | "ecac" | "tse" | "inss">;
 type ReportableOutcome = Extract<CadastroPortalOutcomeKind, "not_found" | "failed" | "unavailable">;
 
 export function reportCadastroPortalOutcome(

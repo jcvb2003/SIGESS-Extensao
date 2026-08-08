@@ -7,6 +7,27 @@
   const send = XHR.send;
   const open = XHR.open;
 
+  function publishSearchResult(data: unknown): void {
+    if (Array.isArray(data) && data.length === 0) {
+      console.log("SIGESS: CAEPF sem dados cadastrados.");
+      globalThis.postMessage({
+        type: "SIGESS_CAEPF_NOT_FOUND",
+      }, globalThis.location.origin);
+      return;
+    }
+
+    if (!data) {
+      console.warn("SIGESS: Resposta vazia ou invÃ¡lida para pesquisa CAEPF.");
+      return;
+    }
+
+    console.log("SIGESS: Enviando payload SIGESS_CAEPF_RAW_DATA para extensÃ£o...");
+    globalThis.postMessage({
+      type: "SIGESS_CAEPF_RAW_DATA",
+      payload: data,
+    }, globalThis.location.origin);
+  }
+
   XHR.open = function (_method, url) {
     (this as any)._url = url;
     return (open as any).apply(this, arguments);
@@ -45,7 +66,9 @@
             }
           }
 
-          if (data) {
+          if (Array.isArray(data) && data.length === 0) {
+            publishSearchResult(data);
+          } else if (data) {
             console.log("SIGESS: Enviando payload SIGESS_CAEPF_RAW_DATA para extensão...");
             globalThis.postMessage({
               type: 'SIGESS_CAEPF_RAW_DATA',
@@ -71,6 +94,10 @@
       if (response.status === 200) {
         const clone = response.clone();
         clone.json().then(data => {
+          if (Array.isArray(data) && data.length === 0) {
+            publishSearchResult(data);
+            return;
+          }
           console.log("SIGESS: Enviando payload SIGESS_CAEPF_RAW_DATA para extensão (Fetch)...");
           globalThis.postMessage({
             type: 'SIGESS_CAEPF_RAW_DATA',
