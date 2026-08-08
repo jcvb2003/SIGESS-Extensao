@@ -5,6 +5,9 @@ export interface CadastroPerformancePortalSnapshot {
   completed: number;
   failed: number;
   cacheHits: number;
+  browserCacheHits: number;
+  sigessCacheHits: number;
+  networkRequests: number;
   staticRequests: number;
   dynamicRequests: number;
   totalDurationMs: number;
@@ -18,6 +21,9 @@ export interface CadastroPerformanceSnapshot {
   completedRequests: number;
   failedRequests: number;
   probableCacheHits: number;
+  browserCacheHits: number;
+  sigessCacheHits: number;
+  networkRequests: number;
   staticRequests: number;
   dynamicRequests: number;
   totalNetworkDurationMs: number;
@@ -38,6 +44,7 @@ interface MutableSnapshot extends CadastroPerformanceSnapshot {
 
 const snapshots = new Map<string, MutableSnapshot>();
 const pendingRequests = new Map<string, PendingRequest>();
+const sigessCacheRedirects = new Set<string>();
 let initialized = false;
 
 const STATIC_TYPES = new Set(["script", "stylesheet", "image", "font", "object", "media"]);
@@ -66,6 +73,9 @@ function getPortalSnapshot(snapshot: MutableSnapshot, portal: string): CadastroP
     completed: 0,
     failed: 0,
     cacheHits: 0,
+    browserCacheHits: 0,
+    sigessCacheHits: 0,
+    networkRequests: 0,
     staticRequests: 0,
     dynamicRequests: 0,
     totalDurationMs: 0,
@@ -84,6 +94,9 @@ function getOrCreateSnapshot(sessionId: string, timestamp: number): MutableSnaps
       completedRequests: 0,
       failedRequests: 0,
       probableCacheHits: 0,
+      browserCacheHits: 0,
+      sigessCacheHits: 0,
+      networkRequests: 0,
       staticRequests: 0,
       dynamicRequests: 0,
       totalNetworkDurationMs: 0,
@@ -148,9 +161,17 @@ function completeRequest(details: any, failed: boolean): void {
   } else {
     snapshot.completedRequests += 1;
     portalSnapshot.completed += 1;
-    if ((details as any).fromCache === true) {
+    if (sigessCacheRedirects.delete(details.requestId)) {
+      snapshot.sigessCacheHits += 1;
+      portalSnapshot.sigessCacheHits += 1;
+    } else if ((details as any).fromCache === true) {
       snapshot.probableCacheHits += 1;
+      snapshot.browserCacheHits += 1;
       portalSnapshot.cacheHits += 1;
+      portalSnapshot.browserCacheHits += 1;
+    } else {
+      snapshot.networkRequests += 1;
+      portalSnapshot.networkRequests += 1;
     }
   }
 }
@@ -160,8 +181,13 @@ export function initializeCadastroPerformance(): void {
   initialized = true;
   const filter = { urls: ["<all_urls>"] };
   (browser as any).webRequest.onBeforeRequest.addListener(onBeforeRequest, filter);
+  (browser as any).webRequest.onBeforeRedirect.addListener((details: any) => completeRequest(details, false), filter);
   (browser as any).webRequest.onCompleted.addListener((details: any) => completeRequest(details, false), filter);
   (browser as any).webRequest.onErrorOccurred.addListener((details: any) => completeRequest(details, true), filter);
+}
+
+export function markSigessCacheRedirect(requestId: string): void {
+  sigessCacheRedirects.add(requestId);
 }
 
 export function takeCadastroPerformanceSnapshot(sessionId: string): CadastroPerformanceSnapshot | undefined {
@@ -174,4 +200,3 @@ export function takeCadastroPerformanceSnapshot(sessionId: string): CadastroPerf
   const { requestIds: _requestIds, ...report } = snapshot;
   return report;
 }
-

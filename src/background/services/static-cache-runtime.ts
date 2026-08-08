@@ -1,4 +1,5 @@
 import { StorageService } from "./storage";
+import { markSigessCacheRedirect } from "./cadastro-performance";
 
 const CACHE_NAME = "sigess-static-cache-v1";
 const MAX_ENTRY_BYTES = 2 * 1024 * 1024;
@@ -101,7 +102,10 @@ async function handleRequest(details: any): Promise<any> {
   if (!enabled || details.method !== "GET" || !allowedUrl(details.url) || !staticRequest(details)) return {};
   if (requestCookies.get(details.requestId) || !dataAllowed(details.tabId, String(details.type))) return {};
   const cached = memoryCache.get(details.url);
-  if (cached) return { redirectUrl: cached.dataUrl };
+  if (cached) {
+    markSigessCacheRedirect(details.requestId);
+    return { redirectUrl: cached.dataUrl };
+  }
   const filter = (browser as any).webRequest.filterResponseData(details.requestId);
   const chunks: Uint8Array[] = [];
   filter.ondata = (event: any) => { chunks.push(new Uint8Array(event.data)); filter.write(event.data); };
