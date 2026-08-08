@@ -12,17 +12,30 @@ export async function canSubmitCadastroTse(
 ): Promise<MessageResponse> {
   const session = await getActiveCadastroSession();
   const tabId = sender?.tab?.id;
-  if (!session || typeof tabId !== "number" || session.portais.tse?.tabId !== tabId) {
+  if (!session || typeof tabId !== "number") {
     return { success: true, allowed: false };
   }
 
   const creds = await StorageService.getCredentials(tabId);
+  const belongsToActiveTseSession = Boolean(
+    creds?.isCadastroAutomatico &&
+    creds.portalType === "tse" &&
+    creds.cadastroSessionId === session.sessionId,
+  );
+
+  // A aba pode iniciar o content script antes de o orquestrador persistir
+  // session.portais.tse.tabId. A identidade da sessão gravada nas credenciais
+  // da própria aba é a fonte segura durante essa janela de criação.
+  const tsePortal = session.portais.tse;
+  const tabIsRegistered = tsePortal?.tabId === tabId;
+  const tabRegistrationPending = Boolean(
+    tsePortal && typeof tsePortal.tabId !== "number",
+  );
   return {
     success: true,
     allowed: Boolean(
-      creds?.isCadastroAutomatico &&
-      creds.portalType === "tse" &&
-      creds.cadastroSessionId === session.sessionId &&
+      belongsToActiveTseSession &&
+      (tabIsRegistered || tabRegistrationPending) &&
       isTseAutoatendimentoUrl(sender?.tab?.url || ""),
     ),
   };
