@@ -24,6 +24,7 @@ export class TabManager {
   private _containerQueueLock: Promise<void> = Promise.resolve();
   private readonly processingTabs = new Set<number>();
   private readonly postLoginNavigationInFlight = new Set<number>();
+  private readonly govBrFocusRestore = new Map<number, { tabId: number | null; pendingTabs: Set<number> }>();
 
   constructor() {
     this.strategies = [
@@ -104,8 +105,11 @@ export class TabManager {
           icon: "fingerprint",
         });
 
+        // A navegação final só começa depois que as credenciais forem salvas.
+        // Isso evita perder o primeiro tabs.onUpdated quando a página chega ao
+        // Gov.br antes de o registro da aba existir no storage.
         tab = await browser.tabs.create({
-          url,
+          url: "about:blank",
           cookieStoreId: container.cookieStoreId,
           active: false,
         });
@@ -115,7 +119,7 @@ export class TabManager {
         }
       } else {
         tab = await browser.tabs.create({
-          url,
+          url: "about:blank",
           active: false,
         });
       }
@@ -139,6 +143,7 @@ export class TabManager {
           statusDescription: "Abrindo aba para autenticacao...",
           lastUpdatedAt: Date.now(),
         });
+        await browser.tabs.update(tab.id, { url });
       }
     } catch (error) {
       console.error("Erro ao criar sessao:", error);
@@ -155,7 +160,7 @@ export class TabManager {
     cadastroSessionId?: string,
   ): Promise<number | null> {
     try {
-      const tab = await browser.tabs.create({ url, cookieStoreId, active: false });
+      const tab = await browser.tabs.create({ url: "about:blank", cookieStoreId, active: false });
       if (!tab.id) return null;
 
       await this.saveTabContainer(tab.id, cookieStoreId);
@@ -174,6 +179,10 @@ export class TabManager {
         statusDescription: "Abrindo aba de cadastro automático...",
         lastUpdatedAt: Date.now(),
       });
+      // O TSE precisa de uma primeira renderização em foreground para iniciar
+      // sua SPA com confiabilidade. Os demais portais permanecem em segundo plano
+      // e recebem foco apenas durante a inicialização do Gov.br.
+      await browser.tabs.update(tab.id, { url, active: portalType === "tse" });
       return tab.id;
     } catch (error) {
       console.error("[SIGESS] Erro ao criar sessão no container:", error);
@@ -206,6 +215,7 @@ export class TabManager {
         "Acessando o portal de serviços...",
         { loginConcluido: true, govBrTwoFactorPending: false },
       );
+      await this.restoreGovBrFocus(tabId);
 
       if (completedCredentials?.isCadastroAutomatico && changeInfo.status === "complete") {
         await this.handleCadastroPostLoginNav(tabId, tab.url, completedCredentials);
@@ -236,11 +246,18 @@ export class TabManager {
     );
 
     if (strategy) {
-      await this.executeWithRetry(tabId, tab.url, credentials, strategy);
+      const execute = () => this.executeWithRetry(tabId, tab.url!, credentials, strategy);
+      if (tab.url.includes("sso.acesso.gov.br")) {
+        await this.focusGovBrTab(tabId);
+      }
+      await execute();
 
       // O e-CAC pode concluir o login já na página autenticada, sem gerar outro
       // evento de navegação. Rele as credenciais para usar o mesmo pós-login.
       const updatedCredentials = await StorageService.getCredentials(tabId);
+      if (updatedCredentials?.loginConcluido) {
+        await this.restoreGovBrFocus(tabId);
+      }
       if (
         changeInfo.status === "complete" &&
         updatedCredentials?.isCadastroAutomatico &&
@@ -598,9 +615,63 @@ export class TabManager {
     await this.clearTabContainer(tabId);
     this.processingTabs.delete(tabId);
     this.postLoginNavigationInFlight.delete(tabId);
+    for (const [windowId, state] of this.govBrFocusRestore.entries()) {
+      state.pendingTabs.delete(tabId);
+      if (state.pendingTabs.size === 0) this.govBrFocusRestore.delete(windowId);
+    }
 
     if (containerId && this.supportsContextualIdentities()) {
       this.enqueueContainerOp(() => this.processContainerRetention(containerId));
+    }
+  }
+
+  private async focusGovBrTab(tabId: number): Promise<void> {
+    const tab = await browser.tabs.get(tabId);
+    if (tab.active || typeof tab.windowId !== "number") return;
+
+    const credentials = await StorageService.getCredentials(tabId);
+    // No login manual, a aba do portal deve permanecer aberta e focada para
+    // que o usuário continue trabalhando nela após a autenticação.
+    if (!credentials?.isCadastroAutomatico) {
+      await browser.tabs.update(tabId, { active: true });
+      return;
+    }
+
+    let state = this.govBrFocusRestore.get(tab.windowId);
+    if (!state) {
+      const activeTabs = await browser.tabs.query({ windowId: tab.windowId, active: true });
+      const previous = activeTabs[0];
+      state = {
+        tabId: typeof previous?.id === "number" && previous.id !== tabId ? previous.id : null,
+        pendingTabs: new Set<number>(),
+      };
+      this.govBrFocusRestore.set(tab.windowId, state);
+    }
+    state.pendingTabs.add(tabId);
+
+    await browser.tabs.update(tabId, { active: true });
+  }
+
+  private async restoreGovBrFocus(tabId: number): Promise<void> {
+    const credentials = await StorageService.getCredentials(tabId);
+    if (credentials?.govBrTwoFactorPending) return;
+
+    const tab = await browser.tabs.get(tabId).catch(() => null);
+    if (!tab || typeof tab.windowId !== "number") return;
+    const state = this.govBrFocusRestore.get(tab.windowId);
+    if (!state) return;
+    state.pendingTabs.delete(tabId);
+    if (state.pendingTabs.size > 0) return;
+
+    try {
+      const activeTabs = await browser.tabs.query({ windowId: tab.windowId, active: true });
+      if (activeTabs[0]?.id === tabId && state.tabId !== null) {
+        await browser.tabs.update(state.tabId, { active: true });
+      }
+    } catch {
+      // A aba anterior pode ter sido fechada durante o fluxo.
+    } finally {
+      this.govBrFocusRestore.delete(tab.windowId);
     }
   }
 

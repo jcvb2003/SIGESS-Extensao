@@ -30,6 +30,7 @@ type ESocialAutomationContext = {
 };
 
 const CONSULTAR_REDIR_KEY = "sigess_last_redir_guias";
+const CONSULTAR_ANO_APLICADO_KEY = "sigess_consulta_guias_ano_aplicado";
 const COMPETENCIAS_URL = "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias";
 
 function isHomePage(): boolean {
@@ -54,8 +55,13 @@ async function automatizarCompetencias(settings: AppSettings) {
   const yearStr = settings.selectedYear || "current";
   if (yearStr === "current") return;
 
+  if (sessionStorage.getItem(CONSULTAR_ANO_APLICADO_KEY) === yearStr) return;
+
   const select = await Utils.waitForElement("#AnoFiltrado", 15000, document, false) as HTMLSelectElement | null;
-  if (!select || select.value === yearStr) return;
+  if (!select) return;
+
+  sessionStorage.setItem(CONSULTAR_ANO_APLICADO_KEY, yearStr);
+  if (select.value === yearStr) return;
 
   select.value = yearStr;
   select.dispatchEvent(new Event("change", { bubbles: true }));

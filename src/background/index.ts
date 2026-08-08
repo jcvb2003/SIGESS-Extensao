@@ -7,6 +7,7 @@ import { BadgeManager } from "./services/badge-manager";
 import { VersionChecker } from "./services/version-checker";
 import { LicenseService } from "../shared/services/license";
 import { RealtimeLicenseService } from "./services/realtime-license";
+import { initializeCadastroPerformance } from "./services/cadastro-performance";
 
 let tabManager: TabManager | null = null;
 
@@ -16,6 +17,7 @@ function getTabManager() {
 }
 
 console.log("SIGESS Background Service Initialized");
+initializeCadastroPerformance();
 browser.runtime.onMessage.addListener(
   (
     message: MessageRequest,

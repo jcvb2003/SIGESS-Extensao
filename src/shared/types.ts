@@ -27,6 +27,7 @@ export interface CadastroSession {
     inss?: CadastroPortalEntry;
   };
   mergeRequest?: { raw: Record<string, Partial<PessoaData>> };
+  performance?: import("../background/services/cadastro-performance").CadastroPerformanceSnapshot;
   errorMessage?: string;
   interactionRequired?: {
     type: "govbr_2fa" | "govbr_contact_confirmation";

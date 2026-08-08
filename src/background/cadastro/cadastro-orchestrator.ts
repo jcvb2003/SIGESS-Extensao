@@ -14,6 +14,7 @@ import {
 } from "./cadastro-session-controller";
 import { INSS_LOGIN_URL } from "../../modules/automation/inss/routes";
 import { TSE_QUERY_URL } from "../../modules/automation/tse/routes";
+import { takeCadastroPerformanceSnapshot } from "../services/cadastro-performance";
 
 export async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
   if (session.portais.inss) return;
@@ -92,6 +93,7 @@ export async function finalizeCadastroSession(session: CadastroSession): Promise
 
   session.sessionState = "complete";
   session.mergeRequest = { raw };
+  session.performance = takeCadastroPerformanceSnapshot(session.sessionId);
   await saveCadastroSession(session);
 
   const tabIds = [
