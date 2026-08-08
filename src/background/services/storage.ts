@@ -116,6 +116,7 @@ export class StorageService {
     const disabledSettings: AppSettings = {
       ...settings,
       autoRegistrationEnabled: false,
+      staticCacheEnabled: false,
       pessoaData: {} as PessoaData,
       pessoaData_raw: {},
       pessoaData_projections: {},

@@ -173,6 +173,7 @@ mpaMunicipio?: number;
   /** Valores que não podem sofrer normalização textual. */
   pessoaData_sensitive?: { senhaGovInss?: string };
   autoRegistrationEnabled?: boolean;
+  staticCacheEnabled?: boolean;
   
   // SDPA (MTE)
   sdpaEnabled?: boolean;

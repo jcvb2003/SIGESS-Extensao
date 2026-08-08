@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   mpaFemDaysMin: "25",
   mpaFemDaysMax: "25",
   autoRegistrationEnabled: false,
+  staticCacheEnabled: false,
   mpaDocumentoMode: "manual",
 };
 

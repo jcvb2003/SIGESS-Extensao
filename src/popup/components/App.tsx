@@ -4,6 +4,7 @@ import { LoginSection } from "./panels/LoginSection";
 
 import ReapMpaPanel from "./panels/ReapMpaPanel";
 import AutoRegistrationPanel from "./panels/AutoRegistrationSettingsPanel";
+import StaticCachePanel from "./panels/StaticCachePanel";
 import SDPAPanel from "./panels/SDPAPanel";
 import BatchLoginModal from "./ui/BatchLoginModal";
 import { LicenseInfo } from "./ui/LicenseInfo";
@@ -310,6 +311,7 @@ const AppContent: React.FC = () => {
           isOpen={openSections.reapMpa}
           onToggle={() => toggleSection("reapMpa")}
         />
+        <StaticCachePanel settings={settings} onUpdate={updateSettings} />
       </main>
 
       <footer

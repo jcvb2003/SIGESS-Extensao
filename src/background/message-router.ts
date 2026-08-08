@@ -38,6 +38,7 @@ import {
   processCadastroPortalOutcome,
 } from "./cadastro/cadastro-orchestrator";
 import { XPI_INSTALL_URL } from "../shared/services/update-block";
+import { clearStaticCache } from "./services/static-cache-policy";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -142,6 +143,9 @@ export async function routeMessage(
         const settings = await StorageService.clearCapturedPessoaData();
         return { success: true, settings };
       }
+      case "clearStaticCache":
+        await clearStaticCache();
+        return { success: true };
       case "abrirDataInspector":
         return await openDataInspector();
       case "openExtensionUpdate":
