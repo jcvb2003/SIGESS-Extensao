@@ -1,33 +1,43 @@
 import { useEffect, useState } from "react";
 import { AppSettings } from "../../../../shared/types";
-import { IBAMA_PDF_FILENAME } from "./constants";
+import {
+  getReapPdfCacheForPreset,
+  REAP_PDF_CACHES_STORAGE_KEY,
+} from "../../../../modules/reap-mpa/pdf-cache";
+import { IBAMA_DEFESO_URL } from "./constants";
 
 export function ReapDocumentSection({
   settings,
   onUpdate,
+  presetId,
   onOpenFilePicker,
 }: {
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void | Promise<void>;
-  onOpenFilePicker?: () => void;
+  presetId?: string;
+  onOpenFilePicker?: (presetId?: string) => void;
 }) {
   const [cachedPdfFilename, setCachedPdfFilename] = useState<string | null>(null);
 
   useEffect(() => {
-    browser.storage.local.get("sigessReapPdfCache").then((result: any) => {
-      if (result.sigessReapPdfCache?.filename) {
-        setCachedPdfFilename(result.sigessReapPdfCache.filename);
-      }
-    });
+    let disposed = false;
+
+    const loadCache = async () => {
+      const cache = await getReapPdfCacheForPreset(presetId);
+      if (!disposed) setCachedPdfFilename(cache?.filename ?? null);
+    };
+
+    void loadCache();
 
     const handleStorageChange = (changes: Record<string, any>) => {
-      if ("sigessReapPdfCache" in changes) {
-        setCachedPdfFilename(changes.sigessReapPdfCache.newValue?.filename ?? null);
-      }
+      if (REAP_PDF_CACHES_STORAGE_KEY in changes || "sigessReapPdfCache" in changes) void loadCache();
     };
     browser.storage.onChanged.addListener(handleStorageChange);
-    return () => browser.storage.onChanged.removeListener(handleStorageChange);
-  }, []);
+    return () => {
+      disposed = true;
+      browser.storage.onChanged.removeListener(handleStorageChange);
+    };
+  }, [presetId]);
 
   const mode = settings.mpaDocumentoMode || "manual";
 
@@ -42,10 +52,10 @@ export function ReapDocumentSection({
       </div>
 
       <div className="stack" style={{ gap: "12px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}>
-          {(["manual", "local", "url"] as const).map((m) => {
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px" }}>
+          {(["manual", "local"] as const).map((m) => {
             const active = mode === m;
-            const labels = { manual: "Manual", local: "Arquivo local", url: "Internet" };
+            const labels = { manual: "Manual", local: "Arquivo local" };
             return (
               <label
                 key={m}
@@ -81,13 +91,28 @@ export function ReapDocumentSection({
           })}
         </div>
 
+        <a
+          href={IBAMA_DEFESO_URL}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "inline-block",
+            color: "var(--color-accent-strong)",
+            fontSize: "10px",
+            fontFamily: "var(--sans)",
+            fontWeight: 600,
+          }}
+        >
+          Consultar portarias de defeso no IBAMA
+        </a>
+
         {mode === "local" && (
           <div className="stack" style={{ gap: "6px" }}>
             <button
               type="button"
               onClick={() =>
                 onOpenFilePicker
-                  ? onOpenFilePicker()
+                  ? onOpenFilePicker(presetId)
                   : browser.tabs.create({ url: browser.runtime.getURL("file_picker.html") })
               }
               className="btn btn-secondary btn-full"
@@ -105,12 +130,6 @@ export function ReapDocumentSection({
               </p>
             )}
           </div>
-        )}
-
-        {mode === "url" && (
-          <p style={{ fontSize: "10px", color: "var(--color-muted)", margin: 0, fontFamily: "var(--sans)" }}>
-            {IBAMA_PDF_FILENAME} — baixado automaticamente pelo Turbo.
-          </p>
         )}
 
         {mode === "manual" && (

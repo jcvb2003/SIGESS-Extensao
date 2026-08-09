@@ -1,4 +1,4 @@
-export const IBAMA_PDF_FILENAME = "PT0048-051107.PDF";
+export const IBAMA_DEFESO_URL = "https://www.gov.br/ibama/pt-br/assuntos/biodiversidade/biodiversidade-aquatica/periodos-de-defeso";
 
 export const REAP_STATE_OPTIONS = [
   { value: 1, label: "RONDONIA", enabled: false },

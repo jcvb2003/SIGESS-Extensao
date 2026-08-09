@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import ReapMpaSettingsForm from "./components/panels/ReapMpaSettingsForm";
 import { StorageService } from "../background/services/storage";
 import { getDefesoMonthsNormalizationNotice, normalizeReapSettings } from "../modules/reap-mpa/reap-settings";
+import { copyReapPdfCache, removeReapPdfCacheForPreset } from "../modules/reap-mpa/pdf-cache";
 import { AppSettings, ReapMpaPreset } from "../shared/types";
 
 function getMpaSettings(settings: AppSettings): Partial<AppSettings> {
@@ -49,11 +50,15 @@ const ReapMpaSettingsPage: React.FC = () => {
       const notice = getDefesoMonthsNormalizationNotice(current.mpaDefesoMonths);
       const normalized = normalizeReapSettings(current);
       const presets = getPresets(normalized);
-      setSettings({
+      const nextSettings = {
         ...normalized,
         reapMpaPresets: presets,
         activeReapMpaPresetId: normalized.activeReapMpaPresetId ?? presets[0].id,
-      });
+      };
+      setSettings(nextSettings);
+      if (!current.reapMpaPresets?.length || !current.activeReapMpaPresetId) {
+        void browser.runtime.sendMessage({ action: "updateESocialSettings", settings: nextSettings });
+      }
       if (notice) setStatus(notice);
     });
   }, []);
@@ -158,17 +163,13 @@ const ReapMpaSettingsPage: React.FC = () => {
     setEditingPresetId(null);
   };
 
-  const activatePreset = () => {
-    setSelectedPresetId(selectedPreset.id);
-    updatePresets(presets, selectedPreset.id, selectedPreset.settings);
-  };
-
   const addPreset = () => {
     if (presets.length >= 3) return;
     const preset = createPreset(settings, `Preset ${presets.length + 1}`);
     setSelectedPresetId(preset.id);
     setEditingPresetId(null);
     updatePresets([...presets, preset], activePresetId);
+    void copyReapPdfCache(activePresetId, preset.id);
   };
 
   const removePreset = () => {
@@ -183,6 +184,7 @@ const ReapMpaSettingsPage: React.FC = () => {
       nextActivePreset.id,
       selectedPreset.id === activePresetId ? nextActivePreset.settings : undefined,
     );
+    void removeReapPdfCacheForPreset(selectedPreset.id);
   };
 
   return (
@@ -288,21 +290,6 @@ const ReapMpaSettingsPage: React.FC = () => {
             </div>
             {presets.length > 1 && (
               <div style={{ display: "flex", gap: "8px", alignItems: "end", marginTop: "12px", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={activatePreset}
-                  disabled={selectedPreset.id === activePresetId}
-                  style={selectedPreset.id === activePresetId ? {
-                    background: "var(--color-accent)",
-                    borderColor: "var(--color-accent)",
-                    color: "#ffffff",
-                    cursor: "default",
-                    opacity: 1,
-                  } : undefined}
-                >
-                  {selectedPreset.id === activePresetId ? "Ativo" : "Ativar"}
-                </button>
                 <button type="button" className="btn btn-secondary" onClick={removePreset}>
                   Remover
                 </button>
@@ -311,8 +298,13 @@ const ReapMpaSettingsPage: React.FC = () => {
           </section>
           <ReapMpaSettingsForm
             settings={displayedSettings}
+            presetId={selectedPreset.id}
             onUpdate={updateSettings}
-            onOpenFilePicker={() => browser.tabs.create({ url: browser.runtime.getURL("file_picker.html") })}
+            onOpenFilePicker={(presetId) => {
+              const url = new URL(browser.runtime.getURL("file_picker.html"));
+              if (presetId) url.searchParams.set("presetId", presetId);
+              void browser.tabs.create({ url: url.toString() });
+            }}
           />
         </div>
       </div>

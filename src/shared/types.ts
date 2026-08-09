@@ -121,7 +121,6 @@ export interface AppSettings {
   selectedMonth: string;
   valorComercializado: string;
   reapData: Record<string, string>;
-  reapTurboConfig?: string;
   mpaReferenceYear?: string;
   mpaResidenceUF?: number;
   mpaResidenceMunicipio?: number;
@@ -179,7 +178,7 @@ mpaMunicipio?: number;
   sdpaDefaultEmail?: string;
   sdpaFallbackPhone?: string;
 
-  mpaDocumentoMode?: "manual" | "local" | "url";
+  mpaDocumentoMode?: "manual" | "local";
   reapMpaPresets?: ReapMpaPreset[];
   activeReapMpaPresetId?: string;
 }
@@ -189,6 +188,13 @@ export interface ReapMpaPreset {
   name: string;
   settings: Partial<AppSettings>;
 }
+
+export interface ReapMpaPdfCache {
+  b64: string;
+  filename: string;
+}
+
+export type ReapMpaPdfCaches = Record<string, ReapMpaPdfCache>;
 
 export interface PessoaData {
   // Registro
@@ -274,7 +280,7 @@ export interface TurboReapConfig {
   mesesFiltro?: number[];
   meses: TurboMesConfig[];
   areaRealizacao: TurboAreaConfig;
-  documentoMode?: "manual" | "local" | "url";
+  documentoMode?: "manual" | "local";
   documentoPdfB64?: string;
   documentoPdfFilename?: string;
 }

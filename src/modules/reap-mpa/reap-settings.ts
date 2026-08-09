@@ -1,4 +1,4 @@
-import { AppSettings } from "../../shared/types";
+import { AppSettings, ReapMpaPreset } from "../../shared/types";
 import { getConfiguredDefesoMonths } from "./monthly-plan";
 
 const REAP_STATE_LABELS: Record<number, string> = {
@@ -102,6 +102,7 @@ export function normalizeReapSettings(settings: AppSettings): AppSettings {
       ? settings.mpaCommercializationStates
       : [residenceUF];
   const defesoMonths = getConfiguredDefesoMonths(settings);
+  const documentoMode = settings.mpaDocumentoMode === "local" ? "local" : "manual";
 
   return {
     ...settings,
@@ -110,5 +111,23 @@ export function normalizeReapSettings(settings: AppSettings): AppSettings {
     mpaCommercializationStates: commercializationStates,
     mpaDefesoMonths: defesoMonths,
     mpaMetodoPesca: getEffectiveFishingMethod(settings),
+    mpaDocumentoMode: documentoMode,
   };
+}
+
+export function activateReapMpaPreset(settings: AppSettings, presetId: string): AppSettings | null {
+  const presets = settings.reapMpaPresets || [];
+  const preset = presets.find((item: ReapMpaPreset) => item.id === presetId);
+  if (!preset) return null;
+
+  const withoutMpaSettings = Object.fromEntries(
+    Object.entries(settings).filter(([key]) => !key.startsWith("mpa")),
+  ) as AppSettings;
+
+  return normalizeReapSettings({
+    ...withoutMpaSettings,
+    ...preset.settings,
+    reapMpaPresets: presets,
+    activeReapMpaPresetId: presetId,
+  });
 }

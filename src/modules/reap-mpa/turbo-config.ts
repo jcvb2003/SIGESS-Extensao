@@ -78,7 +78,7 @@ export function buildTurboConfig(
       ambientePesca: 1,
     },
     meses: [],
-    documentoMode: settings.mpaDocumentoMode || "manual",
+    documentoMode: settings.mpaDocumentoMode === "local" ? "local" : "manual",
   };
 
   for (let i = 0; i < 12; i++) {

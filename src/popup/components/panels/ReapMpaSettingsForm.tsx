@@ -11,12 +11,14 @@ import { ReapSpeciesSection } from "./reap-mpa-settings/SpeciesSection";
 interface ReapMpaSettingsFormProps {
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void | Promise<void>;
-  onOpenFilePicker?: () => void;
+  presetId?: string;
+  onOpenFilePicker?: (presetId?: string) => void;
 }
 
 const ReapMpaSettingsForm: React.FC<ReapMpaSettingsFormProps> = ({
   settings,
   onUpdate,
+  presetId,
   onOpenFilePicker,
 }) => {
   return (
@@ -28,6 +30,7 @@ const ReapMpaSettingsForm: React.FC<ReapMpaSettingsFormProps> = ({
       <ReapDocumentSection
         settings={settings}
         onUpdate={onUpdate}
+        presetId={presetId}
         onOpenFilePicker={onOpenFilePicker}
       />
     </div>

@@ -5,6 +5,9 @@ import { Utils } from './utils/dom-utils';
 import { DaysGenerator } from './generators/days-schedule';
 import { ProductionGenerator } from './generators/fish-production';
 import { validateReapSettings, buildTurboConfig } from './turbo-config';
+import { getReapPdfCacheForPreset } from './pdf-cache';
+import { activateReapMpaPreset } from './reap-settings';
+import { ReapMpaPreset } from '../../shared/types';
 import { LegacyWorkflowManager } from './legacy/workflow';
 
 const Draggable = {
@@ -95,9 +98,9 @@ async function executeTurboApi() {
     const oBtn = document.getElementById("sigess-reap-turbo-btn");
     if (oBtn) { oBtn.innerHTML = "Aguarde..."; oBtn.style.background = "#5a32a3"; }
 
-    const storageResult = await browser.storage.local.get(["sigessSettings", "sigessReapPdfCache"]);
+    const storageResult = await browser.storage.local.get("sigessSettings");
     const settings = storageResult.sigessSettings || {};
-    const pdfCache = storageResult.sigessReapPdfCache || null;
+    const pdfCache = await getReapPdfCacheForPreset(settings.activeReapMpaPresetId);
 
     const errorMsg = validateReapSettings(settings, State.gender);
     if (errorMsg) {
@@ -138,7 +141,7 @@ const injectButton = async () => {
 
   container = document.createElement("div");
   container.id = "sigess-reap-container";
-  container.style.cssText = `position: fixed; top: 120px; right: 20px; z-index: 100000; background: white; border: 2px solid #007bff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 8px; padding: 12px; width: 390px; font-family: sans-serif; cursor: move;`;
+   container.style.cssText = `position: fixed; top: 120px; right: 20px; z-index: 100000; background: white; border: 2px solid #007bff; border-radius: 8px; box-shadow: none; display: flex; flex-direction: column; gap: 8px; padding: 12px; width: 330px; font-family: sans-serif; cursor: move;`;
 
   const title = document.createElement("div");
   title.innerText = "REAP";
@@ -146,17 +149,17 @@ const injectButton = async () => {
   container.appendChild(title);
 
   const columns = document.createElement("div");
-  columns.style.cssText = "display: grid; grid-template-columns: minmax(155px, 1.15fr) minmax(145px, 0.85fr); gap: 12px; align-items: start;";
-  const controlsColumn = document.createElement("div");
-  controlsColumn.style.cssText = "display: flex; flex-direction: column; gap: 6px;";
-  const monthsColumn = document.createElement("div");
-  monthsColumn.style.cssText = "display: flex; flex-direction: column; gap: 4px;";
+   columns.style.cssText = "display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; align-items: start;";
+   const controlsColumn = document.createElement("div");
+   controlsColumn.style.cssText = "display: flex; flex-direction: column; gap: 4px; grid-column: 1; grid-row: 1;";
+   const monthsColumn = document.createElement("div");
+   monthsColumn.style.cssText = "display: flex; flex-direction: column; gap: 4px; grid-column: 2; grid-row: 1;";
   columns.append(controlsColumn, monthsColumn);
   container.appendChild(columns);
 
   // --- Gênero ---
   const genderRow = document.createElement("div");
-  genderRow.style.cssText = "display: flex; flex-direction: column; gap: 4px; margin-top: 4px;";
+   genderRow.style.cssText = "display: flex; flex-direction: column; gap: 4px;";
   const genderLbl = document.createElement("label");
   genderLbl.innerText = "Gênero:"; genderLbl.style.fontSize = "11px"; genderLbl.style.color = "#666";
   const genderSeg = document.createElement("div");
@@ -164,10 +167,12 @@ const injectButton = async () => {
 
   let modeSeqUpdate = () => {};
   let modeParcialUpdate = () => {};
+  let presetUpdate = () => {};
 
   const refreshUI = () => {
     updateGrid();
     male.update(); female.update();
+    presetUpdate();
     modeSeqUpdate(); modeParcialUpdate();
     UIComponents.updateMainButton();
     UIComponents.updateTurboButton();
@@ -181,11 +186,84 @@ const injectButton = async () => {
   const female = UIComponents.createGenderBtn("Fem", "FEMININO", "#e91e63", refreshUI);
   genderSeg.appendChild(male.btn); genderSeg.appendChild(female.btn);
   genderRow.appendChild(genderLbl); genderRow.appendChild(genderSeg);
-  controlsColumn.appendChild(genderRow);
+   monthsColumn.appendChild(genderRow);
+
+  // --- Preset ativo ---
+  const presetRow = document.createElement("div");
+   presetRow.style.cssText = "display: none; grid-column: 1 / -1; grid-row: 4; align-items: center; gap: 5px;";
+   const presetSeg = document.createElement("div");
+   presetSeg.style.cssText = "display: flex; flex: 1; min-width: 0; background: #f0f0f0; border-radius: 6px; padding: 2px; border: 1px solid #ddd;";
+   presetRow.appendChild(presetSeg);
+
+   let presetIds: string[] = [];
+   let activePresetId = "";
+   let resetBtn: HTMLButtonElement | undefined;
+
+  async function activatePresetFromOverlay(presetId: string) {
+    if (State.isRunning || (globalThis as any).__sigessTurboRunning) return;
+
+    const current = (await browser.storage.local.get("sigessSettings")).sigessSettings as any;
+    const nextSettings = activateReapMpaPreset(current, presetId);
+    if (!nextSettings) return;
+
+    const response = await browser.runtime.sendMessage({
+      action: "updateESocialSettings",
+      settings: nextSettings,
+    });
+    if (!response?.success) {
+      alert(response?.error || "NÃ£o foi possÃ­vel ativar o preset.");
+      return;
+    }
+    await loadPresetControls();
+  }
+
+  async function loadPresetControls() {
+    const current = (await browser.storage.local.get("sigessSettings")).sigessSettings as any;
+    const presets = (current?.reapMpaPresets || []) as ReapMpaPreset[];
+    const nextPresetIds = presets.map((preset) => preset.id);
+    const namesChanged = presets.some((preset, index) => preset.name !== presetSeg.children[index]?.textContent);
+    const shouldRebuild = nextPresetIds.join("|") !== presetIds.join("|") || namesChanged;
+
+    activePresetId = current?.activeReapMpaPresetId || presets[0]?.id || "";
+    presetRow.style.display = presets.length > 1 ? "flex" : "none";
+    if (resetBtn) resetBtn.style.gridRow = presets.length > 1 ? "5" : "4";
+    if (!shouldRebuild) {
+      presetUpdate();
+      return;
+    }
+
+    presetIds = nextPresetIds;
+    presetSeg.innerHTML = "";
+    const buttons = presets.map((preset) => {
+      const button = document.createElement("div");
+      button.dataset.sigessControl = "true";
+      button.innerText = preset.name;
+       button.style.cssText = "flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 10px; padding: 4px 2px; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-weight: bold;";
+      button.onclick = () => { void activatePresetFromOverlay(preset.id); };
+      presetSeg.appendChild(button);
+      return { id: preset.id, button };
+    });
+
+    presetUpdate = () => {
+      buttons.forEach(({ id, button }) => {
+        const active = id === activePresetId;
+         button.style.background = active ? "#198754" : "transparent";
+        button.style.color = active ? "white" : "#666";
+         button.style.boxShadow = "none";
+        button.style.pointerEvents = State.isRunning || State.isPaused ? "none" : "auto";
+        button.style.opacity = State.isRunning || State.isPaused ? "0.6" : "1";
+      });
+    };
+    presetUpdate();
+  }
+
+   browser.storage.onChanged.addListener((changes) => {
+    if ("sigessSettings" in changes) void loadPresetControls();
+  });
 
   // --- Modo Sequência / Parcial ---
   const modeRow = document.createElement("div");
-  modeRow.style.cssText = "display: flex; flex-direction: column; gap: 4px; margin-top: 4px;";
+   modeRow.style.cssText = "display: flex; flex-direction: column; gap: 4px;";
   const modeLbl = document.createElement("label");
   modeLbl.innerText = "Meses:"; modeLbl.style.cssText = "font-size: 11px; color: #666;";
   const modeSeg = document.createElement("div");
@@ -197,7 +275,7 @@ const injectButton = async () => {
     b.innerText = label;
     b.style.cssText = "flex: 1; text-align: center; font-size: 11px; padding: 5px 0; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-weight: bold;";
     const update = () => {
-      if (State.turboFillMode === value) { b.style.background = "#6f42c1"; b.style.color = "white"; }
+       if (State.turboFillMode === value) { b.style.background = value === "sequencia" ? "#007bff" : "#6f42c1"; b.style.color = "white"; }
       else { b.style.background = "transparent"; b.style.color = "#666"; }
     };
     b.onclick = () => {
@@ -215,12 +293,12 @@ const injectButton = async () => {
   modeSeqUpdate = modeSeq.update; modeParcialUpdate = modeParcial.update;
   modeSeg.appendChild(modeSeq.btn); modeSeg.appendChild(modeParcial.btn);
   modeRow.appendChild(modeLbl); modeRow.appendChild(modeSeg);
-  monthsColumn.appendChild(modeRow);
+   controlsColumn.appendChild(modeRow);
 
   // --- Grid de meses ---
   const grid = document.createElement("div");
   grid.id = "sigess-month-grid";
-  grid.style.cssText = "display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 5px; padding-top: 5px; border-top: 1px solid #eee;";
+   grid.style.cssText = "display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-columns: repeat(6, 1fr); gap: 4px;";
 
   function updateGrid() {
     grid.innerHTML = "";
@@ -237,6 +315,8 @@ const injectButton = async () => {
       bgColor = "#28a745"; textColor = "white"; border = "1px solid #1e7e34";
     } else if (State.monthlyProgress[i] === "skipped") {
       bgColor = "#6c757d"; textColor = "white"; border = "1px solid #545b62"; opacity = "0.5";
+    } else if (State.turboFillMode === "sequencia" && i < State.currentMonthIndex) {
+      bgColor = "#f0f0f0"; textColor = "#bbb"; border = "1px dashed #ccc"; opacity = "0.45";
     } else if (State.turboFillMode === "parcial") {
       const sel = State.turboSelectedMonths.has(i);
       bgColor = sel ? "#e8f4fd" : "#f0f0f0"; textColor = sel ? "#0056b3" : "#bbb";
@@ -246,7 +326,7 @@ const injectButton = async () => {
     mBtn.style.cssText = `cursor: pointer; text-align: center; font-size: 10px; padding: 4px 0; border-radius: 4px; background: ${bgColor}; color: ${textColor}; border: ${border}; font-weight: bold; transition: all 0.2s; opacity: ${opacity};`;
 
     if (State.turboFillMode === "sequencia" && State.currentMonthIndex === i && State.monthlyProgress[i] !== "done") {
-      mBtn.style.boxShadow = "0 0 8px #007bff"; mBtn.style.border = "2px solid #007bff";
+      mBtn.style.boxShadow = "none"; mBtn.style.border = "2px solid #007bff";
     }
 
     mBtn.onclick = () => {
@@ -261,8 +341,12 @@ const injectButton = async () => {
       }
     };
     return mBtn;
-  }
-  monthsColumn.appendChild(grid);
+   }
+   columns.appendChild(grid);
+   columns.appendChild(presetRow);
+
+   const actionsGroup = document.createElement("div");
+   actionsGroup.style.cssText = "display: grid; grid-column: 1 / -1; grid-row: 3; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;";
 
   // --- Botão Iniciar ---
   (globalThis as any).startTurboApi = executeTurboApi;
@@ -272,7 +356,7 @@ const injectButton = async () => {
       overlay = document.createElement("div");
       overlay.id = "sigess-turbo-overlay";
       overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px);";
-      overlay.innerHTML = `<div style="background: white; padding: 20px 40px; border-radius: 12px; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.3); color: #007bff; display: flex; flex-direction: column; align-items: center; gap: 10px;"><div style="width: 30px; height: 30px; border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite;"></div><span>Enviando...</span></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
+       overlay.innerHTML = `<div style="background: white; padding: 20px 40px; border-radius: 12px; font-weight: bold; font-family: sans-serif; box-shadow: none; color: #007bff; display: flex; flex-direction: column; align-items: center; gap: 10px;"><div style="width: 30px; height: 30px; border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite;"></div><span>Enviando...</span></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
       document.body.appendChild(overlay);
     }
     overlay.style.display = "flex";
@@ -284,7 +368,7 @@ const injectButton = async () => {
 
   const btn = document.createElement("button");
   btn.id = "sigess-reap-btn";
-  btn.style.cssText = "padding: 5px 0; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
+   btn.style.cssText = "padding: 5px 0; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin: 0; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
   btn.onclick = async (e) => {
     e.stopPropagation();
     if (State.isRunning) { activeManager.pause(); refreshUI(); return; }
@@ -307,12 +391,12 @@ const injectButton = async () => {
     activeManager.start();
     refreshUI();
   };
-  controlsColumn.appendChild(btn);
+   actionsGroup.appendChild(btn);
 
   // --- Botão Turbo ---
   const btnTurbo = document.createElement("button");
   btnTurbo.id = "sigess-reap-turbo-btn";
-  btnTurbo.style.cssText = "padding: 5px 0; background: #6f42c1; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
+   btnTurbo.style.cssText = "padding: 5px 0; background: #6f42c1; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin: 0; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;";
   btnTurbo.innerHTML = `Modo Turbo`;
   btnTurbo.onclick = async (e) => {
     e.stopPropagation();
@@ -343,16 +427,18 @@ const injectButton = async () => {
     activeManager.start();
     refreshUI();
   };
-  controlsColumn.appendChild(btnTurbo);
+   actionsGroup.appendChild(btnTurbo);
 
   refreshUI();
 
   // --- Botão Resetar ---
-  const resetBtn = document.createElement("button");
-  resetBtn.innerHTML = "Resetar";
-  resetBtn.style.cssText = "padding: 5px 0; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;";
-  resetBtn.onclick = (e) => { e.stopPropagation(); State.clearData(); refreshUI(); };
-  controlsColumn.appendChild(resetBtn);
+   resetBtn = document.createElement("button");
+   resetBtn.innerHTML = "Resetar";
+   resetBtn.style.cssText = "grid-column: 1 / -1; grid-row: 4; padding: 5px 0; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin: 0; display: flex; align-items: center; justify-content: center; gap: 4px;";
+   resetBtn.onclick = (e) => { e.stopPropagation(); State.clearData(); refreshUI(); };
+   columns.appendChild(actionsGroup);
+   columns.appendChild(resetBtn);
+   void loadPresetControls();
 
   Draggable.init(container);
   document.body.appendChild(container);

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { saveReapPdfCacheForPreset } from '../modules/reap-mpa/pdf-cache';
 
 const FilePicker = () => {
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const presetId = new URLSearchParams(window.location.search).get('presetId') || undefined;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -15,8 +17,7 @@ const FilePicker = () => {
     const reader = new FileReader();
     reader.onload = () => {
       const b64 = (reader.result as string).split(',')[1];
-      browser.storage.local
-        .set({ sigessReapPdfCache: { b64, filename: file.name } })
+      saveReapPdfCacheForPreset(presetId, { b64, filename: file.name })
         .then(() => {
           setStatus(`✓ ${file.name} salvo!`);
           setTimeout(() => window.close(), 800);
