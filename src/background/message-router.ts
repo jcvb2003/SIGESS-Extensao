@@ -39,6 +39,7 @@ import {
 } from "./cadastro/cadastro-orchestrator";
 import { XPI_INSTALL_URL } from "../shared/services/update-block";
 import { clearStaticCacheRuntime } from "./services/static-cache-runtime";
+import { clearStaticCache } from "./services/static-cache-policy";
 
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
@@ -137,6 +138,14 @@ export async function routeMessage(
         return await canSubmitCadastroTse(sender);
       case "govBrContactConfirmationDetected":
         return await reportGovBrContactConfirmation(sender);
+      case "govBrLoginDomReady": {
+        const tabId = sender?.tab?.id;
+        if (typeof tabId !== "number" || sender?.tab?.url?.includes("sso.acesso.gov.br") !== true) {
+          return { success: false, error: "Sinal GOV.BR sem aba válida." };
+        }
+        await getTabManager().handleGovBrLoginDomReady(tabId);
+        return { success: true };
+      }
       case "usarInssComoAlternativa":
         return await useInssAsCadastroAlternative(sender, getTabManager);
       case "limparDadosCapturados": {
@@ -144,7 +153,7 @@ export async function routeMessage(
         return { success: true, settings };
       }
       case "clearStaticCache":
-        await clearStaticCacheRuntime();
+        await Promise.all([clearStaticCacheRuntime(), clearStaticCache()]);
         return { success: true };
       case "abrirDataInspector":
         return await openDataInspector();

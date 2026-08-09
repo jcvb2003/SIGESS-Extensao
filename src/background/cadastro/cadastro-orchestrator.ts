@@ -2,6 +2,7 @@ import { resolveTseQueryProfile } from "../../modules/automation/cadastro/tse-qu
 import type { CadastroSession, PessoaData } from "../../shared/types";
 import type { CadastroPortalId } from "../../modules/automation/cadastro/contracts";
 import { StorageService } from "../services/storage";
+import { closeCadastroContainerTabs, sanitizeCadastroContainer } from "./cadastro-container";
 import { isCadastroPortalTerminal } from "../../modules/automation/cadastro/session-status";
 import { createCadastroPortalTab, getCadastroLaunchCredentials } from "./cadastro-portal-launcher";
 import { saveCadastroSession } from "./cadastro-session-store";
@@ -14,7 +15,6 @@ import {
 } from "./cadastro-session-controller";
 import { INSS_LOGIN_URL } from "../../modules/automation/inss/routes";
 import { TSE_QUERY_URL } from "../../modules/automation/tse/routes";
-import { takeCadastroPerformanceSnapshot } from "../services/cadastro-performance";
 
 export async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
   if (session.portais.inss) return;
@@ -93,30 +93,10 @@ export async function finalizeCadastroSession(session: CadastroSession): Promise
 
   session.sessionState = "complete";
   session.mergeRequest = { raw };
-  session.performance = takeCadastroPerformanceSnapshot(session.sessionId);
   await saveCadastroSession(session);
 
-  const tabIds = [
-    session.portais.cadunico.tabId,
-    session.portais.pesqbrasil.tabId,
-    session.portais.ecac.tabId,
-    session.portais.tse?.tabId,
-    session.portais.inss?.tabId,
-  ].filter((id): id is number => typeof id === "number");
-  if (tabIds.length > 0) {
-    try {
-      await browser.tabs.remove(tabIds);
-    } catch {
-      // As abas podem já ter sido fechadas por uma coleta concorrente.
-    }
-  }
-  setTimeout(async () => {
-    try {
-      await (browser as any).contextualIdentities.remove(session.cookieStoreId);
-    } catch {
-      // O container pode já ter sido removido.
-    }
-  }, 2000);
+  await closeCadastroContainerTabs(session.cookieStoreId);
+  await sanitizeCadastroContainer(session.cookieStoreId);
 }
 
 export async function processCadastroDataArrival(

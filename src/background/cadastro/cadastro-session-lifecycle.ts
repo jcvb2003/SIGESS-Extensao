@@ -6,6 +6,11 @@ import {
   saveCadastroSession,
 } from "./cadastro-session-store";
 import { CADUNICO_HOME_URL } from "../../modules/automation/cadunico/routes";
+import {
+  closeCadastroContainerTabs,
+  prepareCadastroContainer,
+  sanitizeCadastroContainer,
+} from "./cadastro-container";
 
 async function isCadastroSessionStale(session: CadastroSession): Promise<boolean> {
   const tabIds = [
@@ -29,30 +34,8 @@ async function isCadastroSessionStale(session: CadastroSession): Promise<boolean
 }
 
 async function clearStaleCadastroSession(session: CadastroSession): Promise<void> {
-  try {
-    await (browser as any).contextualIdentities.remove(session.cookieStoreId);
-  } catch {
-    // O container pode já ter sido removido.
-  }
+  await sanitizeCadastroContainer(session.cookieStoreId);
   await removeCadastroSession();
-}
-
-async function closeCadastroSessionTabs(session: CadastroSession): Promise<void> {
-  const tabIds = [
-    session.portais.cadunico.tabId,
-    session.portais.pesqbrasil?.tabId,
-    session.portais.ecac?.tabId,
-    session.portais.tse?.tabId,
-    session.portais.inss?.tabId,
-  ].filter((id): id is number => typeof id === "number");
-
-  for (const tabId of [...new Set(tabIds)]) {
-    try {
-      await browser.tabs.remove(tabId);
-    } catch {
-      // A aba pode já ter sido fechada pelo próprio portal ou pelo Firefox.
-    }
-  }
 }
 
 export async function cancelCadastroAutomatico(): Promise<MessageResponse> {
@@ -73,12 +56,8 @@ export async function cancelCadastroAutomatico(): Promise<MessageResponse> {
   if (hasCapturedData) session.mergeRequest = { raw: raw as any };
   await saveCadastroSession(session);
 
-  await closeCadastroSessionTabs(session);
-  try {
-    await (browser as any).contextualIdentities.remove(session.cookieStoreId);
-  } catch {
-    // O container pode já ter sido removido por uma aba encerrada.
-  }
+  await closeCadastroContainerTabs(session.cookieStoreId);
+  await sanitizeCadastroContainer(session.cookieStoreId);
 
   if (!hasCapturedData) await removeCadastroSession();
   return { success: true, hasCapturedData };
@@ -111,14 +90,10 @@ export async function iniciarCadastroAutomatico(
   const sessionId = `cadastro-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   try {
-    const container = await (browser as any).contextualIdentities.create({
-      name: `Cadastro-${String(cpf).slice(-4)}`,
-      color: "green",
-      icon: "briefcase",
-    });
+    const cookieStoreId = await prepareCadastroContainer();
     const session: CadastroSession = {
       sessionId,
-      cookieStoreId: container.cookieStoreId,
+      cookieStoreId,
       sessionState: "active",
       startedAt: Date.now(),
       portais: {
@@ -131,7 +106,7 @@ export async function iniciarCadastroAutomatico(
 
     const cadUnicoTabId = await getTabManager().createSessionInContainer(
       CADUNICO_HOME_URL,
-      cpf, senha, session.cookieStoreId, nome, "cadunico", sessionId,
+      cpf, senha, cookieStoreId, nome, "cadunico", sessionId,
     );
     if (cadUnicoTabId) {
       session.portais.cadunico.tabId = cadUnicoTabId;

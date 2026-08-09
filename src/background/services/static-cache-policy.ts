@@ -1,7 +1,7 @@
 import { StorageService } from "./storage";
 
 const STATIC_CACHE_SETTING = "staticCacheEnabled";
-const CACHE_MAX_AGE = "public, max-age=2592000, immutable";
+const CACHE_MAX_AGE = "public, max-age=31536000, immutable, stale-while-revalidate=86400, stale-if-error=604800";
 
 // Escopo fechado aos portais usados pelos fluxos da extensão. A configuração
 // é global para o usuário; esta lista evita alterar o cache de outros sites.
@@ -12,8 +12,14 @@ const ALLOWED_HOSTS = [
   "pesqbrasil-pescadorprofissional.mpa.gov.br",
   "cav.receita.fazenda.gov.br",
   "www3.cav.receita.fazenda.gov.br",
+  "www.receita.fazenda.gov.br",
+  "www.tse.jus.br",
   "meu.inss.gov.br",
   "servicos.mte.gov.br",
+  "login.esocial.gov.br",
+  "www.esocial.gov.br",
+  "barra.brasil.gov.br",
+  "vlibras.gov.br",
 ];
 
 const STATIC_TYPES = new Set(["script", "stylesheet", "image", "font", "object", "media"]);
@@ -73,4 +79,3 @@ export function initializeStaticCachePolicy(): void {
     ["blocking", "responseHeaders"],
   );
 }
-

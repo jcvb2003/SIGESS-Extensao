@@ -85,29 +85,6 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     return !!creds?.loginConcluido;
   }
 
-  /**
-   * O Gov.br roda hcaptcha invisível antes de transitar CPF→senha.
-   * Quando a tab está em background, o hcaptcha não inicializa e a transição
-   * trava. Aguardamos o iframe do widget aparecer antes de clicar.
-   */
-  private async waitForHcaptchaReady(tabId: number, maxWaitMs = 12000): Promise<void> {
-    const pollMs = 400;
-    const maxAttempts = Math.ceil(maxWaitMs / pollMs);
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        const ready = await DOMInjector.execute(
-          tabId,
-          () => !!document.querySelector('iframe[src*="hcaptcha"]'),
-        );
-        if (ready) return;
-      } catch {
-        return; // tab navegou ou erro — prossegue sem esperar
-      }
-      await new Promise(r => setTimeout(r, pollMs));
-    }
-    // Timeout — prossegue mesmo assim (captcha pode não ser obrigatório no fluxo)
-  }
-
   protected async handleGovBrLogin(
     tabId: number,
     creds: UserCredentials,
@@ -117,29 +94,38 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     const storedCreds = (await StorageService.getCredentials(tabId)) || creds;
     const passwordSubmitted = !!storedCreds.govBrPasswordSubmitted;
 
-    const isTwoFactorScreen = await DOMInjector.execute(
+    const activeScreen = await DOMInjector.execute(
       tabId,
-      () => !!document.querySelector("#twoFactorForm input[name='otpInput'], #enter-offline-2fa-code"),
+      () => {
+        const selectors = [
+          ".br-message.warning",
+          "#accountId",
+          "#password",
+          "#twoFactorForm input[name='otpInput']",
+          "#enter-offline-2fa-code",
+        ];
+        return selectors.find((selector) => {
+          const element = document.querySelector(selector) as HTMLElement | null;
+          return Boolean(element && element.offsetParent !== null);
+        }) || null;
+      },
     );
+    if (!activeScreen) return;
+    if (activeScreen === ".br-message.warning") throw new Error("govbr_senha_invalida");
+
+    const isTwoFactorScreen = activeScreen === "#twoFactorForm input[name='otpInput']" ||
+      activeScreen === "#enter-offline-2fa-code";
 
     if (isTwoFactorScreen) {
       await this.markTwoFactorPending(tabId);
       return;
     }
 
-    const isCpfScreen = await DOMInjector.execute(
-      tabId,
-      () => !!document.querySelector("#accountId"),
-    );
-    const isPassScreen = await DOMInjector.execute(
-      tabId,
-      () => !!document.querySelector("#password"),
-    );
+    const isCpfScreen = activeScreen === "#accountId";
+    const isPassScreen = activeScreen === "#password";
 
     if (isCpfScreen) {
       try {
-        await DOMInjector.waitForElement(tabId, "#accountId", 2500);
-
         // Returning to CPF after a password submission can indicate an invalid
         // password. Do not resubmit credentials and risk locking the account.
         // Before that point, CPF remains recoverable after a reload or a stalled
@@ -155,23 +141,15 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
         }
 
         await DOMInjector.setInputValue(tabId, "#accountId", creds.cpf);
-        // Aguarda hcaptcha inicializar antes de clicar — sem isso a transição
-        // CPF→senha trava quando a tab está em background
-        await this.waitForHcaptchaReady(tabId);
+        const hcaptchaReady = await DOMInjector.execute(
+          tabId,
+          () => Boolean(document.querySelector('iframe[src*="hcaptcha"]')),
+        );
+        if (!hcaptchaReady) return;
         await DOMInjector.clickElement(tabId, "#enter-account-id");
         await StorageService.updateCredentials(tabId, {
           govBrCpfSubmitted: true,
         });
-
-        const nextElement = await DOMInjector.waitForAnyElement(
-          tabId,
-          ["#password", "#accountId"],
-          8000,
-        );
-
-        if (nextElement === "#password") {
-          await this.submitGovBrPassword(tabId, creds.senha);
-        }
       } catch (e) {
         console.log(`[Auth] Erro ao preencher CPF:`, e);
         throw e;
@@ -196,33 +174,9 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
   }
 
   private async submitGovBrPassword(tabId: number, senha: string): Promise<void> {
-    await DOMInjector.waitForElement(tabId, "#password", 1200);
     await DOMInjector.setInputValue(tabId, "#password", senha);
     await StorageService.updateCredentials(tabId, { govBrPasswordSubmitted: true });
     await DOMInjector.clickElement(tabId, "#submit-button");
-
-    // Aguarda até 3s para detectar mensagem de senha inválida antes de marcar login completo.
-    // Se a tab navegar (login bem-sucedido), DOMInjector lança e saímos do loop.
-    for (let i = 0; i < 6; i++) {
-      await new Promise(r => setTimeout(r, 500));
-      try {
-        const state = await DOMInjector.execute(
-          tabId,
-          () => ({
-            hasError: !!document.querySelector(".br-message.warning"),
-            twoFactorPending: !!document.querySelector("#twoFactorForm input[name='otpInput'], #enter-offline-2fa-code"),
-          }),
-        );
-        if (state.hasError) throw new Error("govbr_senha_invalida");
-        if (state.twoFactorPending) {
-          await this.markTwoFactorPending(tabId);
-          return;
-        }
-      } catch (e: any) {
-        if (e?.message === "govbr_senha_invalida") throw e;
-        break; // tab navegou ou erro de scripting → assume sucesso
-      }
-    }
 
     await this.updateStatus(
       tabId,

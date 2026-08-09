@@ -98,6 +98,7 @@ const AppContent: React.FC = () => {
     autoRegistration: false,
     reapMpa: false,
     sdpa: false,
+    staticCache: false,
   });
 
   const {
@@ -178,6 +179,7 @@ const AppContent: React.FC = () => {
         autoRegistration: false,
         reapMpa: false,
         sdpa: false,
+        staticCache: false,
       };
       newState[key] = nextOpen;
       return newState;
@@ -311,7 +313,12 @@ const AppContent: React.FC = () => {
           isOpen={openSections.reapMpa}
           onToggle={() => toggleSection("reapMpa")}
         />
-        <StaticCachePanel settings={settings} onUpdate={updateSettings} />
+        <StaticCachePanel
+          settings={settings}
+          onUpdate={updateSettings}
+          isOpen={openSections.staticCache}
+          onToggle={() => toggleSection("staticCache")}
+        />
       </main>
 
       <footer

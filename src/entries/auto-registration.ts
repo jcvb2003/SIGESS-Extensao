@@ -20,7 +20,40 @@ if ((globalThis as any).__sigessAutoRegLoaded) {
   // Já carregado, não faz nada
 } else {
   (globalThis as any).__sigessAutoRegLoaded = true;
+  observeGovBrLoginDom();
   initMain();
+}
+
+function observeGovBrLoginDom(): void {
+  if (globalThis.location.hostname !== "sso.acesso.gov.br") return;
+
+  const api = globalThis.browser || globalThis.chrome;
+  let reportedScreen = "";
+  let reportedHcaptcha = false;
+
+  const inspect = () => {
+    const screen = document.querySelector(".br-message.warning") ? "password-error"
+      : document.querySelector("#accountId") ? "cpf"
+      : document.querySelector("#password") ? "password"
+      : document.querySelector("#twoFactorForm input[name='otpInput'], #enter-offline-2fa-code") ? "two-factor"
+      : "";
+    const hcaptchaReady = Boolean(document.querySelector('iframe[src*="hcaptcha"]'));
+
+    if (screen && screen !== reportedScreen) {
+      reportedScreen = screen;
+      void api.runtime.sendMessage({ action: "govBrLoginDomReady", screen, hcaptchaReady });
+    }
+
+    if (screen === "cpf" && hcaptchaReady && !reportedHcaptcha) {
+      reportedHcaptcha = true;
+      void api.runtime.sendMessage({ action: "govBrLoginDomReady", screen, hcaptchaReady: true });
+    }
+  };
+
+  inspect();
+  const observer = new MutationObserver(inspect);
+  observer.observe(document, { childList: true, subtree: true });
+  globalThis.addEventListener("pagehide", () => observer.disconnect(), { once: true });
 }
 
 async function initMain() {

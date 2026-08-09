@@ -15,6 +15,7 @@ import { INSS_DATA_URL, isInssDataUrl, isInssUrl } from "../../modules/automatio
 import { ECAC_COLLECTION_URL, ECAC_LOGIN_URL, isEcacCaepfCollectionUrl, isEcacUrl } from "../../modules/automation/ecac/routes";
 import { PESQBRASIL_MPA_URL, isPesqBrasilMpaUrl } from "../../modules/automation/pesqbrasil/routes";
 import { isMteUrl } from "../../modules/automation/mte/routes";
+import { closeCadastroContainerTabs, sanitizeCadastroContainer } from "../cadastro/cadastro-container";
 
 export class TabManager {
   private readonly strategies: AuthStrategy[] = [];
@@ -23,6 +24,7 @@ export class TabManager {
   private static readonly PENDING_TAB_RECHECK_MS = 6000;
   private _containerQueueLock: Promise<void> = Promise.resolve();
   private readonly processingTabs = new Set<number>();
+  private readonly pendingGovBrDomReplay = new Set<number>();
   private readonly postLoginNavigationInFlight = new Set<number>();
   private readonly govBrFocusRestore = new Map<number, { tabId: number | null; pendingTabs: Set<number> }>();
 
@@ -286,6 +288,25 @@ export class TabManager {
     }
   }
 
+  async handleGovBrLoginDomReady(tabId: number): Promise<void> {
+    if (this.processingTabs.has(tabId)) {
+      this.pendingGovBrDomReplay.add(tabId);
+      return;
+    }
+
+    const tab = await browser.tabs.get(tabId);
+    const credentials = await StorageService.getCredentials(tabId);
+    if (!tab.url?.includes("sso.acesso.gov.br") || !credentials || credentials.loginConcluido) return;
+
+    const strategy = this.strategies.find(
+      (candidate) => tab.url?.includes(candidate.urlTrigger) || tab.url?.includes("sso.acesso.gov.br"),
+    );
+    if (!strategy) return;
+
+    await this.focusGovBrTab(tabId);
+    await this.executeWithRetry(tabId, tab.url, credentials, strategy);
+  }
+
   async recheckPendingTabs(): Promise<void> {
     // Watchdog: recupera caso o evento tabs.onUpdated seja perdido após login do CadÚnico
     await this.recheckCadastroSiblings();
@@ -371,6 +392,13 @@ export class TabManager {
       }
     } finally {
       this.processingTabs.delete(tabId);
+      if (this.pendingGovBrDomReplay.delete(tabId)) {
+        queueMicrotask(() => {
+          void this.handleGovBrLoginDomReady(tabId).catch((error) => {
+            console.error(`[SIGESS] Falha ao reprocessar sinal DOM do Gov.br na aba ${tabId}:`, error);
+          });
+        });
+      }
     }
   }
 
@@ -390,21 +418,8 @@ export class TabManager {
       session.errorMessage = errorMessage;
       await StorageService.set({ [CADASTRO_SESSION_KEY]: session });
 
-      // Fecha tabs dos portais
-      const tabIds = [
-        session.portais.cadunico.tabId,
-        session.portais.pesqbrasil?.tabId,
-        session.portais.ecac?.tabId,
-        session.portais.tse?.tabId,
-      ].filter((id): id is number => typeof id === "number");
-      if (tabIds.length > 0) {
-        try { await browser.tabs.remove(tabIds); } catch { /* já fechadas */ }
-      }
-
-      // Remove container com delay
-      setTimeout(async () => {
-        try { await (browser as any).contextualIdentities.remove(session.cookieStoreId); } catch { }
-      }, 1500);
+      await closeCadastroContainerTabs(session.cookieStoreId);
+      await sanitizeCadastroContainer(session.cookieStoreId);
     } catch (e) {
       console.error("[TabManager] Erro ao abortar sessão de cadastro:", e);
     }
@@ -600,8 +615,12 @@ export class TabManager {
         };
         const portalKey = portalMap[creds.portalType];
         const portal = portalKey ? session.portais[portalKey] : undefined;
+        const belongsToCurrentSession = creds.cadastroSessionId === session.sessionId;
+        const isCurrentPortalTab = portal?.tabId === tabId;
         if (
           portal &&
+          belongsToCurrentSession &&
+          isCurrentPortalTab &&
           !["concluido", "dispensado", "nao_encontrado", "indisponivel", "erro"].includes(portal.status)
         ) {
           portal.status = "erro";
@@ -620,7 +639,7 @@ export class TabManager {
       if (state.pendingTabs.size === 0) this.govBrFocusRestore.delete(windowId);
     }
 
-    if (containerId && this.supportsContextualIdentities()) {
+    if (containerId && !creds?.isCadastroAutomatico && this.supportsContextualIdentities()) {
       this.enqueueContainerOp(() => this.processContainerRetention(containerId));
     }
   }
