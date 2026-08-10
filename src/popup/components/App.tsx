@@ -4,7 +4,6 @@ import { LoginSection } from "./panels/LoginSection";
 
 import ReapMpaPanel from "./panels/ReapMpaPanel";
 import AutoRegistrationPanel from "./panels/AutoRegistrationSettingsPanel";
-import StaticCachePanel from "./panels/StaticCachePanel";
 import SDPAPanel from "./panels/SDPAPanel";
 import BatchLoginModal from "./ui/BatchLoginModal";
 import { LicenseInfo } from "./ui/LicenseInfo";
@@ -98,7 +97,6 @@ const AppContent: React.FC = () => {
     autoRegistration: false,
     reapMpa: false,
     sdpa: false,
-    staticCache: false,
   });
 
   const {
@@ -179,7 +177,6 @@ const AppContent: React.FC = () => {
         autoRegistration: false,
         reapMpa: false,
         sdpa: false,
-        staticCache: false,
       };
       newState[key] = nextOpen;
       return newState;
@@ -312,12 +309,6 @@ const AppContent: React.FC = () => {
           onUpdate={updateSettings}
           isOpen={openSections.reapMpa}
           onToggle={() => toggleSection("reapMpa")}
-        />
-        <StaticCachePanel
-          settings={settings}
-          onUpdate={updateSettings}
-          isOpen={openSections.staticCache}
-          onToggle={() => toggleSection("staticCache")}
         />
       </main>
 
