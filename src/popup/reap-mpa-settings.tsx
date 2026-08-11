@@ -39,7 +39,6 @@ function getPresets(settings: AppSettings): ReapMpaPreset[] {
 
 const ReapMpaSettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
@@ -56,9 +55,6 @@ const ReapMpaSettingsPage: React.FC = () => {
         activeReapMpaPresetId: normalized.activeReapMpaPresetId ?? presets[0].id,
       };
       setSettings(nextSettings);
-      if (!current.reapMpaPresets?.length || !current.activeReapMpaPresetId) {
-        void browser.runtime.sendMessage({ action: "updateESocialSettings", settings: nextSettings });
-      }
       if (notice) setStatus(notice);
     });
   }, []);
@@ -92,7 +88,6 @@ const ReapMpaSettingsPage: React.FC = () => {
         activeReapMpaPresetId: activePresetId,
       };
       setSettings(next);
-      setSaving(true);
       setStatus(defesoNotice || "Salvando...");
       try {
         await browser.runtime.sendMessage({
@@ -102,8 +97,6 @@ const ReapMpaSettingsPage: React.FC = () => {
         setStatus(defesoNotice || "Salvo");
       } catch (error: any) {
         setStatus(`Erro: ${error?.message || "desconhecido"}`);
-      } finally {
-        setSaving(false);
       }
     },
     [selectedPresetId, settings],
@@ -119,15 +112,12 @@ const ReapMpaSettingsPage: React.FC = () => {
         activeReapMpaPresetId: activePresetId,
       });
       setSettings(next);
-      setSaving(true);
       setStatus("Salvando presets...");
       try {
         await browser.runtime.sendMessage({ action: "updateESocialSettings", settings: next });
         setStatus("Presets salvos");
       } catch (error: any) {
         setStatus(`Erro: ${error?.message || "desconhecido"}`);
-      } finally {
-        setSaving(false);
       }
     },
     [settings],
@@ -172,9 +162,9 @@ const ReapMpaSettingsPage: React.FC = () => {
     void copyReapPdfCache(activePresetId, preset.id);
   };
 
-  const removePreset = () => {
-    if (!window.confirm(`Remover o preset "${selectedPreset.name}"? Esta ação não pode ser desfeita.`)) return;
-    const remaining = presets.filter((preset) => preset.id !== selectedPreset.id);
+  const removePreset = (presetToRemove = selectedPreset) => {
+    if (!window.confirm(`Remover o preset "${presetToRemove.name}"? Esta ação não pode ser desfeita.`)) return;
+    const remaining = presets.filter((preset) => preset.id !== presetToRemove.id);
     const nextPresets = remaining.length ? remaining : [createPreset(settings)];
     const nextActivePreset = nextPresets.find((preset) => preset.id === activePresetId) ?? nextPresets[0];
     setSelectedPresetId(nextActivePreset.id);
@@ -182,9 +172,9 @@ const ReapMpaSettingsPage: React.FC = () => {
     updatePresets(
       nextPresets,
       nextActivePreset.id,
-      selectedPreset.id === activePresetId ? nextActivePreset.settings : undefined,
+      presetToRemove.id === activePresetId ? nextActivePreset.settings : undefined,
     );
-    void removeReapPdfCacheForPreset(selectedPreset.id);
+    void removeReapPdfCacheForPreset(presetToRemove.id);
   };
 
   return (
@@ -196,11 +186,8 @@ const ReapMpaSettingsPage: React.FC = () => {
             <span className="page-header-title">REAP MPA — Configurações</span>
           </div>
           <div className="page-header-right">
-            {status && (
-              <div className={`status-pill ${saving ? "saving" : "saved"}`}>
-                <div className={`status-dot ${saving ? "saving" : "saved"}`} />
-                {status}
-              </div>
+            {status && !["Salvo", "Salvando...", "Presets salvos", "Salvando presets..."].includes(status) && (
+              <span style={{ fontSize: "11px", color: "#ffffff" }}>{status}</span>
             )}
             <button type="button" className="back-link" onClick={() => window.close()}>
               Fechar
@@ -266,35 +253,40 @@ const ReapMpaSettingsPage: React.FC = () => {
                       </button>
                     )}
                     {presets.length > 1 && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        aria-label={editing ? `Confirmar nome de ${preset.name}` : `Renomear ${preset.name}`}
-                        onClick={() => {
-                          if (editing) {
-                            renamePreset();
-                            return;
-                          }
-                          setSelectedPresetId(preset.id);
-                          setPresetNameDraft(preset.name);
-                          setEditingPresetId(preset.id);
-                        }}
-                        style={{ padding: "7px 9px" }}
-                      >
-                        {editing ? "✓" : "✎"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          aria-label={editing ? `Confirmar nome de ${preset.name}` : `Renomear ${preset.name}`}
+                          onClick={() => {
+                            if (editing) {
+                              renamePreset();
+                              return;
+                            }
+                            setSelectedPresetId(preset.id);
+                            setPresetNameDraft(preset.name);
+                            setEditingPresetId(preset.id);
+                          }}
+                          style={{ padding: "7px 9px" }}
+                        >
+                          {editing ? "✓" : "✎"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          aria-label={`Remover preset ${preset.name}`}
+                          title={`Remover preset ${preset.name}`}
+                          onClick={() => removePreset(preset)}
+                          style={{ padding: "7px 9px", color: "var(--color-danger)" }}
+                        >
+                          🗑
+                        </button>
+                      </>
                     )}
                   </div>
                 );
               })}
             </div>
-            {presets.length > 1 && (
-              <div style={{ display: "flex", gap: "8px", alignItems: "end", marginTop: "12px", flexWrap: "wrap" }}>
-                <button type="button" className="btn btn-secondary" onClick={removePreset}>
-                  Remover
-                </button>
-              </div>
-            )}
           </section>
           <ReapMpaSettingsForm
             settings={displayedSettings}

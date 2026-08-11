@@ -3,42 +3,13 @@ import { StorageService } from "../../background/services/storage";
 import { normalizeReapSettings } from "../../modules/reap-mpa/reap-settings";
 import { AppSettings } from "../../shared/types";
 
-const DEFAULT_SETTINGS: AppSettings = {
+const EMPTY_SETTINGS: AppSettings = {
   consultarGuias: false,
   gerarGps: false,
-  selectedYear: "current",
-  selectedMonth: "08",
+  selectedYear: "",
+  selectedMonth: "",
   valorComercializado: "",
   reapData: {},
-  mpaReferenceYear: "2025",
-  mpaResidenceUF: 5,
-  mpaWorkRelation: "Economia Familiar",
-  mpaCommercializationStates: [5],
-  mpaDefesoMonths: [],
-  mpaUF: 5,
-  mpaLocalPesca: 6,
-  mpaMetodoPesca: 4,
-  mpaAmbiente: 1,
-  mpaSpeciesCount: 4,
-  mpaSpecies: [
-    { id: 12, kgMin: "60", kgMax: "70", priceMin: "8.00", priceMax: "11.00" },
-    { id: 21, kgMin: "55", kgMax: "60", priceMin: "8.00", priceMax: "12.00" },
-    { id: 26, kgMin: "55", kgMax: "60", priceMin: "9.00", priceMax: "13.00" },
-    { id: 25, kgMin: "55", kgMax: "60", priceMin: "10.00", priceMax: "13.00" },
-    { id: 15, kgMin: "45", kgMax: "50", priceMin: "13.00", priceMax: "16.00" },
-    {}, {}, {}, {}, {},
-  ],
-  mpaMascProdMin: "2850",
-  mpaMascProdMax: "3075",
-  mpaMascDaysMin: "21",
-  mpaMascDaysMax: "21",
-  mpaFemProdMin: "2550",
-  mpaFemProdMax: "2850",
-  mpaFemDaysMin: "25",
-  mpaFemDaysMax: "25",
-  autoRegistrationEnabled: false,
-  staticCacheEnabled: false,
-  mpaDocumentoMode: "manual",
 };
 
 interface UseSettingsReturn {
@@ -50,7 +21,7 @@ interface UseSettingsReturn {
 }
 
 export const useSettings = (): UseSettingsReturn => {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<AppSettings>(EMPTY_SETTINGS);
   const [loading, setLoading] = useState(true);
 
   const loadSettings = useCallback(async () => {
@@ -79,9 +50,8 @@ export const useSettings = (): UseSettingsReturn => {
   }, [settings]);
 
   const resetSettings = useCallback(async () => {
-    const normalizedDefaults = normalizeReapSettings(DEFAULT_SETTINGS);
-    setSettings(normalizedDefaults);
-    await StorageService.saveSettings(normalizedDefaults);
+    setSettings(EMPTY_SETTINGS);
+    await StorageService.saveSettings(EMPTY_SETTINGS);
   }, []);
 
   const clearCapturedPessoaData = useCallback(async () => {

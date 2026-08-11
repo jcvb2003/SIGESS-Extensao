@@ -39,11 +39,14 @@ export function validateReapSettings(settings: any, gender: string): string | nu
   if (!daysMin || !daysMax) {
     return `Por favor, preencha os limites (Min/Max) de "Dias/Mes" para o genero ${gender} no painel de configuracoes.`;
   }
-  if (daysMin < 7 || daysMax < 7) {
-    return `O minimo de "Dias/Mes" para o genero ${gender} e 7 dias.`;
+  if (!Number.isInteger(daysMin) || !Number.isInteger(daysMax)) {
+    return `Os valores de "Dias/Mes" para o genero ${gender} devem ser numeros inteiros de 1 a 30.`;
   }
-  if (daysMin > 27 || daysMax > 27) {
-    return `O maximo de "Dias/Mes" para o genero ${gender} e 27 dias.`;
+  if (daysMin < 1 || daysMax < 1) {
+    return `O minimo de "Dias/Mes" para o genero ${gender} e 1 dia.`;
+  }
+  if (daysMin > 30 || daysMax > 30) {
+    return `O maximo de "Dias/Mes" para o genero ${gender} e 30 dias.`;
   }
   if (daysMin > daysMax) {
     return `O valor minimo de "Dias/Mes" nao pode ser maior que o maximo para o genero ${gender}.`;

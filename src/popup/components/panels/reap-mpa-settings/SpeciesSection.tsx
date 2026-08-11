@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppSettings } from "../../../../shared/types";
 import { SpeciesSearch } from "./SharedFields";
 
@@ -12,8 +12,21 @@ function nonNegativeInputValue(value: string) {
   return value === "" || !Number.isFinite(parsed) || parsed >= 0 ? value : "0";
 }
 
+function daysInputValue(value: string) {
+  if (value === "") return "";
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return "";
+  return String(Math.min(30, Math.max(1, Math.trunc(parsed))));
+}
+
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function normalizeRange(valueMin: number | undefined, valueMax: number | undefined, absMin: number, absMax: number) {
+  const min = Math.min(absMax, Math.max(absMin, Number.isFinite(valueMin) ? valueMin! : absMin));
+  const max = Math.min(absMax, Math.max(absMin, Number.isFinite(valueMax) ? valueMax! : absMax));
+  return [Math.min(min, max), Math.max(min, max)] as [number, number];
 }
 
 function calculateProductionSlice(settings: AppSettings) {
@@ -38,7 +51,7 @@ function calculateProductionSlice(settings: AppSettings) {
     })
     .filter((item): item is { min: number; max: number } => item !== null);
 
-  const requestedCount = Math.min(settings.mpaSpeciesCount ?? 5, 10);
+  const requestedCount = Math.min(settings.mpaSpeciesCount ?? 0, 10);
   const usableCount = Math.min(requestedCount, species.length);
   const min = [...species]
     .sort((a, b) => a.min - b.min)
@@ -254,8 +267,73 @@ export function ReapSpeciesSection({
   const selectedSpeciesIds =
     settings.mpaSpecies?.map((s) => s.id).filter((id): id is number => id !== undefined) || [];
   const filled = settings.mpaSpecies?.filter((s) => s?.id).length ?? 0;
-  const count = settings.mpaSpeciesCount ?? 5;
+  const count = settings.mpaSpeciesCount ?? 0;
+  const [revealedOptionalCount, setRevealedOptionalCount] = useState(0);
+  const lastFilledSpeciesIndex = (settings.mpaSpecies || []).reduce(
+    (lastIndex, species, index) => (species?.id ? index : lastIndex),
+    -1,
+  );
+  const visibleSpeciesCount = Math.min(
+    10,
+    Math.max(3, lastFilledSpeciesIndex + 1, 3 + revealedOptionalCount),
+  );
   const productionSlice = calculateProductionSlice(settings);
+  const prodAbsMin = productionSlice.min;
+  const prodAbsMax = productionSlice.max;
+  const [mascProdAnnualMin, mascProdAnnualMax] = normalizeRange(
+    settings.mpaMascProductionAnnualMin,
+    settings.mpaMascProductionAnnualMax,
+    prodAbsMin,
+    prodAbsMax,
+  );
+  const [femProdAnnualMin, femProdAnnualMax] = normalizeRange(
+    settings.mpaFemProductionAnnualMin,
+    settings.mpaFemProductionAnnualMax,
+    prodAbsMin,
+    prodAbsMax,
+  );
+  const productionInputsKey = JSON.stringify(
+    (settings.mpaSpecies || []).map((item) => [item.kgMin, item.kgMax, item.priceMin, item.priceMax]),
+  );
+  const previousProductionInputsKey = useRef<string>();
+
+  useEffect(() => {
+    if (prodAbsMin <= 0 || prodAbsMax <= prodAbsMin) return;
+
+    const inputsChanged = previousProductionInputsKey.current !== undefined
+      && previousProductionInputsKey.current !== productionInputsKey;
+    previousProductionInputsKey.current = productionInputsKey;
+    const targetMin = inputsChanged ? prodAbsMin : undefined;
+    const targetMax = inputsChanged ? prodAbsMax : undefined;
+    const patch: Partial<AppSettings> = {};
+    if (settings.mpaMascProductionAnnualMin !== (targetMin ?? mascProdAnnualMin)) {
+      patch.mpaMascProductionAnnualMin = targetMin ?? mascProdAnnualMin;
+    }
+    if (settings.mpaMascProductionAnnualMax !== (targetMax ?? mascProdAnnualMax)) {
+      patch.mpaMascProductionAnnualMax = targetMax ?? mascProdAnnualMax;
+    }
+    if (settings.mpaFemProductionAnnualMin !== (targetMin ?? femProdAnnualMin)) {
+      patch.mpaFemProductionAnnualMin = targetMin ?? femProdAnnualMin;
+    }
+    if (settings.mpaFemProductionAnnualMax !== (targetMax ?? femProdAnnualMax)) {
+      patch.mpaFemProductionAnnualMax = targetMax ?? femProdAnnualMax;
+    }
+
+    if (Object.keys(patch).length > 0) void onUpdate(patch);
+  }, [
+    femProdAnnualMax,
+    femProdAnnualMin,
+    mascProdAnnualMax,
+    mascProdAnnualMin,
+    onUpdate,
+    prodAbsMax,
+    prodAbsMin,
+    productionInputsKey,
+    settings.mpaFemProductionAnnualMax,
+    settings.mpaFemProductionAnnualMin,
+    settings.mpaMascProductionAnnualMax,
+    settings.mpaMascProductionAnnualMin,
+  ]);
 
   const updateSpecie = (index: number, data: any) => {
     const current = settings.mpaSpecies || [];
@@ -283,9 +361,10 @@ export function ReapSpeciesSection({
           <select
             id="mpaSpeciesCount"
             className="gps-select"
-            value={settings.mpaSpeciesCount ?? 5}
+            value={settings.mpaSpeciesCount ?? ""}
             onChange={(e) => onUpdate({ mpaSpeciesCount: Number(e.target.value) })}
           >
+            <option value="">Selecione...</option>
             {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
               <option key={n} value={n}>{n} espécies</option>
             ))}
@@ -293,9 +372,9 @@ export function ReapSpeciesSection({
         </div>
 
         <div className="stack" style={{ gap: "8px" }}>
-          {Array.from({ length: 10 }, (_, idx) => {
+          {Array.from({ length: visibleSpeciesCount }, (_, idx) => {
             const data = settings.mpaSpecies?.[idx] || {};
-            const isOptional = idx >= 4;
+            const isOptional = idx >= 3;
             return (
               <div
                 key={idx}
@@ -358,7 +437,7 @@ export function ReapSpeciesSection({
                         onChange={(e) => updateSpecie(idx, { [key]: nonNegativeInputValue(e.target.value) })}
                         placeholder="0"
                         min={0}
-                        step={key.startsWith("price") ? "0.01" : "1"}
+                        step={key.startsWith("price") ? "0.05" : "1"}
                       />
                     </div>
                   ))}
@@ -368,14 +447,23 @@ export function ReapSpeciesSection({
           })}
         </div>
 
+        {visibleSpeciesCount < 10 && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              const nextCount = visibleSpeciesCount + 1;
+              setRevealedOptionalCount((current) => Math.max(current, nextCount - 3));
+              onUpdate({ mpaSpeciesCount: Math.max(count, nextCount) });
+            }}
+          >
+            + Adicionar espécie
+          </button>
+        )}
+
         {filled < 3 && (
           <p style={{ fontSize: "11px", color: "var(--color-danger)", textAlign: "center", margin: 0 }}>
             Preencha ao menos 3 espécies.
-          </p>
-        )}
-        {filled >= 4 && filled < count && (
-          <p style={{ fontSize: "11px", color: "var(--color-warning)", textAlign: "center", margin: 0 }}>
-            {filled} preenchida(s) / {count} selecionada(s) — serão usadas {filled}.
           </p>
         )}
 
@@ -398,11 +486,6 @@ export function ReapSpeciesSection({
 
           const hasMasc = mascMin > 0 && mascMax > 0 && fishingCount > 0;
           const hasFem = femMin > 0 && femMax > 0 && fishingCount > 0;
-
-          const prodAbsMin = productionSlice.min;
-          const prodAbsMax = productionSlice.max;
-          const [mascProdAnnualMin, mascProdAnnualMax] = [prodAbsMin, prodAbsMax];
-          const [femProdAnnualMin, femProdAnnualMax] = [prodAbsMin, prodAbsMax];
 
           const panelColors: Record<string, { accent: string; soft: string }> = {
             MASCULINO: { accent: "#2563eb", soft: "rgba(37,99,235,0.08)" },
@@ -453,7 +536,10 @@ export function ReapSpeciesSection({
                   prodAbsMax,
                   prodAnnualMin: mascProdAnnualMin,
                   prodAnnualMax: mascProdAnnualMax,
-                  onProdChange: () => undefined,
+                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({
+                    mpaMascProductionAnnualMin: lo,
+                    mpaMascProductionAnnualMax: hi,
+                  }),
                 },
                 {
                   label: "FEMININO",
@@ -475,7 +561,10 @@ export function ReapSpeciesSection({
                   prodAbsMax,
                   prodAnnualMin: femProdAnnualMin,
                   prodAnnualMax: femProdAnnualMax,
-                  onProdChange: () => undefined,
+                  onProdChange: ([lo, hi]: [number, number]) => onUpdate({
+                    mpaFemProductionAnnualMin: lo,
+                    mpaFemProductionAnnualMax: hi,
+                  }),
                 },
               ].map((panel) => (
                 <div key={panel.label} style={panelStyle(panel.label)}>
@@ -514,10 +603,11 @@ export function ReapSpeciesSection({
                           className="gps-input"
                           style={{ fontSize: "12px" }}
                           placeholder="Mín"
-                          min={7}
-                          max={27}
+                          min={1}
+                          max={30}
+                          step={1}
                           value={panel.daysMinVal}
-                          onChange={(e) => panel.onDaysMinChange(nonNegativeInputValue(e.target.value))}
+                          onChange={(e) => panel.onDaysMinChange(daysInputValue(e.target.value))}
                         />
                         <input
                           type="number"
@@ -525,10 +615,11 @@ export function ReapSpeciesSection({
                           style={{ fontSize: "12px" }}
                           aria-label={panel.daysMaxLabel}
                           placeholder="Máx"
-                          min={7}
-                          max={27}
+                          min={1}
+                          max={30}
+                          step={1}
                           value={panel.daysMaxVal}
-                          onChange={(e) => panel.onDaysMaxChange(nonNegativeInputValue(e.target.value))}
+                          onChange={(e) => panel.onDaysMaxChange(daysInputValue(e.target.value))}
                         />
                       </div>
                       {panel.has ? (

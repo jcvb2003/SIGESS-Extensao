@@ -94,24 +94,40 @@ export function getDefesoMonthsNormalizationNotice(months?: number[]) {
   return null;
 }
 
+function normalizeDaysPerMonth(value?: string) {
+  if (value === undefined || value === "") return value;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return String(Math.min(30, Math.max(1, Math.trunc(parsed))));
+}
+
 export function normalizeReapSettings(settings: AppSettings): AppSettings {
-  const residenceUF = settings.mpaResidenceUF ?? settings.mpaUF ?? 5;
+  const residenceUF = settings.mpaResidenceUF ?? settings.mpaUF;
   const residenceMunicipio = settings.mpaResidenceMunicipio ?? settings.mpaMunicipio;
   const commercializationStates =
     settings.mpaCommercializationStates && settings.mpaCommercializationStates.length > 0
       ? settings.mpaCommercializationStates
-      : [residenceUF];
-  const defesoMonths = getConfiguredDefesoMonths(settings);
-  const documentoMode = settings.mpaDocumentoMode === "local" ? "local" : "manual";
+      : residenceUF === undefined ? undefined : [residenceUF];
+  const defesoMonths = Array.isArray(settings.mpaDefesoMonths)
+    ? getConfiguredDefesoMonths(settings)
+    : undefined;
+  const documentoMode = settings.mpaDocumentoMode === "local" || settings.mpaDocumentoMode === "manual"
+    ? settings.mpaDocumentoMode
+    : undefined;
+  const metodoPesca = settings.mpaMetodoPesca ?? settings.mpaPetrecho;
 
   return {
     ...settings,
-    mpaResidenceUF: residenceUF,
-    mpaResidenceMunicipio: residenceMunicipio,
-    mpaCommercializationStates: commercializationStates,
-    mpaDefesoMonths: defesoMonths,
-    mpaMetodoPesca: getEffectiveFishingMethod(settings),
-    mpaDocumentoMode: documentoMode,
+    ...(residenceUF === undefined ? {} : { mpaResidenceUF: residenceUF }),
+    ...(residenceMunicipio === undefined ? {} : { mpaResidenceMunicipio: residenceMunicipio }),
+    ...(commercializationStates === undefined ? {} : { mpaCommercializationStates: commercializationStates }),
+    ...(defesoMonths === undefined ? {} : { mpaDefesoMonths: defesoMonths }),
+    ...(metodoPesca === undefined ? {} : { mpaMetodoPesca: metodoPesca }),
+    ...(documentoMode === undefined ? {} : { mpaDocumentoMode: documentoMode }),
+    ...(settings.mpaMascDaysMin === undefined ? {} : { mpaMascDaysMin: normalizeDaysPerMonth(settings.mpaMascDaysMin) }),
+    ...(settings.mpaMascDaysMax === undefined ? {} : { mpaMascDaysMax: normalizeDaysPerMonth(settings.mpaMascDaysMax) }),
+    ...(settings.mpaFemDaysMin === undefined ? {} : { mpaFemDaysMin: normalizeDaysPerMonth(settings.mpaFemDaysMin) }),
+    ...(settings.mpaFemDaysMax === undefined ? {} : { mpaFemDaysMax: normalizeDaysPerMonth(settings.mpaFemDaysMax) }),
   };
 }
 

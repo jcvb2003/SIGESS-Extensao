@@ -117,6 +117,14 @@ body {
     border: 1px solid var(--color-border);
 }
 
+.reap-intro-section {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
 .section.accordion {
     padding: 0;
     overflow: hidden;
