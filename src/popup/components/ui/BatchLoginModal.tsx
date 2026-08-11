@@ -41,7 +41,7 @@ const BatchLoginModal: React.FC<BatchLoginModalProps> = ({
       <div className="section modal-card fade-in">
         <div className="modal-header">
           <h3 className="section-title">
-            Login em Lote {{ mte: "MTE", pesqbrasil_mpa: "PesqBrasil (MPA)", esocial: "eSocial", inss: "INSS" }[type]}
+            Login em Lote {{ mte: "MTE", pesqbrasil_mpa: "PesqBrasil", esocial: "eSocial", inss: "INSS" }[type]}
           </h3>
           <p className="section-description">Importação de credenciais</p>
         </div>

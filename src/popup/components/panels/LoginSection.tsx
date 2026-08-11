@@ -100,8 +100,8 @@ export const LoginSection: React.FC<LoginSectionProps> = ({
                 <GlobeIcon />
                 <span className="btn-text">
                   {settings.multiLoginEnabled
-                    ? `PesqBrasil MPA (${queue.filter((i) => i.type === "pesqbrasil_mpa").length})`
-                    : "PesqBrasil MPA"}
+                    ? `PesqBrasil (${queue.filter((i) => i.type === "pesqbrasil_mpa").length})`
+                    : "PesqBrasil"}
                 </span>
               </button>
               <button
