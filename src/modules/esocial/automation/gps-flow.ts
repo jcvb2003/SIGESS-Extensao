@@ -770,6 +770,10 @@ export async function resumePendingGpsFlow(): Promise<boolean> {
       throw new Error("Nao foi possivel retomar o EnviaRemuneracoes: corpo pendente ausente.");
     }
 
+    // Preserve the rendered-page context before submitting the native form.
+    // The optimization previously submitted as soon as <body> existed,
+    // which could precede the portal's normal document initialization.
+    await waitForDocumentReady();
     await waitForDocumentBody();
     logGpsNavigationTiming("ListarPagamentos pronto", pending.listagemNavigationStartedAt, pending.competencia);
     console.debug("[SIGESS] Retomando EnviaRemuneracoes a partir da tela real de ListarPagamentos");
@@ -786,6 +790,9 @@ export async function resumePendingGpsFlow(): Promise<boolean> {
   }
 
   if (pending.step === "awaiting_closure_page") {
+    // A form appearing in the DOM is not sufficient evidence that the
+    // eSocial page finished its normal navigation lifecycle.
+    await waitForDocumentReady();
     await waitForNativeFechamentoForm(document);
     logGpsNavigationTiming("FechamentoFolha pronto", pending.fechamentoNavigationStartedAt, pending.competencia);
     console.debug("[SIGESS] Campos da tela de fechamento:", snapshotFormFields(document));
