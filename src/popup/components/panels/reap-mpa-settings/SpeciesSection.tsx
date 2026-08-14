@@ -267,7 +267,6 @@ export function ReapSpeciesSection({
   const selectedSpeciesIds =
     settings.mpaSpecies?.map((s) => s.id).filter((id): id is number => id !== undefined) || [];
   const filled = settings.mpaSpecies?.filter((s) => s?.id).length ?? 0;
-  const count = settings.mpaSpeciesCount ?? 0;
   const [revealedOptionalCount, setRevealedOptionalCount] = useState(0);
   const lastFilledSpeciesIndex = (settings.mpaSpecies || []).reduce(
     (lastIndex, species, index) => (species?.id ? index : lastIndex),
@@ -275,7 +274,7 @@ export function ReapSpeciesSection({
   );
   const visibleSpeciesCount = Math.min(
     10,
-    Math.max(3, lastFilledSpeciesIndex + 1, 3 + revealedOptionalCount),
+    Math.max(1, lastFilledSpeciesIndex + 1, 1 + revealedOptionalCount),
   );
   const productionSlice = calculateProductionSlice(settings);
   const prodAbsMin = productionSlice.min;
@@ -365,7 +364,7 @@ export function ReapSpeciesSection({
             onChange={(e) => onUpdate({ mpaSpeciesCount: Number(e.target.value) })}
           >
             <option value="">Selecione...</option>
-            {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
               <option key={n} value={n}>{n} espécies</option>
             ))}
           </select>
@@ -374,7 +373,7 @@ export function ReapSpeciesSection({
         <div className="stack" style={{ gap: "8px" }}>
           {Array.from({ length: visibleSpeciesCount }, (_, idx) => {
             const data = settings.mpaSpecies?.[idx] || {};
-            const isOptional = idx >= 3;
+            const isOptional = idx >= 1;
             return (
               <div
                 key={idx}
@@ -453,17 +452,16 @@ export function ReapSpeciesSection({
             className="btn btn-secondary"
             onClick={() => {
               const nextCount = visibleSpeciesCount + 1;
-              setRevealedOptionalCount((current) => Math.max(current, nextCount - 3));
-              onUpdate({ mpaSpeciesCount: Math.max(count, nextCount) });
+              setRevealedOptionalCount((current) => Math.max(current, nextCount - 1));
             }}
           >
             + Adicionar espécie
           </button>
         )}
 
-        {filled < 3 && (
+        {filled < 1 && (
           <p style={{ fontSize: "11px", color: "var(--color-danger)", textAlign: "center", margin: 0 }}>
-            Preencha ao menos 3 espécies.
+            Preencha ao menos 1 espécie.
           </p>
         )}
 
