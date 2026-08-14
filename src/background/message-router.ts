@@ -396,6 +396,14 @@ async function handleAbrirAbaContainer(
       return age < 30 * 60 * 1000;
     });
 
+    const normalizedCpf = normalizeQueueCpf(cpf);
+    if (normalizedCpf && queue.some((item) => normalizeQueueCpf(item.cpf) === normalizedCpf)) {
+      return {
+        success: false,
+        error: "Este CPF já está na fila de login múltiplo.",
+      };
+    }
+
     if (queue.length >= 5) {
       return { success: false, error: "Fila de login múltiplo cheia (máx 5). Abra o lote ou remova itens." };
     }
@@ -472,7 +480,7 @@ async function handleEnqueueGovBatchSessions(
     };
   }
 
-  const existingCpfs = new Set(queue.map((item) => item.cpf));
+  const existingCpfs = new Set(queue.map((item) => normalizeQueueCpf(item.cpf)));
   const newQueueItems: MultiLoginItem[] = [];
 
   for (const item of rawItems) {
@@ -484,11 +492,12 @@ async function handleEnqueueGovBatchSessions(
       break;
     }
 
-    if (existingCpfs.has(item.cpf)) {
+    const normalizedCpf = normalizeQueueCpf(item.cpf);
+    if (!normalizedCpf || existingCpfs.has(normalizedCpf)) {
       continue;
     }
 
-    existingCpfs.add(item.cpf);
+    existingCpfs.add(normalizedCpf);
     newQueueItems.push({
       id: Math.random().toString(36).substring(2, 11),
       nome: item.nome || item.cpf,
@@ -721,6 +730,12 @@ function enqueueCadastroDataArrival(
   _cadastroUpdateQueue = _cadastroUpdateQueue
     .then(() => processCadastroDataArrival(fonte, getTabManager))
     .catch(() => {});
+}
+
+function normalizeQueueCpf(value: unknown): string {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.length <= 11 ? digits.padStart(11, "0") : digits;
 }
 
 const getActiveSession = getActiveCadastroSession;
