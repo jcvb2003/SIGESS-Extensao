@@ -1,4 +1,5 @@
 import { StorageService } from "./storage";
+import { DOMInjector } from "./dom-injector";
 import { CadastroSession, UserCredentials } from "../../shared/types";
 import {
   AuthStrategy,
@@ -27,6 +28,7 @@ export class TabManager {
   private readonly pendingGovBrDomReplay = new Set<number>();
   private readonly postLoginNavigationInFlight = new Set<number>();
   private readonly govBrFocusRestore = new Map<number, { tabId: number | null; pendingTabs: Set<number> }>();
+  private readonly govBrCpfWatchers = new Set<number>();
 
   constructor() {
     this.strategies = [
@@ -251,6 +253,7 @@ export class TabManager {
       const execute = () => this.executeWithRetry(tabId, tab.url!, credentials, strategy);
       if (tab.url.includes("sso.acesso.gov.br")) {
         await this.focusGovBrTab(tabId);
+        this.watchGovBrCpfField(tabId);
       }
       await execute();
 
@@ -634,6 +637,7 @@ export class TabManager {
     await this.clearTabContainer(tabId);
     this.processingTabs.delete(tabId);
     this.postLoginNavigationInFlight.delete(tabId);
+    this.govBrCpfWatchers.delete(tabId);
     for (const [windowId, state] of this.govBrFocusRestore.entries()) {
       state.pendingTabs.delete(tabId);
       if (state.pendingTabs.size === 0) this.govBrFocusRestore.delete(windowId);
@@ -692,6 +696,43 @@ export class TabManager {
     } finally {
       this.govBrFocusRestore.delete(tab.windowId);
     }
+  }
+
+  private watchGovBrCpfField(tabId: number): void {
+    if (this.govBrCpfWatchers.has(tabId)) return;
+    this.govBrCpfWatchers.add(tabId);
+
+    void (async () => {
+      try {
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          const credentials = await StorageService.getCredentials(tabId);
+          if (!credentials || credentials.loginConcluido || credentials.govBrTwoFactorPending) return;
+
+          const tab = await browser.tabs.get(tabId).catch(() => null);
+          if (!tab?.url?.includes("sso.acesso.gov.br")) return;
+
+          try {
+            const cpfVisible = await DOMInjector.execute(
+              tabId,
+              () => {
+                const field = document.querySelector("#accountId") as HTMLElement | null;
+                return Boolean(field && field.offsetParent !== null);
+              },
+            );
+            if (cpfVisible) {
+              await this.restoreGovBrFocus(tabId);
+              return;
+            }
+          } catch {
+            // A página pode estar transitando entre as telas do Gov.br.
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+      } finally {
+        this.govBrCpfWatchers.delete(tabId);
+      }
+    })();
   }
 
   private async processContainerRetention(containerId: string): Promise<void> {
