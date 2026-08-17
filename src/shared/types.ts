@@ -151,6 +151,11 @@ export interface GovBatchQueueItem {
   competencias?: EsocialCompetenciaPlanejada[];
 }
 
+export interface GovBatchGenerationItem {
+  tabId: number;
+  competencias: EsocialCompetenciaPlanejada[];
+}
+
 export interface AppSettings {
   consultarGuias: boolean;
   gerarGps: boolean;

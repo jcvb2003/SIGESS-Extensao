@@ -214,15 +214,24 @@ export class TabManager {
       if (credentials.isCadastroAutomatico) {
         await StorageService.updateCadastroInteraction(credentials.cadastroSessionId, undefined, tabId);
       }
+      const isSequentialGeneration = credentials.gerarGps
+        && Array.isArray(credentials.competencias)
+        && credentials.competencias.length > 0;
       const completedCredentials = await StorageService.updateBatchStatus(
         tabId,
         "redirecionando",
         credentials.consultarGuias ? "Login GOV.BR concluído" : "Login concluído",
         credentials.consultarGuias
           ? "Abrindo a consulta de competências..."
-          : "Acessando o portal de serviços...",
+          : isSequentialGeneration
+            ? "Abrindo a geração de competências..."
+            : "Acessando o portal de serviços...",
         { loginConcluido: true, govBrTwoFactorPending: false },
       );
+      // Consume the post-login transition marker. Subsequent navigations in
+      // the eSocial flow (ListarPagamentos -> Competencias, generation pages,
+      // etc.) must not reset the status back to the initial login message.
+      await StorageService.updateCredentials(tabId, { govBrPasswordSubmitted: false });
       await this.restoreGovBrFocus(tabId);
 
       if (completedCredentials?.isCadastroAutomatico && changeInfo.status === "complete") {

@@ -32,6 +32,7 @@ type ESocialAutomationContext = {
 };
 
 const CONSULTAR_REDIR_KEY = "sigess_last_redir_guias";
+const LISTAR_PAGAMENTOS_URL = "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/ListarPagamentos";
 const COMPETENCIAS_URL = "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias";
 
 function isHomePage(): boolean {
@@ -41,12 +42,43 @@ function isHomePage(): boolean {
   );
 }
 
-function redirecionarParaConsulta(settings: AppSettings) {
-  if (!settings.consultarGuias || !isHomePage()) return;
+function isListarPagamentosPage(): boolean {
+  return window.location.href.includes("FolhaPagamento/Listagem/ListarPagamentos");
+}
+
+async function waitForListarPagamentosReady(): Promise<void> {
+  if (document.readyState === "loading") {
+    await new Promise<void>((resolve) => {
+      document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
+    });
+  }
+
+  await Utils.waitForElement("body", 15000, document, false);
+  // The route establishes server-side page context during its normal render.
+  // Give that lifecycle a short settling window before opening Competencias.
+  await new Promise((resolve) => window.setTimeout(resolve, 750));
+}
+
+async function redirecionarParaConsulta(settings: AppSettings): Promise<boolean> {
+  if (!settings.consultarGuias) return false;
   const yearStr = settings.selectedYear || "current";
-  if (sessionStorage.getItem(CONSULTAR_REDIR_KEY) === yearStr) return;
-  sessionStorage.setItem(CONSULTAR_REDIR_KEY, yearStr);
+
+  if (isHomePage()) {
+    if (sessionStorage.getItem(CONSULTAR_REDIR_KEY) === `${yearStr}:competencias`) return false;
+    sessionStorage.setItem(CONSULTAR_REDIR_KEY, `${yearStr}:listar`);
+    console.debug("[SIGESS] Abrindo ListarPagamentos antes da consulta de competências");
+    window.location.href = LISTAR_PAGAMENTOS_URL;
+    return true;
+  }
+
+  if (!isListarPagamentosPage()) return false;
+  if (sessionStorage.getItem(CONSULTAR_REDIR_KEY) !== `${yearStr}:listar`) return false;
+
+  await waitForListarPagamentosReady();
+  sessionStorage.setItem(CONSULTAR_REDIR_KEY, `${yearStr}:competencias`);
+  console.debug("[SIGESS] ListarPagamentos pronto; abrindo consulta de competências");
   window.location.href = COMPETENCIAS_URL;
+  return true;
 }
 
 async function automatizarCompetencias(settings: AppSettings) {
@@ -162,7 +194,7 @@ async function start(settings: AppSettings) {
   }
 
   observarBotaoEmitirGuia();
-  redirecionarParaConsulta(settings);
+  if (await redirecionarParaConsulta(settings)) return;
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {

@@ -6,6 +6,7 @@ import {
   CadastroSession,
   EsocialConsultaCompetencia,
   GovBatchQueueItem,
+  GovBatchGenerationItem,
   MessageRequest,
   MessageResponse,
   MultiLoginItem,
@@ -114,6 +115,8 @@ export async function routeMessage(
         return await handleAbrirAbaContainer(message, getTabManager);
       case "enqueueGovBatchSessions":
         return await handleEnqueueGovBatchSessions(message, getTabManager);
+      case "startGovBatchGeneration":
+        return await handleStartGovBatchGeneration(message);
       case "getGovBatchStatuses":
         return await handleGetGovBatchStatuses(message);
       case "getESocialAutomationSettings":
@@ -763,6 +766,72 @@ function enqueueCadastroDataArrival(
   _cadastroUpdateQueue = _cadastroUpdateQueue
     .then(() => processCadastroDataArrival(fonte, getTabManager))
     .catch(() => {});
+}
+
+async function handleStartGovBatchGeneration(message: MessageRequest) {
+  const license = await LicenseService.checkLicense();
+  if (!license.ok) {
+    return {
+      success: false,
+      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
+    };
+  }
+
+  const items = Array.isArray((message as any).items)
+    ? ((message as any).items as GovBatchGenerationItem[])
+    : [];
+  if (items.length === 0) {
+    return { success: false, error: "Nenhuma competência pendente foi informada." };
+  }
+
+  let started = 0;
+  for (const item of items) {
+    if (!Number.isInteger(item?.tabId) || !Array.isArray(item.competencias) || item.competencias.length === 0) {
+      continue;
+    }
+
+    const credentials = await StorageService.getCredentials(item.tabId);
+    if (!credentials || credentials.portalType !== "esocial") continue;
+
+    const first = item.competencias[0];
+    await StorageService.updateCredentials(item.tabId, {
+      gerarGps: true,
+      consultarGuias: false,
+      competencias: item.competencias,
+      selectedYear: first.ano,
+      selectedMonth: first.mes,
+      valorComercializado: first.valorComercializado,
+      competenciaAtual: undefined,
+      competenciaIndice: undefined,
+      competenciasTotal: item.competencias.length,
+      competenciasResultados: [],
+      boletoGerado: false,
+      status: "redirecionando",
+      statusTitle: "Preparando geração",
+      statusDescription: "Retornando à página de geração do eSocial...",
+      lastError: undefined,
+      lastUpdatedAt: Date.now(),
+    });
+
+    try {
+      await browser.tabs.update(item.tabId, {
+        url: "https://www.esocial.gov.br/portal/Home/Inicial?tipoEmpregador=EMPREGADOR_DOMESTICO",
+        active: false,
+      });
+      started += 1;
+    } catch (error) {
+      await StorageService.updateCredentials(item.tabId, {
+        status: "erro",
+        statusTitle: "Falha ao iniciar geração",
+        statusDescription: "Não foi possível retornar à página de geração do eSocial.",
+        lastError: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return started > 0
+    ? { success: true, count: started }
+    : { success: false, error: "Nenhuma sessão autenticada pôde ser retomada." };
 }
 
 function normalizeQueueCpf(value: unknown): string {

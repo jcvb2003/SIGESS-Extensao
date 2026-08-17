@@ -43,6 +43,16 @@ Para enviar uma atualização para os usuários, siga estes passos:
    - **IMPORTANTE**: Faça o upload do arquivo `.xpi` assinado e nomeie-o exatamente como `sigess.xpi`.
 6. **Push**: Envie as alterações do código e do [updates.json](file:///d:/Projetos%20Dev/REPOSITORIOS/Exten%C3%A7%C3%A3o%20Firefox/updates.json) para o branch `main`.
 
+### Comando único do ciclo completo
+
+Com o terminal aberto na raiz do projeto e o `.env` preenchido com as credenciais do Mozilla AMO, execute no PowerShell:
+
+```powershell
+$ErrorActionPreference = 'Stop'; $dirty = git status --porcelain; if ($dirty) { throw "Working tree suja antes da release:`n$dirty" }; cmd /c npm version patch --no-git-tag-version; $pkg = Get-Content package.json -Raw | ConvertFrom-Json; $version = $pkg.version; cmd /c npm run update-manifest; Get-Content .env | ForEach-Object { if ($_ -match '^([^#=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), 'Process') } }; cmd /c npm run sign; $signed = "web-ext-artifacts/05cdfad4e363424a8770-$version.xpi"; if (!(Test-Path $signed)) { throw "XPI assinado não encontrado: $signed" }; Copy-Item -LiteralPath $signed -Destination web-ext-artifacts/sigess.xpi -Force; git add package.json package-lock.json updates.json; git commit -m "chore(release): v$version"; git tag "v$version"; git push origin main; git push origin "v$version"; gh release create "v$version" web-ext-artifacts/sigess.xpi --title "v$version" --notes "Release v$version"; gh release view "v$version" --json tagName,name,url,assets
+```
+
+O comando interrompe a execução se houver alterações não commitadas, incrementa a versão de patch, atualiza o manifesto, envia a extensão ao Mozilla para assinatura, publica o `sigess.xpi` no GitHub Releases e confirma os dados da publicação.
+
 ---
 > [!TIP]
 > O Firefox verifica atualizações periodicamente. Usuários que já tenham a versão 2.5.0 instalada (assinada) receberão a notificação de atualização assim que o [updates.json](file:///d:/Projetos%20Dev/REPOSITORIOS/Exten%C3%A7%C3%A3o%20Firefox/updates.json) for atualizado e o release estiver disponível.
