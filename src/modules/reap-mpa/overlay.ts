@@ -9,6 +9,7 @@ import { getReapPdfCacheForPreset } from './pdf-cache';
 import { activateReapMpaPreset } from './reap-settings';
 import { ReapMpaPreset } from '../../shared/types';
 import { LegacyWorkflowManager } from './legacy/workflow';
+import { getLicenseErrorMessage } from '../../shared/services/license-messages';
 
 const Draggable = {
   init(el: HTMLElement) {
@@ -381,9 +382,7 @@ const injectButton = async () => {
     btn.disabled = true; btn.innerText = "Validando...";
     const lic = await browser.runtime.sendMessage({ action: "checkLicense" });
     if (!lic.ok) {
-      alert(lic.reason === "limit_reached_manual"
-        ? "Limite de 5 usos (Manual) atingido. Entre em contato para renovar."
-        : `Erro de licença: ${lic.reason}`);
+      alert(getLicenseErrorMessage(lic.reason));
       refreshUI(); btn.disabled = false; return;
     }
 
@@ -410,7 +409,7 @@ const injectButton = async () => {
     if (errorMsg) { alert(errorMsg); refreshUI(); btnTurbo.disabled = false; return; }
 
     const lic = await browser.runtime.sendMessage({ action: "checkLicense" });
-    if (!lic.ok) { alert(`Erro de licença: ${lic.reason}`); refreshUI(); btnTurbo.disabled = false; return; }
+    if (!lic.ok) { alert(getLicenseErrorMessage(lic.reason)); refreshUI(); btnTurbo.disabled = false; return; }
 
     try {
       // v1 always regenerates — no mid-run resume, and stale maps from prior v2 runs must not leak in

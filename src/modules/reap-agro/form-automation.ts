@@ -2,6 +2,7 @@ import { Utils } from "../../shared/utils/dom-helpers";
 import { DaysGenerator } from '../reap-mpa/generators/days-schedule';
 import { ProductionGenerator } from '../reap-mpa/generators/fish-production';
 import type { FishProduction } from '../reap-mpa/types';
+import { getLicenseErrorMessage } from "../../shared/services/license-messages";
 
 const MONTH_NAMES: Record<number, string> = {
   0: "Janeiro", 1: "Fevereiro", 2: "Março", 3: "Abril",
@@ -138,13 +139,7 @@ export const AgroManager = {
   },
 
   handleLicenseError(lic: any, btn: HTMLButtonElement | null) {
-    const reasonMap: Record<string, string> = {
-      expired: "Sua licença expirou.",
-      wrong_device: "Licença vinculada a outro dispositivo.",
-      invalid_key: "Chave de licença inválida.",
-    };
-    const msg = reasonMap[lic?.reason] || `Erro de licença: ${lic?.reason || 'Sem Resposta'}`;
-    alert(`${msg}\n\nEntre em contato para renovar: (91) 99319-3461`);
+    alert(getLicenseErrorMessage(lic?.reason));
     if (btn) {
       btn.disabled = false;
       btn.textContent = "Iniciar Automação REAP";

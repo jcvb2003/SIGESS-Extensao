@@ -26,7 +26,7 @@ export type LicenseReason =
   | "invalid_key" | "wrong_device" | "expired" | "blocked" | "no_key"
   | "network_error" | "database_error" | "unauthorized_access"
   | "missing_parameters" | "internal_error" | "invalid_signature"
-  | "device_limit";
+  | "device_limit" | "rate_limited";
 
 export interface LicenseResult {
   ok: boolean;
@@ -301,11 +301,12 @@ export class LicenseService {
       case "device_limit": return "device_limit";
       case "device_already_activated":
       case "invalid_device": return "wrong_device";
+      case "license_expired": return "expired";
       case "license_inactive": return "blocked";
       case "invalid_request": return "missing_parameters";
       case "upstream_error":
       case "upstream_network_error": return "database_error";
-      case "rate_limited": return "network_error";
+      case "rate_limited": return "rate_limited";
       default: return "internal_error";
     }
   }
