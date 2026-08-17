@@ -57,6 +57,7 @@ export interface UserCredentials {
   statusTitle?: string;
   statusDescription?: string;
   boletoInfo?: BoletoInfo;
+  consultas?: EsocialConsultaCompetencia[];
   boletoGerado?: boolean;
   lastError?: string;
   lastUpdatedAt?: number;
@@ -85,6 +86,13 @@ export interface BoletoInfo {
   valorComercializado?: number;
   valorDeclarado?: number;
   valorPago?: number;
+}
+
+export interface EsocialConsultaCompetencia {
+  competencia: string;
+  situacao: string | null;
+  valorDeclarado: number | null;
+  valorPago: number;
 }
 
 export interface MultiLoginItem {

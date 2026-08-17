@@ -215,8 +215,10 @@ export class TabManager {
       const completedCredentials = await StorageService.updateBatchStatus(
         tabId,
         "redirecionando",
-        "Login concluído",
-        "Acessando o portal de serviços...",
+        credentials.consultarGuias ? "Login GOV.BR concluído" : "Login concluído",
+        credentials.consultarGuias
+          ? "Abrindo a consulta de competências..."
+          : "Acessando o portal de serviços...",
         { loginConcluido: true, govBrTwoFactorPending: false },
       );
       await this.restoreGovBrFocus(tabId);

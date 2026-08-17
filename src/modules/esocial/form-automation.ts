@@ -14,6 +14,7 @@ import {
   releaseGpsFlowLock,
   resumePendingGpsFlow,
 } from "./automation/gps-flow";
+import { consultarCompetenciasDaPagina } from "./automation/consulta-flow";
 import { esocialMessages } from "./utils/status-messages";
 
 const browserAPI =
@@ -30,7 +31,6 @@ type ESocialAutomationContext = {
 };
 
 const CONSULTAR_REDIR_KEY = "sigess_last_redir_guias";
-const CONSULTAR_ANO_APLICADO_KEY = "sigess_consulta_guias_ano_aplicado";
 const COMPETENCIAS_URL = "https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/Competencias";
 
 function isHomePage(): boolean {
@@ -53,20 +53,43 @@ async function automatizarCompetencias(settings: AppSettings) {
   if (!settings.consultarGuias) return;
 
   const yearStr = settings.selectedYear || "current";
-  if (yearStr === "current") return;
-
-  if (sessionStorage.getItem(CONSULTAR_ANO_APLICADO_KEY) === yearStr) return;
-
   const select = await Utils.waitForElement("#AnoFiltrado", 15000, document, false) as HTMLSelectElement | null;
   if (!select) return;
 
-  sessionStorage.setItem(CONSULTAR_ANO_APLICADO_KEY, yearStr);
-  if (select.value === yearStr) return;
+  const targetYear = /^\d{4}$/.test(yearStr) ? yearStr : select.value;
+  if (targetYear && select.value !== targetYear) {
+    const filterMsg = esocialMessages.applyingYearFilter(targetYear);
+    reportBatchStatus(filterMsg.status, filterMsg.title, filterMsg.description);
 
-  select.value = yearStr;
-  select.dispatchEvent(new Event("change", { bubbles: true }));
-  const btn = await Utils.waitForElement("#btnFiltro", 5000, document, false);
-  if (btn) Utils.simulateClick(btn as HTMLElement);
+    select.value = targetYear;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    const btn = await Utils.waitForElement("#btnFiltro", 5000, document, false);
+    if (btn) {
+      Utils.simulateClick(btn as HTMLElement);
+    }
+    return;
+  }
+
+  try {
+    const consultas = await consultarCompetenciasDaPagina(targetYear);
+    reportBatchStatus(
+      "concluido",
+      "Competências consultadas",
+      `${consultas.length} competência(s) retornada(s) para ${targetYear}.`,
+      {
+        consultas,
+        loginConcluido: true,
+      },
+    );
+  } catch (error) {
+    const lastError = error instanceof Error ? error.message : String(error);
+    reportBatchStatus(
+      "erro",
+      "Falha na consulta de competências",
+      "Não foi possível extrair os dados da tabela do eSocial.",
+      { lastError },
+    );
+  }
 }
 
 async function executarFluxoGpsSeNecessario(settings: AppSettings) {

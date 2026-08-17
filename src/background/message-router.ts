@@ -4,6 +4,7 @@ import { LicenseService } from "../shared/services/license";
 import { RealtimeLicenseService } from "./services/realtime-license";
 import {
   CadastroSession,
+  EsocialConsultaCompetencia,
   GovBatchQueueItem,
   MessageRequest,
   MessageResponse,
@@ -585,6 +586,7 @@ async function handleGetGovBatchStatuses(message: MessageRequest) {
       progressTotal: credentials.progressTotal,
       loginConcluido: !!credentials.loginConcluido,
       boletoInfo: credentials.boletoInfo,
+      consultas: credentials.consultas,
       boletoGerado: credentials.boletoGerado,
       lastError: credentials.lastError,
       lastUpdatedAt: credentials.lastUpdatedAt,
@@ -625,6 +627,7 @@ async function handleUpdateGovBatchStatus(
     progressStep?: number;
     progressTotal?: number;
     boletoInfo?: any;
+    consultas?: EsocialConsultaCompetencia[];
     boletoGerado?: boolean;
   };
 
@@ -637,6 +640,7 @@ async function handleUpdateGovBatchStatus(
     progressStep,
     progressTotal,
     boletoInfo,
+    consultas,
     boletoGerado,
   } = msg;
 
@@ -655,6 +659,7 @@ async function handleUpdateGovBatchStatus(
       progressStep,
       progressTotal,
       boletoInfo,
+      consultas,
       boletoGerado,
     },
   );
