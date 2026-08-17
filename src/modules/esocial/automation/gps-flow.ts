@@ -1,5 +1,9 @@
 import { logger } from "../../../shared/services/logger";
-import { AppSettings } from "../../../shared/types";
+import {
+  AppSettings,
+  EsocialCompetenciaPlanejada,
+  GovBatchCompetenciaResult,
+} from "../../../shared/types";
 import {
   extractMoneyValues,
   extractCompetenciaFromUrl,
@@ -9,6 +13,7 @@ import {
   GPS_FLOW_LOCK_KEY,
   GPS_FLOW_DONE_PREFIX,
   GPS_FLOW_PENDING_STATE_KEY,
+  GPS_FLOW_QUEUE_STATE_KEY,
 } from "../utils/esocial-constants";
 import { parseHtml, resolveGuiaUrlFromDocument } from "../services/document-parser";
 import { resolveGuiaDownloadUrlFromAnchor } from "../services/guide-url-resolver";
@@ -26,11 +31,120 @@ type PendingGpsClosureState = {
   listagemNavigationStartedAt?: number;
   fechamentoNavigationStartedAt?: number;
   fechamentoSubmittedAt?: number;
-  step: "awaiting_remuneracoes_page" | "awaiting_closure_page" | "awaiting_closure_result";
+  competenciaIndex?: number;
+  fechamentoRetryCount?: number;
+  step:
+    | "awaiting_reopen_page"
+    | "awaiting_remuneracoes_page"
+    | "awaiting_closure_page"
+    | "awaiting_closure_result";
 };
 
+type GpsQueueState = {
+  competencias: EsocialCompetenciaPlanejada[];
+  index: number;
+  resultados: GovBatchCompetenciaResult[];
+};
+
+function normalizePlannedCompetencias(settings: AppSettings): EsocialCompetenciaPlanejada[] {
+  const planned = (settings.competencias || [])
+    .filter((item) => /^\d{4}$/.test(String(item.ano)) && /^\d{1,2}$/.test(String(item.mes)))
+    .map((item) => ({
+      ano: String(item.ano),
+      mes: String(item.mes).padStart(2, "0"),
+      valorComercializado: normalizeMoneyValue(item.valorComercializado || ""),
+    }));
+
+  if (planned.length > 0) return planned;
+
+  const competencia = buildCompetenciaFromSettings(settings);
+  if (!competencia) return [];
+  return [{
+    ano: competencia.slice(0, 4),
+    mes: competencia.slice(4, 6),
+    valorComercializado: normalizeMoneyValue(settings.valorComercializado),
+  }];
+}
+
+function competenciaLabel(competencia: string): string {
+  return competencia.length === 6
+    ? `${competencia.slice(4, 6)}/${competencia.slice(0, 4)}`
+    : competencia;
+}
+
+function readGpsQueueState(): GpsQueueState | null {
+  try {
+    const raw = sessionStorage.getItem(GPS_FLOW_QUEUE_STATE_KEY);
+    return raw ? JSON.parse(raw) as GpsQueueState : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeGpsQueueState(state: GpsQueueState) {
+  sessionStorage.setItem(GPS_FLOW_QUEUE_STATE_KEY, JSON.stringify(state));
+}
+
+function clearGpsQueueState() {
+  sessionStorage.removeItem(GPS_FLOW_QUEUE_STATE_KEY);
+}
+
+function queueStatusExtra(state: GpsQueueState, competenciaAtual?: string) {
+  return {
+    competenciaAtual,
+    competenciaIndice: state.index + 1,
+    competenciasTotal: state.competencias.length,
+    competenciasResultados: state.resultados,
+  };
+}
+
+function initializeGpsQueue(settings: AppSettings): GpsQueueState {
+  const planned = normalizePlannedCompetencias(settings);
+  const existing = readGpsQueueState();
+  if (existing && existing.competencias.length > 0) {
+    const existingSignature = existing.competencias
+      .map((item) => `${item.ano}-${item.mes}-${normalizeMoneyValue(item.valorComercializado)}`)
+      .join("|");
+    const plannedSignature = planned
+      .map((item) => `${item.ano}-${item.mes}-${normalizeMoneyValue(item.valorComercializado)}`)
+      .join("|");
+
+    // A queue survives page navigations, but it must not leak into a new
+    // generation started from the home page. In particular, a previous failed
+    // attempt could leave an old production value (e.g. 680,00) while the Web
+    // context already contains the new value (e.g. 350,00).
+    const hasTerminalError = existing.resultados.some((item) => item.status === "erro");
+    if (existingSignature === plannedSignature && !hasTerminalError) return existing;
+  }
+
+  const state: GpsQueueState = {
+    competencias: planned,
+    index: 0,
+    resultados: [],
+  };
+  writeGpsQueueState(state);
+  return state;
+}
+
+function markCurrentCompetenciaResult(status: GovBatchCompetenciaResult["status"], lastError?: string) {
+  const state = readGpsQueueState();
+  if (!state || !state.competencias[state.index]) return null;
+  const competencia = `${state.competencias[state.index].ano}${state.competencias[state.index].mes}`;
+  const result: GovBatchCompetenciaResult = { competencia, status, ...(lastError ? { lastError } : {}) };
+  state.resultados = [
+    ...state.resultados.filter((item) => item.competencia !== competencia),
+    result,
+  ];
+  writeGpsQueueState(state);
+  return state;
+}
+
 export async function executarFluxoDiretoGps(settings: AppSettings, competencia: string) {
-  const valorComercializado = normalizeMoneyValue(settings.valorComercializado);
+  const queue = readGpsQueueState();
+  const queueCompetencia = queue?.competencias[queue.index];
+  const valorComercializado = normalizeMoneyValue(
+    queueCompetencia?.valorComercializado ?? settings.valorComercializado,
+  );
   console.debug("[SIGESS] valorComercializado from tab context:", settings.valorComercializado);
   console.debug("[SIGESS] valorComercializado normalized:", valorComercializado);
   const { comercializacaoHtml, autonomosHtml } = await carregarDadosComercializacao(competencia);
@@ -77,6 +191,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     valorComercializado,
     enviaRemuneracoesBody: enviaRemuneracoesParams.toString(),
     listagemNavigationStartedAt: Date.now(),
+    competenciaIndex: readGpsQueueState()?.index,
     step: "awaiting_remuneracoes_page",
   });
   console.debug("[SIGESS] Navegando para ListarPagamentos antes do EnviaRemuneracoes:", {
@@ -483,6 +598,105 @@ function clearPendingGpsClosureState() {
   sessionStorage.removeItem(GPS_FLOW_PENDING_STATE_KEY);
 }
 
+function isTransientDctfValidationError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("dctf web")
+    && normalized.includes("aguarde alguns instantes")
+    && normalized.includes("gerar a guia");
+}
+
+function iniciarReaberturaDaCompetencia(
+  settings: AppSettings,
+  competencia: string,
+  valorComercializado: string,
+  state: GpsQueueState,
+) {
+  const reopenMsg = esocialMessages.reopeningCompetencia(competenciaLabel(competencia));
+  reportBatchStatus(reopenMsg.status, reopenMsg.title, reopenMsg.description, {
+    ...queueStatusExtra(state, competencia),
+    overlayState: {
+      step: state.index + 1,
+      total: state.competencias.length,
+      title: reopenMsg.title,
+      description: reopenMsg.description,
+    },
+  });
+
+  setPendingGpsClosureState({
+    competencia,
+    valorComercializado,
+    competenciaIndex: state.index,
+    step: "awaiting_reopen_page",
+  });
+
+  const reaberturaUrl = buildEsocialUrl(`/FolhaPagamento/Remuneracao/Reabertura?competencia=${competencia}`);
+  console.debug("[SIGESS] Navegando para reabrir a competência antes da geração:", {
+    reaberturaUrl,
+    competencia,
+    selectedYear: settings.selectedYear,
+    selectedMonth: settings.selectedMonth,
+  });
+  window.location.href = reaberturaUrl;
+}
+
+async function advanceGpsQueueAfterCompletion(
+  settings: AppSettings | undefined,
+  competencia: string,
+  resultStatus: GovBatchCompetenciaResult["status"],
+  boletoInfo?: { valorComercializado?: number; valorDeclarado?: number; valorPago?: number },
+): Promise<void> {
+  sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
+  const state = markCurrentCompetenciaResult(resultStatus);
+  if (!state || state.index >= state.competencias.length - 1) {
+    clearGpsQueueState();
+    releaseGpsFlowLock();
+    const finalMsg = esocialMessages.allCompetenciasCompleted(state?.resultados.length || 1);
+    reportBatchStatus(finalMsg.status, finalMsg.title, finalMsg.description, {
+      boletoInfo: boletoInfo ? { detectado: true, competencia, ...boletoInfo } : undefined,
+      competenciaAtual: competencia,
+      competenciaIndice: state?.competencias.length || 1,
+      competenciasTotal: state?.competencias.length || 1,
+      competenciasResultados: state?.resultados,
+      overlayState: null,
+    });
+    showSuccessModal("Geração concluída");
+    return;
+  }
+
+  state.index += 1;
+  writeGpsQueueState(state);
+  const next = state.competencias[state.index];
+  const nextCompetencia = `${next.ano}${next.mes}`;
+  const nextSettings: AppSettings = {
+    ...(settings || {}),
+    gerarGps: true,
+    consultarGuias: false,
+    selectedYear: next.ano,
+    selectedMonth: next.mes,
+    valorComercializado: next.valorComercializado,
+    competencias: state.competencias,
+  } as AppSettings;
+  const nextMsg = esocialMessages.startingCompetencia(
+    competenciaLabel(nextCompetencia),
+    state.index + 1,
+    state.competencias.length,
+  );
+  reportBatchStatus(nextMsg.status, nextMsg.title, nextMsg.description, {
+    ...queueStatusExtra(state, nextCompetencia),
+    boletoInfo: boletoInfo ? { detectado: true, competencia, ...boletoInfo } : undefined,
+    overlayState: {
+      step: state.index + 1,
+      total: state.competencias.length,
+      title: nextMsg.title,
+      description: nextMsg.description,
+    },
+  });
+  releaseGpsFlowLock();
+  if (acquireGpsFlowLock(nextCompetencia)) {
+    await executarFluxoDirectoFromHome(nextSettings);
+  }
+}
+
 function submitNativeFechamentoForm(doc: Document, competencia: string) {
   const form = doc.querySelector("form") as HTMLFormElement | null;
   if (!form) {
@@ -510,6 +724,8 @@ function submitNativeFechamentoForm(doc: Document, competencia: string) {
     listagemNavigationStartedAt: currentState?.listagemNavigationStartedAt,
     fechamentoNavigationStartedAt: currentState?.fechamentoNavigationStartedAt,
     fechamentoSubmittedAt: Date.now(),
+    competenciaIndex: currentState?.competenciaIndex,
+    fechamentoRetryCount: currentState?.fechamentoRetryCount,
     step: "awaiting_closure_result",
   });
 
@@ -545,6 +761,8 @@ function submitNativeEnviaRemuneracoes(
     enviaRemuneracoesBody: params.toString(),
     listagemNavigationStartedAt: currentState?.listagemNavigationStartedAt,
     fechamentoNavigationStartedAt: Date.now(),
+    competenciaIndex: currentState?.competenciaIndex,
+    fechamentoRetryCount: currentState?.fechamentoRetryCount,
     step: "awaiting_closure_page",
   });
 
@@ -746,7 +964,7 @@ function logGpsNavigationTiming(step: string, startedAt: number | undefined, com
   });
 }
 
-export async function resumePendingGpsFlow(): Promise<boolean> {
+export async function resumePendingGpsFlow(settings?: AppSettings): Promise<boolean> {
   const pending = getPendingGpsClosureState();
   if (!pending) {
     return false;
@@ -756,6 +974,43 @@ export async function resumePendingGpsFlow(): Promise<boolean> {
     extractCompetenciaFromUrl(window.location.href) || extractCompetenciaFromDom();
   if (!currentCompetencia || currentCompetencia !== pending.competencia) {
     return false;
+  }
+
+  if (pending.step === "awaiting_reopen_page") {
+    if (!window.location.href.includes("/FolhaPagamento/Listagem/ListarPagamentos")) {
+      // Reabertura redirects to ListarPagamentos after the portal changes the
+      // native payroll state. Keep the pending state while that redirect is in
+      // progress and do not start a second flow.
+      return true;
+    }
+
+    await waitForDocumentReady();
+    await waitForDocumentBody();
+    clearPendingGpsClosureState();
+    console.debug("[SIGESS] Contexto nativo de reabertura pronto; retomando geração:", {
+      competencia: pending.competencia,
+    });
+    if (!settings) {
+      throw new Error("Não foi possível retomar a geração após reabrir a competência.");
+    }
+    try {
+      await executarFluxoDiretoGps(settings, pending.competencia);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const queueAfterError = markCurrentCompetenciaResult("erro", errorMessage);
+      clearGpsQueueState();
+      releaseGpsFlowLock();
+      const statusMsg = errorMessage.includes("já foi fechada")
+        ? esocialMessages.payrollAlreadyClosed(pending.competencia)
+        : esocialMessages.failedToGenerateGuide();
+      logger.error("eSocial", statusMsg.title, { error: errorMessage });
+      reportBatchStatus(statusMsg.status, statusMsg.title, statusMsg.description, {
+        lastError: errorMessage,
+        ...(queueAfterError ? queueStatusExtra(queueAfterError, pending.competencia) : {}),
+        overlayState: null,
+      });
+    }
+    return true;
   }
 
   if (pending.step === "awaiting_remuneracoes_page") {
@@ -821,13 +1076,44 @@ export async function resumePendingGpsFlow(): Promise<boolean> {
   if (fechamentoHtmlError) {
     console.warn("[SIGESS] Mensagem de erro no fechamento:", fechamentoHtmlError);
     console.warn("[SIGESS] Campos retornados apos erro no fechamento:", snapshotFormFields(fechamentoDoc));
+
+    const retryCount = pending.fechamentoRetryCount || 0;
+    if (retryCount < 1 && isTransientDctfValidationError(fechamentoHtmlError)) {
+      const queueForRetry = readGpsQueueState();
+      const retryMsg = esocialMessages.retryingGuideGeneration(pending.competencia);
+      setPendingGpsClosureState({
+        ...pending,
+        fechamentoRetryCount: retryCount + 1,
+        fechamentoNavigationStartedAt: Date.now(),
+        step: "awaiting_closure_page",
+      });
+      reportBatchStatus(retryMsg.status, retryMsg.title, retryMsg.description, {
+        ...(queueForRetry ? queueStatusExtra(queueForRetry, pending.competencia) : {}),
+        overlayState: {
+          step: queueForRetry ? queueForRetry.index + 1 : 1,
+          total: queueForRetry?.competencias.length || 1,
+          title: retryMsg.title,
+          description: retryMsg.description,
+        },
+      });
+      window.setTimeout(() => {
+        window.location.href = buildEsocialUrl(
+          `/FolhaPagamento/FechamentoFolha?competencia=${pending.competencia}`,
+        );
+      }, 5000);
+      return true;
+    }
+
     clearPendingGpsClosureState();
     releaseGpsFlowLock();
+    const queueAfterError = markCurrentCompetenciaResult("erro", fechamentoHtmlError);
+    clearGpsQueueState();
 
     const statusMsg = esocialMessages.failedToGenerateGuide();
     logger.error("eSocial", statusMsg.title, { error: fechamentoHtmlError });
     reportBatchStatus(statusMsg.status, statusMsg.title, statusMsg.description, {
       lastError: fechamentoHtmlError,
+      ...(queueAfterError ? queueStatusExtra(queueAfterError, pending.competencia) : {}),
       overlayState: null,
     });
     return true;
@@ -859,11 +1145,20 @@ export async function resumePendingGpsFlow(): Promise<boolean> {
     },
   );
 
-  clearPendingGpsClosureState();
-  sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${pending.competencia}`, "true");
-  releaseGpsFlowLock();
-  showSuccessModal("Boleto Gerado!");
-  return true;
+    clearPendingGpsClosureState();
+    await advanceGpsQueueAfterCompletion(
+      settings,
+      pending.competencia,
+      "concluido",
+      {
+        valorComercializado: pending.valorComercializado
+          ? Number.parseFloat(pending.valorComercializado.replace(".", "").replace(",", "."))
+          : undefined,
+        valorDeclarado: guiaAposFechamento.valorDeclarado,
+        valorPago: guiaAposFechamento.valorPago,
+      },
+    );
+    return true;
 }
 
 export function acquireGpsFlowLock(competencia: string): boolean {
@@ -982,9 +1277,12 @@ function isEmitirGuiaAnchor(anchor: HTMLAnchorElement): boolean {
 
 export function buildCompetenciaFromSettings(settings: AppSettings): string | null {
   const anoAtual = new Date().getFullYear();
+  const ano = settings.selectedYear === "current" || !settings.selectedYear
+    ? String(anoAtual)
+    : settings.selectedYear;
   const mes = (settings.selectedMonth || "").padStart(2, "0");
-  if (!/^\d{2}$/.test(mes)) return null;
-  return `${anoAtual}${mes}`;
+  if (!/^\d{4}$/.test(ano) || !/^\d{2}$/.test(mes)) return null;
+  return `${ano}${mes}`;
 }
 
 export async function consultarGuiaExistenteViaApi(competencia: string): Promise<GuiaExistenteInfo> {
@@ -1033,12 +1331,29 @@ export async function extrairValorTotalComercializadoDaPagina(competencia: strin
 }
 
 export async function executarFluxoDirectoFromHome(settings: AppSettings): Promise<void> {
-  const competencia = buildCompetenciaFromSettings(settings);
+  const queue = initializeGpsQueue(settings);
+  const activeQueue = markCurrentCompetenciaResult("processando") || queue;
+  const planned = queue.competencias[queue.index];
+  const competencia = planned ? `${planned.ano}${planned.mes}` : buildCompetenciaFromSettings(settings);
   if (!competencia) {
     console.debug("[SIGESS] Não foi possível construir competência a partir de settings");
     return;
   }
 
+  const queueStartMsg = esocialMessages.startingCompetencia(
+    competenciaLabel(competencia),
+    activeQueue.index + 1,
+    activeQueue.competencias.length,
+  );
+  reportBatchStatus(queueStartMsg.status, queueStartMsg.title, queueStartMsg.description, {
+    ...queueStatusExtra(activeQueue, competencia),
+    overlayState: {
+      step: activeQueue.index + 1,
+      total: activeQueue.competencias.length,
+      title: queueStartMsg.title,
+      description: queueStartMsg.description,
+    },
+  });
   console.debug("[SIGESS] Iniciando fluxo direto da home page para competência:", competencia);
 
   const checkMsg = esocialMessages.verifyingBoletoStatus();
@@ -1046,11 +1361,12 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
   reportBatchStatus(checkMsg.status, checkMsg.title, checkMsg.description, {
     progressStep: 2,
     progressTotal: 3,
+    ...queueStatusExtra(activeQueue, competencia),
     overlayState: {
       step: 2,
       total: 3,
       title: "Verificando boleto",
-      description: `Consultando status do boleto de ${competencia}...`,
+      description: `Consultando status do boleto de ${competenciaLabel(competencia)}...`,
     },
   });
 
@@ -1060,16 +1376,30 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     valorTotalComercializado,
   });
 
+  let guiaExistente: GuiaExistenteInfo | null = null;
   if (valorTotalComercializado > 0) {
-    const guiaExistente = await consultarGuiaExistenteViaApi(competencia);
+    guiaExistente = await consultarGuiaExistenteViaApi(competencia);
     if (hasGuiaEmitida(guiaExistente)) {
-      const guiaUrl =
-        guiaExistente.emissaoUrl ||
-        buildEsocialUrl(`/FolhaPagamento/EmitirGuia/EmitirGuiaMensal?competencia=${competencia}`);
+      // For an already registered DAE, use the same canonical route used by
+      // the native "Emitir Guia" action. The URL extracted from the
+      // Competencias HTML may refer to a javascript wrapper or an intermediate
+      // page; fetching that URL can return the eSocial error page as HTML and
+      // produce a misleading blob: tab instead of the PDF.
+      const guiaUrl = buildEsocialUrl(
+        `/FolhaPagamento/EmitirGuia/EmitirGuiaMensal?competencia=${competencia}`,
+      );
+      console.debug("[SIGESS] Emissão de boleto existente pela rota canônica:", {
+        competencia,
+        urlExtraida: guiaExistente.emissaoUrl,
+        guiaUrl,
+      });
 
       const issuedMsg = esocialMessages.guideAlreadyIssued(competencia);
       logger.info("eSocial", issuedMsg.title);
-      reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, { overlayState: null });
+      reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, {
+        ...queueStatusExtra(activeQueue, competencia),
+        overlayState: null,
+      });
       await baixarGuiaPdfDirecto(
         guiaUrl,
         competencia,
@@ -1080,8 +1410,16 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
           valorPago: guiaExistente.valorPago,
         },
       );
-      sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
-      showSuccessModal("Boleto Gerado!");
+      await advanceGpsQueueAfterCompletion(
+        settings,
+        competencia,
+        "ja_existente",
+        {
+          valorComercializado: valorTotalComercializado,
+          valorDeclarado: guiaExistente.valorDeclarado,
+          valorPago: guiaExistente.valorPago,
+        },
+      );
       return;
     }
 
@@ -1102,12 +1440,23 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
       progressStep: 2,
       progressTotal: 3,
       overlayState: {
-      step: 2,
-      total: 3,
-      title: "Gerando boleto",
-      description: `Preparando a guia de ${competencia}...`,
-    },
+        step: 2,
+        total: 3,
+        title: "Gerando boleto",
+        description: `Preparando a guia de ${competenciaLabel(competencia)}...`,
+      },
     });
+
+    const valorComercializado = normalizeMoneyValue(
+      activeQueue.competencias[activeQueue.index]?.valorComercializado ?? settings.valorComercializado,
+    );
+    const valorZerado =
+      valorTotalComercializado <= 0 ||
+      guiaExistente?.valorDeclarado === 0;
+    if (valorZerado) {
+      iniciarReaberturaDaCompetencia(settings, competencia, valorComercializado, activeQueue);
+      return;
+    }
 
     await executarFluxoDiretoGps(settings, competencia);
   } catch (error) {
@@ -1119,8 +1468,11 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     }
 
     logger.error("eSocial", statusMsg.title, { error: errorMessage });
+    const queueAfterError = markCurrentCompetenciaResult("erro", errorMessage);
+    clearGpsQueueState();
     reportBatchStatus(statusMsg.status, statusMsg.title, statusMsg.description, {
       lastError: errorMessage,
+      ...(queueAfterError ? queueStatusExtra(queueAfterError, competencia) : {}),
       overlayState: null,
     });
   }

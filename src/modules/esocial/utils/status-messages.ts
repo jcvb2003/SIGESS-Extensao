@@ -4,7 +4,33 @@ export interface StatusMessage {
   description: string;
 }
 
+function formatCompetencia(competencia: string): string {
+  return /^\d{6}$/.test(competencia)
+    ? `${competencia.slice(4, 6)}/${competencia.slice(0, 4)}`
+    : competencia;
+}
+
 export const esocialMessages = {
+  startingCompetencia: (competencia: string, index: number, total: number): StatusMessage => ({
+    status: "processando",
+    title: `Preparando competência ${index} de ${total}`,
+    description: `Iniciando a geração do DAE de ${formatCompetencia(competencia)}.`,
+  }),
+
+  competenciaConcluida: (competencia: string, index: number, total: number): StatusMessage => ({
+    status: "processando",
+    title: `Competência ${index} de ${total} concluída`,
+    description: index < total
+      ? `Boleto de ${formatCompetencia(competencia)} salvo. Iniciando a próxima competência.`
+      : `Boleto de ${formatCompetencia(competencia)} salvo.`,
+  }),
+
+  allCompetenciasCompleted: (total: number): StatusMessage => ({
+    status: "concluido",
+    title: "Geração concluída",
+    description: `${total} competência(s) processada(s) com sucesso.`,
+  }),
+
   verifyingBoletoStatus: (): StatusMessage => ({
     status: "processando",
     title: "Verificando status do boleto",
@@ -31,20 +57,32 @@ export const esocialMessages = {
 
   guideAlreadyExists: (competencia: string): StatusMessage => ({
     status: "ignorado",
-    title: `Boleto de ${competencia} já existe`,
+    title: `Boleto de ${formatCompetencia(competencia)} já existe`,
     description: "Este boleto já foi gerado com valor. Pulando...",
   }),
 
   guideAlreadyIssued: (competencia: string): StatusMessage => ({
     status: "processando",
-    title: `Boleto de ${competencia} já foi gerado`,
+    title: `Boleto de ${formatCompetencia(competencia)} já foi gerado`,
     description: "Baixando boleto existente...",
   }),
 
   initializingGuideGeneration: (competencia: string): StatusMessage => ({
     status: "processando",
-    title: `Preparando boleto de ${competencia}`,
+    title: `Preparando boleto de ${formatCompetencia(competencia)}`,
     description: "As informações estão sendo registradas no eSocial.",
+  }),
+
+  reopeningCompetencia: (competencia: string): StatusMessage => ({
+    status: "processando",
+    title: `Reabrindo competência ${formatCompetencia(competencia)}`,
+    description: "Abrindo a folha no eSocial para registrar a nova geração.",
+  }),
+
+  retryingGuideGeneration: (competencia: string): StatusMessage => ({
+    status: "processando",
+    title: "Aguardando validação do eSocial",
+    description: `O DCTF Web ainda está processando a competência ${formatCompetencia(competencia)}. Tentando novamente em instantes.`,
   }),
 
   savingCommercializationDraft: (): StatusMessage => ({
@@ -121,7 +159,7 @@ export const esocialMessages = {
 
   payrollAlreadyClosed: (competencia: string): StatusMessage => ({
     status: "erro",
-    title: `Folha de ${competencia} já foi fechada`,
+    title: `Folha de ${formatCompetencia(competencia)} já foi fechada`,
     description: "Será necessário reabrir a folha no eSocial para fazer alterações.",
   }),
 };

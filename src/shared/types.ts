@@ -47,6 +47,11 @@ export interface UserCredentials {
   consultarGuias?: boolean;
   selectedYear?: string;
   selectedMonth?: string;
+  competencias?: EsocialCompetenciaPlanejada[];
+  competenciaAtual?: string;
+  competenciaIndice?: number;
+  competenciasTotal?: number;
+  competenciasResultados?: GovBatchCompetenciaResult[];
   progressStep?: number;
   progressTotal?: number;
   loginConcluido?: boolean;
@@ -95,6 +100,25 @@ export interface EsocialConsultaCompetencia {
   valorPago: number;
 }
 
+export interface EsocialCompetenciaPlanejada {
+  ano: string;
+  mes: string;
+  valorComercializado: string;
+}
+
+export type GovBatchCompetenciaResultStatus =
+  | "pendente"
+  | "processando"
+  | "concluido"
+  | "ja_existente"
+  | "erro";
+
+export interface GovBatchCompetenciaResult {
+  competencia: string;
+  status: GovBatchCompetenciaResultStatus;
+  lastError?: string;
+}
+
 export interface MultiLoginItem {
   id: string;
   nome: string;
@@ -106,6 +130,7 @@ export interface MultiLoginItem {
   consultarGuias?: boolean;
   selectedYear?: string;
   selectedMonth?: string;
+  competencias?: EsocialCompetenciaPlanejada[];
   type: "mte" | "pesqbrasil_mpa" | "esocial" | "inss";
   timestamp: number;
 }
@@ -120,6 +145,7 @@ export interface GovBatchQueueItem {
   consultarGuias?: boolean;
   selectedYear?: string;
   selectedMonth?: string;
+  competencias?: EsocialCompetenciaPlanejada[];
 }
 
 export interface AppSettings {
@@ -143,6 +169,7 @@ mpaMunicipio?: number;
   mpaAmbiente?: number;
   multiLoginEnabled?: boolean;
   multiLoginQueue?: MultiLoginItem[];
+  competencias?: EsocialCompetenciaPlanejada[];
 
   mpaSpecies?: Array<{
     id?: number;

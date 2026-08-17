@@ -9,6 +9,7 @@ import {
   MessageRequest,
   MessageResponse,
   MultiLoginItem,
+  UserCredentials,
   PessoaData,
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
@@ -201,6 +202,7 @@ async function handleGetESocialAutomationSettings(): Promise<MessageResponse> {
       consultarGuias: Boolean(settings.consultarGuias),
       selectedYear: settings.selectedYear || "current",
       selectedMonth: month,
+      competencias: settings.competencias,
     },
   };
 }
@@ -234,6 +236,11 @@ async function handleGetESocialAutomationContext(
       selectedMonth,
       competencia,
       valorComercializado: credentials.valorComercializado || "",
+      competencias: credentials.competencias,
+      competenciaAtual: credentials.competenciaAtual,
+      competenciaIndice: credentials.competenciaIndice,
+      competenciasTotal: credentials.competenciasTotal,
+      competenciasResultados: credentials.competenciasResultados,
     },
   };
 }
@@ -345,6 +352,7 @@ async function handleStartBatchLogin(
         cred.consultarGuias,
         cred.selectedYear,
         cred.selectedMonth,
+        cred.competencias,
       ),
     ),
   );
@@ -510,6 +518,7 @@ async function handleEnqueueGovBatchSessions(
       consultarGuias: item.consultarGuias,
       selectedYear: item.selectedYear,
       selectedMonth: item.selectedMonth,
+      competencias: item.competencias,
       type: "esocial",
       timestamp: Date.now(),
     });
@@ -535,6 +544,7 @@ async function handleEnqueueGovBatchSessions(
     consultarGuias: item.consultarGuias,
     selectedYear: item.selectedYear,
     selectedMonth: item.selectedMonth,
+    competencias: item.competencias,
   }));
 
   const openResult = await handleStartBatchLogin(
@@ -588,6 +598,10 @@ async function handleGetGovBatchStatuses(message: MessageRequest) {
       boletoInfo: credentials.boletoInfo,
       consultas: credentials.consultas,
       boletoGerado: credentials.boletoGerado,
+      competenciaAtual: credentials.competenciaAtual,
+      competenciaIndice: credentials.competenciaIndice,
+      competenciasTotal: credentials.competenciasTotal,
+      competenciasResultados: credentials.competenciasResultados,
       lastError: credentials.lastError,
       lastUpdatedAt: credentials.lastUpdatedAt,
     }))
@@ -629,6 +643,10 @@ async function handleUpdateGovBatchStatus(
     boletoInfo?: any;
     consultas?: EsocialConsultaCompetencia[];
     boletoGerado?: boolean;
+    competenciaAtual?: string;
+    competenciaIndice?: number;
+    competenciasTotal?: number;
+    competenciasResultados?: UserCredentials["competenciasResultados"];
   };
 
   const {
@@ -642,6 +660,10 @@ async function handleUpdateGovBatchStatus(
     boletoInfo,
     consultas,
     boletoGerado,
+    competenciaAtual,
+    competenciaIndice,
+    competenciasTotal,
+    competenciasResultados,
   } = msg;
 
   if (!status || !statusTitle || !statusDescription) {
@@ -661,6 +683,10 @@ async function handleUpdateGovBatchStatus(
       boletoInfo,
       consultas,
       boletoGerado,
+      competenciaAtual,
+      competenciaIndice,
+      competenciasTotal,
+      competenciasResultados,
     },
   );
 

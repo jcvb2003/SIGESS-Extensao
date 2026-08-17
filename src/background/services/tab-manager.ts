@@ -90,6 +90,7 @@ export class TabManager {
     consultarGuias?: boolean,
     selectedYear?: string,
     selectedMonth?: string,
+    competencias?: UserCredentials["competencias"],
   ): Promise<void> {
     try {
       const resolvedPortalType =
@@ -137,8 +138,9 @@ export class TabManager {
           portalType: resolvedPortalType,
           gerarGps,
           consultarGuias,
-          selectedYear,
-          selectedMonth,
+           selectedYear,
+           selectedMonth,
+           competencias,
           loginConcluido: false,
           govBrCpfSubmitted: false,
           govBrPasswordSubmitted: false,

@@ -1,4 +1,4 @@
-import { AppSettings } from "../../shared/types";
+import { AppSettings, EsocialCompetenciaPlanejada } from "../../shared/types";
 import { logger } from "../../shared/services/logger";
 import { Utils } from "../../shared/utils/dom-helpers";
 import {
@@ -28,6 +28,7 @@ type ESocialAutomationContext = {
   selectedMonth?: string;
   competencia?: string;
   valorComercializado?: string;
+  competencias?: EsocialCompetenciaPlanejada[];
 };
 
 const CONSULTAR_REDIR_KEY = "sigess_last_redir_guias";
@@ -93,7 +94,7 @@ async function automatizarCompetencias(settings: AppSettings) {
 }
 
 async function executarFluxoGpsSeNecessario(settings: AppSettings) {
-  if (await resumePendingGpsFlow()) {
+  if (await resumePendingGpsFlow(settings)) {
     return;
   }
 
@@ -141,6 +142,7 @@ async function resolveESocialSettingsForCurrentTab(settings: AppSettings): Promi
       selectedYear: context.selectedYear || settings.selectedYear,
       selectedMonth: context.selectedMonth || settings.selectedMonth,
       valorComercializado: context.valorComercializado ?? settings.valorComercializado,
+      competencias: context.competencias ?? settings.competencias,
     };
   } catch (error) {
     console.debug("[SIGESS] Falha ao obter contexto da automacao do eSocial para a aba atual:", error);
@@ -155,7 +157,7 @@ async function start(settings: AppSettings) {
     clearEsocialProgressOverlay();
   }
 
-  if (await resumePendingGpsFlow()) {
+  if (await resumePendingGpsFlow(settings)) {
     return;
   }
 
@@ -189,6 +191,7 @@ async function init() {
     selectedYear: ctx.selectedYear ?? "current",
     selectedMonth: ctx.selectedMonth ?? "",
     valorComercializado: ctx.valorComercializado ?? "",
+    competencias: ctx.competencias,
   } as AppSettings;
   await start(settings);
 }
