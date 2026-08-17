@@ -122,6 +122,8 @@ export async function routeMessage(
         return await handleGetESocialAutomationContext(sender);
       case "getESocialDownloadIdentity":
         return await handleGetESocialDownloadIdentity(sender);
+      case "downloadESocialGuide":
+        return await handleDownloadESocialGuide(message);
       case "getAutoRegistrationSnapshot":
         return await handleGetAutoRegistrationSnapshot();
       case "updateGovBatchStatus":
@@ -878,17 +880,49 @@ export async function handleDownloadESocialGuide(message: MessageRequest) {
   }
 
   console.log("[SIGESS] Background: Iniciando download com filename:", filename);
+  let objectUrl: string | null = null;
   try {
+    const blob = dataUrlToBlob(dataUrl);
+    objectUrl = URL.createObjectURL(blob);
     const downloadId = await (browser as any).downloads.download({
-      url: dataUrl,
+      url: objectUrl,
       filename,
       saveAs: false,
       conflictAction: "uniquify",
     });
     console.log("[SIGESS] Background: Download iniciado com ID:", downloadId);
 
+    // O download já foi entregue ao gerenciador do navegador. Mantemos a URL
+    // viva por tempo suficiente para o Firefox concluir a leitura do Blob.
+    setTimeout(() => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    }, 60_000);
+
     return { success: true, downloadId };
   } catch (error: any) {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
     return { success: false, error: error.message || "Falha ao baixar guia do eSocial." };
   }
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const separatorIndex = dataUrl.indexOf(",");
+  if (!dataUrl.startsWith("data:") || separatorIndex < 0) {
+    throw new Error("Formato de PDF inválido para download.");
+  }
+
+  const metadata = dataUrl.slice(5, separatorIndex);
+  const payload = dataUrl.slice(separatorIndex + 1);
+  const mimeType = metadata.split(";")[0] || "application/pdf";
+
+  if (metadata.includes(";base64")) {
+    const binary = atob(payload);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return new Blob([bytes], { type: mimeType });
+  }
+
+  return new Blob([decodeURIComponent(payload)], { type: mimeType });
 }

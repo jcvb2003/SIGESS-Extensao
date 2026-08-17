@@ -227,6 +227,8 @@ async function baixarGuiaPdf(
     const identity = await getEsocialDownloadIdentity();
     const filename = buildEsocialFilename(identity.nome, identity.cpf, competencia);
 
+    await triggerLocalDownload(blob, filename);
+
     const successMsg = esocialMessages.pdfDownloadedSuccessfully(filename);
     logger.info("eSocial", successMsg.title);
     reportBatchStatus("boleto_salvo", successMsg.title, successMsg.description, {
@@ -244,8 +246,6 @@ async function baixarGuiaPdf(
         hideAt: Date.now() + 4000,
       },
     });
-
-    await triggerLocalDownload(blob, filename);
   } finally {
     clearTimeout(timeoutId);
   }
@@ -253,16 +253,37 @@ async function baixarGuiaPdf(
 
 async function triggerLocalDownload(blob: Blob, filename: string) {
   const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
-  const objectUrl = URL.createObjectURL(pdfBlob);
-  const anchor = document.createElement("a");
-  anchor.href = objectUrl;
-  anchor.download = filename;
-  anchor.style.display = "none";
-  const root = document.body ?? document.documentElement;
-  root.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  const dataUrl = await blobToDataUrl(pdfBlob);
+  const browserAPI = typeof browser !== "undefined" ? browser : (window as any).chrome;
+  const response = await browserAPI.runtime.sendMessage({
+    action: "downloadESocialGuide",
+    dataUrl,
+    filename,
+  });
+
+  if (!response?.success) {
+    throw new Error(response?.error || "Não foi possível iniciar o download do boleto.");
+  }
+
+  console.log("[SIGESS] Download delegado ao background:", {
+    filename,
+    downloadId: response.downloadId,
+  });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Não foi possível preparar o PDF para download."));
+      }
+    };
+    reader.onerror = () => reject(reader.error || new Error("Falha ao ler o PDF para download."));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function openBlobInNewTab(blob: Blob, mimeType: string) {
