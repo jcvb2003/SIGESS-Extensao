@@ -117,6 +117,9 @@ export interface GovBatchCompetenciaResult {
   competencia: string;
   status: GovBatchCompetenciaResultStatus;
   lastError?: string;
+  valorComercializado?: number;
+  valorDeclarado?: number;
+  valorPago?: number;
 }
 
 export interface MultiLoginItem {

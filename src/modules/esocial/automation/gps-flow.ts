@@ -126,11 +126,20 @@ function initializeGpsQueue(settings: AppSettings): GpsQueueState {
   return state;
 }
 
-function markCurrentCompetenciaResult(status: GovBatchCompetenciaResult["status"], lastError?: string) {
+function markCurrentCompetenciaResult(
+  status: GovBatchCompetenciaResult["status"],
+  lastError?: string,
+  boletoInfo?: { valorComercializado?: number; valorDeclarado?: number; valorPago?: number },
+) {
   const state = readGpsQueueState();
   if (!state || !state.competencias[state.index]) return null;
   const competencia = `${state.competencias[state.index].ano}${state.competencias[state.index].mes}`;
-  const result: GovBatchCompetenciaResult = { competencia, status, ...(lastError ? { lastError } : {}) };
+  const result: GovBatchCompetenciaResult = {
+    competencia,
+    status,
+    ...(lastError ? { lastError } : {}),
+    ...(boletoInfo || {}),
+  };
   state.resultados = [
     ...state.resultados.filter((item) => item.competencia !== competencia),
     result,
@@ -646,7 +655,7 @@ async function advanceGpsQueueAfterCompletion(
   boletoInfo?: { valorComercializado?: number; valorDeclarado?: number; valorPago?: number },
 ): Promise<void> {
   sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
-  const state = markCurrentCompetenciaResult(resultStatus);
+  const state = markCurrentCompetenciaResult(resultStatus, undefined, boletoInfo);
   if (!state || state.index >= state.competencias.length - 1) {
     clearGpsQueueState();
     releaseGpsFlowLock();
@@ -662,6 +671,26 @@ async function advanceGpsQueueAfterCompletion(
     showSuccessModal("Geração concluída");
     return;
   }
+
+  const completedMsg = esocialMessages.competenciaConcluida(
+    competencia,
+    state.index + 1,
+    state.competencias.length,
+  );
+  reportBatchStatus(completedMsg.status, completedMsg.title, completedMsg.description, {
+    ...queueStatusExtra(state, competencia),
+    boletoInfo: boletoInfo ? { detectado: true, competencia, ...boletoInfo } : undefined,
+    overlayState: {
+      step: state.index + 1,
+      total: state.competencias.length,
+      title: completedMsg.title,
+      description: completedMsg.description,
+    },
+  });
+
+  // Keep the completion checkpoint observable by the Web before the next
+  // navigation overwrites the current status.
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 800));
 
   state.index += 1;
   writeGpsQueueState(state);
