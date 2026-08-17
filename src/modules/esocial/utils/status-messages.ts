@@ -73,6 +73,12 @@ export const esocialMessages = {
     description: "As informações estão sendo registradas no eSocial.",
   }),
 
+  openingGenerationContext: (competencia: string): StatusMessage => ({
+    status: "processando",
+    title: "Preparando contexto do eSocial",
+    description: `Abrindo a página de pagamentos antes de gerar o DAE de ${formatCompetencia(competencia)}.`,
+  }),
+
   reopeningCompetencia: (competencia: string): StatusMessage => ({
     status: "processando",
     title: `Reabrindo competência ${formatCompetencia(competencia)}`,

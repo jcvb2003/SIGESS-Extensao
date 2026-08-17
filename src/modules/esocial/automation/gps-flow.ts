@@ -34,6 +34,7 @@ type PendingGpsClosureState = {
   competenciaIndex?: number;
   fechamentoRetryCount?: number;
   step:
+    | "awaiting_generation_context_page"
     | "awaiting_reopen_page"
     | "awaiting_remuneracoes_page"
     | "awaiting_closure_page"
@@ -189,26 +190,98 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     parseHtml(enviarResp),
     parseHtml(autonomosHtml),
   );
-  if (window.location.href.includes("/FolhaPagamento/Listagem/ListarPagamentos")) {
-    submitNativeEnviaRemuneracoes(enviaRemuneracoesParams, competencia, valorComercializado);
-    return;
-  }
-
-  const listagemUrl = buildEsocialUrl(`/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competencia}`);
-  setPendingGpsClosureState({
+  await executarFechamentoDireto(
     competencia,
     valorComercializado,
-    enviaRemuneracoesBody: enviaRemuneracoesParams.toString(),
-    listagemNavigationStartedAt: Date.now(),
-    competenciaIndex: readGpsQueueState()?.index,
-    step: "awaiting_remuneracoes_page",
-  });
-  console.debug("[SIGESS] Navegando para ListarPagamentos antes do EnviaRemuneracoes:", {
-    listagemUrl,
+    enviaRemuneracoesParams,
+    settings,
+  );
+}
+
+async function executarFechamentoDireto(
+  competencia: string,
+  valorComercializado: string,
+  enviaRemuneracoesParams: URLSearchParams,
+  settings: AppSettings,
+): Promise<void> {
+  const remuneracoesMsg = esocialMessages.loadingClosureScreen();
+  logger.info("eSocial", remuneracoesMsg.title);
+  reportBatchStatus(remuneracoesMsg.status, remuneracoesMsg.title, remuneracoesMsg.description);
+
+  const remuneracoesHtml = await postForm(
+    `/FolhaPagamento/Listagem/EnviaRemuneracoes?competencia=${competencia}&considerarRegistrosExcluidos=true`,
+    enviaRemuneracoesParams,
+  );
+  const remuneracoesDoc = parseHtml(remuneracoesHtml);
+  console.debug("[SIGESS] EnviaRemuneracoes direto respondeu:", {
     competencia,
+    htmlLength: remuneracoesHtml.length,
+    finalUrl: buildEsocialUrl(`/FolhaPagamento/Listagem/EnviaRemuneracoes?competencia=${competencia}`),
+    hasForm: !!remuneracoesDoc.querySelector("form"),
   });
-  window.location.href = listagemUrl;
-  return;
+
+  let fechamentoHtml = remuneracoesHtml;
+  let fechamentoDoc = remuneracoesDoc;
+  if (!fechamentoDoc.querySelector("form")) {
+    fechamentoHtml = await carregarTelaFechamento(competencia);
+    fechamentoDoc = parseHtml(fechamentoHtml);
+  }
+
+  const fechamentoForm = buildFechamentoFormData(fechamentoDoc, competencia);
+  const closingMsg = esocialMessages.closingPayroll();
+  logger.info("eSocial", closingMsg.title);
+  reportBatchStatus(closingMsg.status, closingMsg.title, closingMsg.description);
+
+  const fechamentoPostHtml = await postForm(
+    `/FolhaPagamento/FechamentoFolha?competencia=${competencia}`,
+    fechamentoForm,
+  );
+  const fechamentoPostDoc = parseHtml(fechamentoPostHtml);
+  const fechamentoHtmlError =
+    extractHtmlAlertMessage(fechamentoPostDoc) || extractHtmlAlertMessageFromHtml(fechamentoPostHtml);
+
+  console.debug("[SIGESS] Fechamento direto respondeu:", {
+    competencia,
+    htmlLength: fechamentoPostHtml.length,
+    hasTabsResumo: !!fechamentoPostDoc.querySelector("#tabs-resumo"),
+    hasEmitirGuia: !!fechamentoPostDoc.querySelector("#btn-emitir-guia"),
+    hasAlertSuccess: !!fechamentoPostDoc.querySelector(".alert-success"),
+    hasAlertDanger: !!fechamentoPostDoc.querySelector(".alert-danger, .alert-error"),
+  });
+
+  if (fechamentoHtmlError) {
+    throw new Error(fechamentoHtmlError);
+  }
+
+  const { guiaUrl, guiaAposFechamento, fechamentoConfirmado } = await aguardarGuiaAposFechamento(
+    fechamentoPostDoc,
+    competencia,
+  );
+  if (!guiaUrl || (!fechamentoConfirmado && (guiaAposFechamento.valorDeclarado ?? 0) <= 0)) {
+    throw new Error("A folha não foi fechada com guia confirmada após o POST de fechamento.");
+  }
+
+  await baixarGuiaPdfDirecto(
+    guiaUrl,
+    competencia,
+    true,
+    {
+      valorComercializado: Number.parseFloat(valorComercializado.replace(",", ".")) || undefined,
+      valorDeclarado: guiaAposFechamento.valorDeclarado,
+      valorPago: guiaAposFechamento.valorPago,
+    },
+  );
+
+  await advanceGpsQueueAfterCompletion(
+    settings,
+    competencia,
+    "concluido",
+    {
+      valorComercializado: Number.parseFloat(valorComercializado.replace(",", ".")) || undefined,
+      valorDeclarado: guiaAposFechamento.valorDeclarado,
+      valorPago: guiaAposFechamento.valorPago,
+    },
+  );
 }
 /*
 
@@ -385,6 +458,31 @@ async function carregarDadosComercializacao(competencia: string): Promise<{
     comercializacaoHtml: await comercializacaoResponse.text(),
     autonomosHtml: await autonomosResponse.text(),
   };
+}
+
+async function postForm(path: string, params: URLSearchParams): Promise<string> {
+  const response = await fetch(buildEsocialUrl(path), {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: params.toString(),
+  });
+
+  const text = await response.text();
+  console.debug("[SIGESS] POST direto:", {
+    path,
+    status: response.status,
+    finalUrl: response.url,
+    htmlLength: text.length,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Falha no POST ${path}: HTTP ${response.status}`);
+  }
+
+  return text;
 }
 
 export async function verificarAcessoFechamento(competencia: string) {
@@ -612,6 +710,48 @@ function isTransientDctfValidationError(message: string): boolean {
   return normalized.includes("dctf web")
     && normalized.includes("aguarde alguns instantes")
     && normalized.includes("gerar a guia");
+}
+
+function isPayrollClosedInContext(doc: Document, competencia: string): boolean {
+  const statusInput = doc.querySelector<HTMLInputElement>(
+    "#SituacaoFolha, input[name='SituacaoFolha']",
+  );
+  const status = statusInput?.value?.trim() || "";
+  if (status === "4") {
+    console.debug("[SIGESS] Contexto indica folha encerrada pelo estado nativo:", {
+      competencia,
+      situacaoFolha: status,
+    });
+    return true;
+  }
+
+  const reaberturaControl = Array.from(doc.querySelectorAll("a, button"))
+    .find((element) => {
+      const text = (element.textContent || "").replace(/\s+/g, " ").trim();
+      const onclick = element.getAttribute("onclick") || "";
+      return /reabrir m[eê]s/i.test(text) || /Reabertura/i.test(onclick);
+    });
+  if (reaberturaControl) {
+    console.debug("[SIGESS] Contexto indica folha encerrada pelo controle de reabertura:", {
+      competencia,
+      controle: reaberturaControl.textContent?.trim() || reaberturaControl.tagName,
+    });
+    return true;
+  }
+
+  const closedControl = doc.querySelector(
+    ".encerrar-folha[disabled], #btn-encerrar-mes[disabled]",
+  );
+  if (closedControl) {
+    console.debug("[SIGESS] Contexto indica folha encerrada pelo botão nativo desabilitado:", {
+      competencia,
+    });
+    return true;
+  }
+
+  const bodyText = (doc.body?.textContent || "").replace(/\s+/g, " ");
+  return /folha(?: de pagamento)?\s+(?:está\s+)?(?:encerrada|fechada)/i.test(bodyText)
+    || /folha encerrada/i.test(bodyText);
 }
 
 function iniciarReaberturaDaCompetencia(
@@ -1005,6 +1145,24 @@ export async function resumePendingGpsFlow(settings?: AppSettings): Promise<bool
     return false;
   }
 
+  if (pending.step === "awaiting_generation_context_page") {
+    if (!window.location.href.includes("/FolhaPagamento/Listagem/ListarPagamentos")) {
+      return true;
+    }
+
+    await waitForDocumentReady();
+    await waitForDocumentBody();
+    clearPendingGpsClosureState();
+    console.debug("[SIGESS] Contexto de ListarPagamentos pronto; iniciando geração direta:", {
+      competencia: pending.competencia,
+    });
+    if (!settings) {
+      throw new Error("Não foi possível retomar a geração após abrir ListarPagamentos.");
+    }
+    await executarFluxoDirectoFromHome(settings);
+    return true;
+  }
+
   if (pending.step === "awaiting_reopen_page") {
     if (!window.location.href.includes("/FolhaPagamento/Listagem/ListarPagamentos")) {
       // Reabertura redirects to ListarPagamentos after the portal changes the
@@ -1342,7 +1500,6 @@ export async function consultarGuiaExistenteViaApi(competencia: string): Promise
 
 function hasGuiaEmitida(info: GuiaExistenteInfo): boolean {
   return (
-    !!info.emissaoUrl ||
     (info.valorDeclarado ?? 0) > 0 ||
     (info.valorPago ?? 0) > 0
   );
@@ -1383,7 +1540,35 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
       description: queueStartMsg.description,
     },
   });
-  console.debug("[SIGESS] Iniciando fluxo direto da home page para competência:", competencia);
+  console.debug("[SIGESS] Iniciando fluxo direto a partir do contexto de pagamentos para competência:", competencia);
+
+  if (!window.location.href.includes("/FolhaPagamento/Listagem/ListarPagamentos")) {
+    const contextMsg = esocialMessages.openingGenerationContext(competencia);
+    logger.info("eSocial", contextMsg.title);
+    reportBatchStatus(contextMsg.status, contextMsg.title, contextMsg.description, {
+      ...queueStatusExtra(activeQueue, competencia),
+      overlayState: {
+        step: activeQueue.index + 1,
+        total: activeQueue.competencias.length,
+        title: contextMsg.title,
+        description: contextMsg.description,
+      },
+    });
+
+    const listagemUrl = buildEsocialUrl(`/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competencia}`);
+    setPendingGpsClosureState({
+      competencia,
+      valorComercializado: planned?.valorComercializado || settings.valorComercializado,
+      competenciaIndex: activeQueue.index,
+      step: "awaiting_generation_context_page",
+    });
+    console.debug("[SIGESS] Navegando uma única vez para o contexto de geração:", {
+      listagemUrl,
+      competencia,
+    });
+    window.location.href = listagemUrl;
+    return;
+  }
 
   const checkMsg = esocialMessages.verifyingBoletoStatus();
   logger.info("eSocial", checkMsg.title);
@@ -1405,62 +1590,75 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     valorTotalComercializado,
   });
 
-  let guiaExistente: GuiaExistenteInfo | null = null;
-  if (valorTotalComercializado > 0) {
-    guiaExistente = await consultarGuiaExistenteViaApi(competencia);
-    if (hasGuiaEmitida(guiaExistente)) {
-      // For an already registered DAE, use the same canonical route used by
-      // the native "Emitir Guia" action. The URL extracted from the
-      // Competencias HTML may refer to a javascript wrapper or an intermediate
-      // page; fetching that URL can return the eSocial error page as HTML and
-      // produce a misleading blob: tab instead of the PDF.
-      const guiaUrl = buildEsocialUrl(
-        `/FolhaPagamento/EmitirGuia/EmitirGuiaMensal?competencia=${competencia}`,
-      );
-      console.debug("[SIGESS] Emissão de boleto existente pela rota canônica:", {
-        competencia,
-        urlExtraida: guiaExistente.emissaoUrl,
-        guiaUrl,
-      });
-
-      const issuedMsg = esocialMessages.guideAlreadyIssued(competencia);
-      logger.info("eSocial", issuedMsg.title);
-      reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, {
-        ...queueStatusExtra(activeQueue, competencia),
-        overlayState: null,
-      });
-      await baixarGuiaPdfDirecto(
-        guiaUrl,
-        competencia,
-        false,
-        {
-          valorComercializado: valorTotalComercializado,
-          valorDeclarado: guiaExistente.valorDeclarado,
-          valorPago: guiaExistente.valorPago,
-        },
-      );
-      await advanceGpsQueueAfterCompletion(
-        settings,
-        competencia,
-        "ja_existente",
-        {
-          valorComercializado: valorTotalComercializado,
-          valorDeclarado: guiaExistente.valorDeclarado,
-          valorPago: guiaExistente.valorPago,
-        },
-      );
-      return;
-    }
-
-    console.debug("[SIGESS] Competencia com comercializacao salva, mas sem guia emitida ainda:", {
+  // A leitura da comercialização pode retornar zero enquanto o contexto do
+  // eSocial ainda está sendo materializado. Isso não significa, por si só,
+  // que a folha precise ser reaberta.
+  const guiaExistente = await consultarGuiaExistenteViaApi(competencia);
+  if (hasGuiaEmitida(guiaExistente)) {
+    // For an already registered DAE, use the same canonical route used by
+    // the native "Emitir Guia" action. The URL extracted from the
+    // Competencias HTML may refer to a javascript wrapper or an intermediate
+    // page; fetching that URL can return the eSocial error page as HTML and
+    // produce a misleading blob: tab instead of the PDF.
+    const guiaUrl = buildEsocialUrl(
+      `/FolhaPagamento/EmitirGuia/EmitirGuiaMensal?competencia=${competencia}`,
+    );
+    console.debug("[SIGESS] Emissão de boleto existente pela rota canônica:", {
       competencia,
-      valorTotalComercializado,
-      situacao: guiaExistente.situacao,
-      valorDeclarado: guiaExistente.valorDeclarado,
-      valorPago: guiaExistente.valorPago,
-      emissaoUrl: guiaExistente.emissaoUrl,
+      urlExtraida: guiaExistente.emissaoUrl,
+      guiaUrl,
     });
+
+    const issuedMsg = esocialMessages.guideAlreadyIssued(competencia);
+    logger.info("eSocial", issuedMsg.title);
+    reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, {
+      ...queueStatusExtra(activeQueue, competencia),
+      overlayState: null,
+    });
+    await baixarGuiaPdfDirecto(
+      guiaUrl,
+      competencia,
+      false,
+      {
+        valorComercializado: valorTotalComercializado,
+        valorDeclarado: guiaExistente.valorDeclarado,
+        valorPago: guiaExistente.valorPago,
+      },
+    );
+    await advanceGpsQueueAfterCompletion(
+      settings,
+      competencia,
+      "ja_existente",
+      {
+        valorComercializado: valorTotalComercializado,
+        valorDeclarado: guiaExistente.valorDeclarado,
+        valorPago: guiaExistente.valorPago,
+      },
+    );
+    return;
   }
+
+  // Uma URL de emissão sem valor declarado/pago não comprova a existência de
+  // um DAE utilizável. Quando o contexto renderizado confirma que a folha está
+  // encerrada, reabra-a pela rota nativa antes de enviar os dados novamente.
+  if (isPayrollClosedInContext(document, competencia)) {
+    iniciarReaberturaDaCompetencia(
+      settings,
+      competencia,
+      planned?.valorComercializado || settings.valorComercializado,
+      activeQueue,
+    );
+    return;
+  }
+
+  console.debug("[SIGESS] Competencia sem guia emitida; prosseguindo para geração direta:", {
+    competencia,
+    valorTotalComercializado,
+    situacao: guiaExistente.situacao,
+    valorDeclarado: guiaExistente.valorDeclarado,
+    valorPago: guiaExistente.valorPago,
+    emissaoUrl: guiaExistente.emissaoUrl,
+  });
 
   try {
     const initMsg = esocialMessages.initializingGuideGeneration(competencia);
@@ -1475,17 +1673,6 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
         description: `Preparando a guia de ${competenciaLabel(competencia)}...`,
       },
     });
-
-    const valorComercializado = normalizeMoneyValue(
-      activeQueue.competencias[activeQueue.index]?.valorComercializado ?? settings.valorComercializado,
-    );
-    const valorZerado =
-      valorTotalComercializado <= 0 ||
-      guiaExistente?.valorDeclarado === 0;
-    if (valorZerado) {
-      iniciarReaberturaDaCompetencia(settings, competencia, valorComercializado, activeQueue);
-      return;
-    }
 
     await executarFluxoDiretoGps(settings, competencia);
   } catch (error) {
