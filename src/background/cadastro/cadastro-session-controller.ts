@@ -8,6 +8,13 @@ export type CadastroReportedOutcome = Extract<
   "not_found" | "unavailable" | "failed"
 >;
 
+export type CadastroFinalizationPhase =
+  | "collecting"
+  | "awaiting_cadunico_dismissal"
+  | "ready_to_finalize"
+  | "complete"
+  | "error";
+
 export function applyCadastroPortalOutcome(
   session: CadastroSession,
   portalId: CadastroPortalId,
@@ -37,7 +44,7 @@ export function getCadastroPortalForDataSource(
 }
 
 export function isCadastroSessionReadyToFinalize(session: CadastroSession): boolean {
-  return !session.cadunicoDismissalRequired && isCadastroCollectionComplete(session);
+  return getCadastroFinalizationPhase(session) === "ready_to_finalize";
 }
 
 export function isCadastroCollectionComplete(session: CadastroSession): boolean {
@@ -45,4 +52,16 @@ export function isCadastroCollectionComplete(session: CadastroSession): boolean 
   if (session.portais.inss) expected.push("inss");
   if (session.portais.tse) expected.push("tse");
   return expected.every((portalId) => isCadastroPortalTerminal(session.portais[portalId]));
+}
+
+/**
+ * A sessão persistida mantém os flags legados consumidos pela interface. Esta
+ * projeção concentra a decisão de finalização em fases mutuamente exclusivas.
+ */
+export function getCadastroFinalizationPhase(session: CadastroSession): CadastroFinalizationPhase {
+  if (session.sessionState === "error") return "error";
+  if (session.sessionState === "complete") return "complete";
+  if (!isCadastroCollectionComplete(session)) return "collecting";
+  if (session.cadunicoDismissalRequired) return "awaiting_cadunico_dismissal";
+  return "ready_to_finalize";
 }

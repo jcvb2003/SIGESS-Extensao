@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CadastroSession } from "../../shared/types";
 import {
+  getCadastroFinalizationPhase,
   isCadastroCollectionComplete,
   isCadastroSessionReadyToFinalize,
 } from "./cadastro-session-controller";
@@ -27,6 +28,7 @@ describe("finalização da sessão de cadastro", () => {
     session.cadunicoDismissalRequired = true;
 
     expect(isCadastroCollectionComplete(session)).toBe(true);
+    expect(getCadastroFinalizationPhase(session)).toBe("awaiting_cadunico_dismissal");
     expect(isCadastroSessionReadyToFinalize(session)).toBe(false);
   });
 
@@ -34,5 +36,16 @@ describe("finalização da sessão de cadastro", () => {
     const session = createCompletedSession();
 
     expect(isCadastroSessionReadyToFinalize(session)).toBe(true);
+    expect(getCadastroFinalizationPhase(session)).toBe("ready_to_finalize");
+  });
+
+  it("distingue sessão em coleta de sessão já concluída", () => {
+    const collecting = createCompletedSession();
+    collecting.portais.esocial.status = "coletando";
+    expect(getCadastroFinalizationPhase(collecting)).toBe("collecting");
+
+    const complete = createCompletedSession();
+    complete.sessionState = "complete";
+    expect(getCadastroFinalizationPhase(complete)).toBe("complete");
   });
 });

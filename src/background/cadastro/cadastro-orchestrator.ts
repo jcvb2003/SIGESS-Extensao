@@ -10,8 +10,7 @@ import { getActiveCadastroSession } from "./cadastro-session-store";
 import {
   applyCadastroPortalOutcome,
   getCadastroPortalForDataSource,
-  isCadastroCollectionComplete,
-  isCadastroSessionReadyToFinalize,
+  getCadastroFinalizationPhase,
   type CadastroReportedOutcome,
 } from "./cadastro-session-controller";
 import { INSS_LOGIN_URL } from "../../modules/automation/inss/routes";
@@ -105,9 +104,10 @@ export async function finalizeCadastroSession(session: CadastroSession): Promise
 }
 
 export async function finalizeCadastroSessionIfReady(session: CadastroSession): Promise<void> {
-  if (!isCadastroCollectionComplete(session)) return;
+  const phase = getCadastroFinalizationPhase(session);
+  if (phase === "collecting" || phase === "complete" || phase === "error") return;
 
-  if (session.cadunicoDismissalRequired) {
+  if (phase === "awaiting_cadunico_dismissal") {
     // A contingência mantém apenas o CadÚnico aberto para a dispensa manual.
     // Repassar os demais portais terminalizados cobre eventos de coleta que
     // chegaram enquanto a respectiva aba ainda estava navegando.
@@ -124,7 +124,7 @@ export async function finalizeCadastroSessionIfReady(session: CadastroSession): 
     return;
   }
 
-  if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
+  if (phase === "ready_to_finalize") await finalizeCadastroSession(session);
 }
 
 export async function processCadastroDataArrival(
