@@ -793,7 +793,40 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
     const credentials = await StorageService.getCredentials(item.tabId);
     if (!credentials || credentials.portalType !== "esocial") continue;
 
-    const first = item.competencias[0];
+    // Keep the completed competencies from the authenticated tab when a new
+    // generation is started.  A subsequent batch can contain only June (for
+    // example), but the Web must continue to display the May result until the
+    // user explicitly clears the context.
+    const previousResults = credentials.competenciasResultados || [];
+    const completedCompetencias = new Set(
+      previousResults
+        .filter((result) => result.status === "concluido" || result.status === "ja_existente")
+        .map((result) => result.competencia),
+    );
+    const firstPendingIndex = item.competencias.findIndex((planned) =>
+      !completedCompetencias.has(`${planned.ano}${String(planned.mes).padStart(2, "0")}`),
+    );
+
+    if (firstPendingIndex < 0) {
+      await StorageService.updateCredentials(item.tabId, {
+        gerarGps: true,
+        consultarGuias: false,
+        competencias: item.competencias,
+        competenciasResultados: previousResults,
+        competenciaIndice: item.competencias.length,
+        competenciasTotal: item.competencias.length,
+        status: "concluido",
+        statusTitle: "Geração concluída",
+        statusDescription: `${item.competencias.length} competência(s) já processada(s).`,
+        boletoGerado: true,
+        lastError: undefined,
+        lastUpdatedAt: Date.now(),
+      });
+      started += 1;
+      continue;
+    }
+
+    const first = item.competencias[firstPendingIndex];
     const competenciaInicial = `${first.ano}${String(first.mes).padStart(2, "0")}`;
     const competenciaInicialLabel = `${String(first.mes).padStart(2, "0")}/${first.ano}`;
     await StorageService.updateCredentials(item.tabId, {
@@ -804,9 +837,9 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
       selectedMonth: first.mes,
       valorComercializado: first.valorComercializado,
       competenciaAtual: competenciaInicial,
-      competenciaIndice: 0,
+      competenciaIndice: firstPendingIndex,
       competenciasTotal: item.competencias.length,
-      competenciasResultados: [],
+      competenciasResultados: previousResults,
       boletoGerado: false,
       status: "iniciando_geracao",
       statusTitle: "Preparando geração",
@@ -816,8 +849,15 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
     });
 
     try {
+      // A consulta já deixou a sessão autenticada. Para iniciar uma geração
+      // subsequente, use diretamente a página que materializa o contexto da
+      // folha; voltar à Home perde esse contexto e pode fazer o eSocial
+      // ignorar os valores enviados pela automação.
+      const targetUrl =
+        `https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competenciaInicial}`;
+
       await browser.tabs.update(item.tabId, {
-        url: "https://www.esocial.gov.br/portal/Home/Inicial?tipoEmpregador=EMPREGADOR_DOMESTICO",
+        url: targetUrl,
         active: false,
       });
       started += 1;

@@ -18,7 +18,7 @@ import {
 import { extractHtmlAlertMessage, parseHtml, resolveGuiaUrlFromDocument } from "../services/document-parser";
 import { postJson, buildEsocialUrl } from "../services/esocial-api";
 import { buildComercializacaoPayload } from "../services/comercializacao";
-import { reportBatchStatus, showSuccessModal } from "./overlay-ui";
+import { clearEsocialProgressOverlay, reportBatchStatus, showSuccessModal } from "./overlay-ui";
 import { baixarGuiaPdfDirecto } from "./guide-download";
 import { esocialMessages } from "../utils/status-messages";
 import { fetchBoletoData, fetchBoletosDoAno, fetchComercializacaoData } from "../services/esocial-data-fetcher";
@@ -89,6 +89,21 @@ function writeGpsQueueState(state: GpsQueueState) {
   sessionStorage.setItem(GPS_FLOW_QUEUE_STATE_KEY, JSON.stringify(state));
 }
 
+function advanceQueuePastDoneCompetencias(state: GpsQueueState): GpsQueueState {
+  while (state.index < state.competencias.length) {
+    const competencia = `${state.competencias[state.index].ano}${state.competencias[state.index].mes}`;
+    const alreadyDone = sessionStorage.getItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`) === "true";
+    const recordedResult = state.resultados.find((result) => result.competencia === competencia);
+    const alreadyRecorded = recordedResult?.status === "concluido" || recordedResult?.status === "ja_existente";
+    if (!alreadyDone && !alreadyRecorded) break;
+    if (!recordedResult) {
+      state.resultados.push({ competencia, status: "concluido" });
+    }
+    state.index += 1;
+  }
+  return state;
+}
+
 function clearGpsQueueState() {
   sessionStorage.removeItem(GPS_FLOW_QUEUE_STATE_KEY);
 }
@@ -118,14 +133,26 @@ function initializeGpsQueue(settings: AppSettings): GpsQueueState {
     // attempt could leave an old production value (e.g. 680,00) while the Web
     // context already contains the new value (e.g. 350,00).
     const hasTerminalError = existing.resultados.some((item) => item.status === "erro");
-    if (existingSignature === plannedSignature && !hasTerminalError) return existing;
+    if (existingSignature === plannedSignature && !hasTerminalError) {
+      const normalizedExisting = advanceQueuePastDoneCompetencias(existing);
+      writeGpsQueueState(normalizedExisting);
+      return normalizedExisting;
+    }
   }
 
   const state: GpsQueueState = {
     competencias: planned,
     index: 0,
-    resultados: [],
+    // Preserve results from earlier batches in this authenticated tab.  The
+    // current batch may contain only the next competence, but its final status
+    // must not erase the previously generated entries from the Web context.
+    resultados: [...(settings.competenciasResultados || [])],
   };
+
+  // A new batch may contain a competence that was already completed in this
+  // authenticated tab. Keep its result visible and start at the first pending
+  // competence instead of trying to execute the old one again.
+  advanceQueuePastDoneCompetencias(state);
   writeGpsQueueState(state);
   return state;
 }
@@ -719,9 +746,10 @@ async function advanceGpsQueueAfterCompletion(
     },
   });
   releaseGpsFlowLock();
-  if (acquireGpsFlowLock(nextCompetencia)) {
-    await executarFluxoDirectoFromHome(nextSettings);
-  }
+  // The next invocation owns lock acquisition.  Acquiring it here and then
+  // calling executarFluxoDirectoFromHome caused the new invocation to see its
+  // own competence already locked and stop at the navigation boundary.
+  await executarFluxoDirectoFromHome(nextSettings);
 }
 
 function submitNativeFechamentoForm(doc: Document, competencia: string) {
@@ -1260,13 +1288,33 @@ export async function extrairValorTotalComercializadoDaPagina(competencia: strin
 
 export async function executarFluxoDirectoFromHome(settings: AppSettings): Promise<void> {
   const queue = initializeGpsQueue(settings);
-  let activeQueue = markCurrentCompetenciaResult("processando") || queue;
-  const planned = queue.competencias[queue.index];
-  const competencia = planned ? `${planned.ano}${planned.mes}` : buildCompetenciaFromSettings(settings);
-  if (!competencia) {
-    console.debug("[SIGESS] Não foi possível construir competência a partir de settings");
+
+  if (queue.index >= queue.competencias.length) {
+    releaseGpsFlowLock();
+    const finalMsg = esocialMessages.allCompetenciasCompleted(queue.resultados.length || queue.competencias.length);
+    reportBatchStatus(finalMsg.status, finalMsg.title, finalMsg.description, {
+      competenciaIndice: queue.competencias.length,
+      competenciasTotal: queue.competencias.length,
+      competenciasResultados: queue.resultados,
+      overlayState: null,
+    });
     return;
   }
+
+  const planned = queue.competencias[queue.index];
+  const competencia = planned
+    ? `${planned.ano}${planned.mes}`
+    : buildCompetenciaFromSettings(settings);
+  if (!competencia || !acquireGpsFlowLock(competencia)) {
+    console.debug("[SIGESS] Fila de geração não pode adquirir o lock da competência pendente:", {
+      competencia,
+      index: queue.index,
+    });
+    clearEsocialProgressOverlay();
+    return;
+  }
+
+  let activeQueue = markCurrentCompetenciaResult("processando") || queue;
 
   const queueStartMsg = esocialMessages.startingCompetencia(
     competenciaLabel(competencia),

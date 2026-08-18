@@ -1,4 +1,4 @@
-import { AppSettings, EsocialCompetenciaPlanejada } from "../../shared/types";
+import { AppSettings, EsocialCompetenciaPlanejada, GovBatchCompetenciaResult } from "../../shared/types";
 import { logger } from "../../shared/services/logger";
 import { Utils } from "../../shared/utils/dom-helpers";
 import {
@@ -9,8 +9,6 @@ import {
 import { observarBotaoEmitirGuia } from "./automation/guide-download";
 import {
   executarFluxoDirectoFromHome,
-  buildCompetenciaFromSettings,
-  acquireGpsFlowLock,
   releaseGpsFlowLock,
   resumePendingGpsFlow,
 } from "./automation/gps-flow";
@@ -29,6 +27,7 @@ type ESocialAutomationContext = {
   competencia?: string;
   valorComercializado?: string;
   competencias?: EsocialCompetenciaPlanejada[];
+  competenciasResultados?: GovBatchCompetenciaResult[];
 };
 
 const CONSULTAR_REDIR_KEY = "sigess_last_redir_guias";
@@ -130,18 +129,12 @@ async function executarFluxoGpsSeNecessario(settings: AppSettings) {
     return;
   }
 
-  if (!settings.gerarGps || !isHomePage()) {
+  if (!settings.gerarGps || (!isHomePage() && !isListarPagamentosPage())) {
     clearEsocialProgressOverlay();
     return;
   }
 
   const effectiveSettings = await resolveESocialSettingsForCurrentTab(settings);
-
-  const competencia = buildCompetenciaFromSettings(effectiveSettings);
-  if (!competencia || !acquireGpsFlowLock(competencia)) {
-    clearEsocialProgressOverlay();
-    return;
-  }
 
   try {
     await executarFluxoDirectoFromHome(effectiveSettings);
@@ -175,6 +168,7 @@ async function resolveESocialSettingsForCurrentTab(settings: AppSettings): Promi
       selectedMonth: context.selectedMonth || settings.selectedMonth,
       valorComercializado: context.valorComercializado ?? settings.valorComercializado,
       competencias: context.competencias ?? settings.competencias,
+      competenciasResultados: context.competenciasResultados ?? settings.competenciasResultados,
     };
   } catch (error) {
     console.debug("[SIGESS] Falha ao obter contexto da automacao do eSocial para a aba atual:", error);
@@ -224,6 +218,7 @@ async function init() {
     selectedMonth: ctx.selectedMonth ?? "",
     valorComercializado: ctx.valorComercializado ?? "",
     competencias: ctx.competencias,
+    competenciasResultados: ctx.competenciasResultados,
   } as AppSettings;
   await start(settings);
 }

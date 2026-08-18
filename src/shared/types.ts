@@ -163,6 +163,8 @@ export interface AppSettings {
   selectedYear: string;
   selectedMonth: string;
   valorComercializado: string;
+  /** Resultados já confirmados na aba, preservados entre lotes sequenciais. */
+  competenciasResultados?: GovBatchCompetenciaResult[];
   reapData: Record<string, string>;
   mpaReferenceYear?: string;
   mpaResidenceUF?: number;
