@@ -104,6 +104,10 @@ export async function finalizeCadastroSessionIfReady(session: CadastroSession): 
   if (!isCadastroCollectionComplete(session)) return;
 
   if (session.cadunicoDismissalRequired) {
+    // A contingência mantém apenas o CadÚnico aberto para a dispensa manual.
+    // Repassar os demais portais terminalizados cobre eventos de coleta que
+    // chegaram enquanto a respectiva aba ainda estava navegando.
+    await closeCompletedCadastroTabsExceptCadunico(session);
     if (!session.cadunicoDismissalReady) {
       session.cadunicoDismissalReady = true;
       session.interactionRequired = {
@@ -119,9 +123,47 @@ export async function finalizeCadastroSessionIfReady(session: CadastroSession): 
   if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
 }
 
+async function closeCadastroPortalTab(tabId: number, portalId: CadastroPortalId): Promise<void> {
+  try {
+    await browser.tabs.get(tabId);
+  } catch {
+    // A reconciliação pode alcançar uma aba já encerrada por outro evento.
+    return;
+  }
+
+  let confirmRemoval: (() => void) | undefined;
+  const removed = new Promise<void>((resolve) => {
+    confirmRemoval = resolve;
+  });
+  const onRemoved = (removedTabId: number) => {
+    if (removedTabId !== tabId) return;
+    browser.tabs.onRemoved.removeListener(onRemoved);
+    confirmRemoval?.();
+  };
+
+  browser.tabs.onRemoved.addListener(onRemoved);
+  try {
+    await browser.tabs.remove(tabId);
+    await removed;
+  } catch (error) {
+    browser.tabs.onRemoved.removeListener(onRemoved);
+    console.warn(`[SIGESS] Não foi possível fechar a aba ${portalId} (${tabId}).`, error);
+  }
+}
+
+async function closeCompletedCadastroTabsExceptCadunico(session: CadastroSession): Promise<void> {
+  const portalIds: CadastroPortalId[] = ["pesqbrasil", "esocial", "inss", "tse"];
+  await Promise.all(portalIds.map(async (portalId) => {
+    const portal = session.portais[portalId];
+    if (!portal || !isCadastroPortalTerminal(portal) || typeof portal.tabId !== "number") return;
+    await closeCadastroPortalTab(portal.tabId, portalId);
+  }));
+}
+
 export async function processCadastroDataArrival(
   source: string,
   getTabManager?: () => any,
+  sourceTabId?: number,
 ): Promise<void> {
   const session = await getActiveCadastroSession();
   if (!session) return;
@@ -142,8 +184,9 @@ export async function processCadastroDataArrival(
     typeof session.portais.esocial.tabId === "number";
   const canCloseCapturedTab = portalId !== "cadunico" ||
     (cadunicoDependenciesOpened && Boolean(session.portais.tse));
-  if (portal.status === "concluido" && canCloseCapturedTab && typeof portal.tabId === "number") {
-    try { await browser.tabs.remove(portal.tabId); } catch { /* Aba já fechada. */ }
+  const capturedTabId = sourceTabId ?? portal.tabId;
+  if (portal.status === "concluido" && canCloseCapturedTab && typeof capturedTabId === "number") {
+    await closeCadastroPortalTab(capturedTabId, portalId);
   }
   await finalizeCadastroSessionIfReady(session);
 }
@@ -171,11 +214,7 @@ export async function processCadastroPortalOutcome(
   const canCloseTab = portalId !== "cadunico" ||
     (cadunicoDependenciesOpened && Boolean(session.portais.tse));
   if (portal && canCloseTab && typeof portal.tabId === "number") {
-    try {
-      await browser.tabs.remove(portal.tabId);
-    } catch {
-      // A aba pode já ter sido fechada pelo portal ou pelo navegador.
-    }
+    await closeCadastroPortalTab(portal.tabId, portalId);
   }
 
   await finalizeCadastroSessionIfReady(session);

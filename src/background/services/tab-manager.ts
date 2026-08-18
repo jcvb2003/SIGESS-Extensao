@@ -206,6 +206,27 @@ export class TabManager {
     const credentials = await StorageService.getCredentials(tabId);
     if (!credentials) return;
 
+    // O eSocial pode retornar da autenticação diretamente para a Home sem
+    // preservar o marcador de senha no evento final. A própria rota é a
+    // evidência de login concluído e deve sempre disparar a integração CAEPF.
+    if (
+      credentials.isCadastroAutomatico &&
+      credentials.portalType === "esocial" &&
+      isEsocialHomeUrl(tab.url) &&
+      changeInfo.status === "complete"
+    ) {
+      const completedCredentials = credentials.loginConcluido
+        ? credentials
+        : await StorageService.updateCredentials(tabId, {
+            loginConcluido: true,
+            status: "redirecionando",
+            statusTitle: "Login concluído",
+            statusDescription: "Acessando a integração CAEPF do eSocial...",
+          });
+      if (completedCredentials) await this.handleCadastroPostLoginNav(tabId, tab.url, completedCredentials);
+      return;
+    }
+
     const returnedFromGovBr =
       credentials.govBrPasswordSubmitted &&
       !tab.url.includes("sso.acesso.gov.br");

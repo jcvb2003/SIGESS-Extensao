@@ -734,7 +734,7 @@ async function handleTurboFillReap(message: MessageRequest) {
 async function handleSavePessoaData(
   message: MessageRequest,
   getTabManager?: () => any,
-  _sender?: browser.runtime.MessageSender,
+  sender?: browser.runtime.MessageSender,
 ) {
   const { data, fonte } = message;
   if (!data || !fonte) {
@@ -746,7 +746,7 @@ async function handleSavePessoaData(
 
     // Enfileira a atualização de sessão em série para evitar race condition
     // quando pesqbrasil_mpa e ecac_caepf chegam simultaneamente.
-    enqueueCadastroDataArrival(fonte, data, getTabManager);
+    enqueueCadastroDataArrival(fonte, data, getTabManager, sender?.tab?.id);
 
     return { success: true, settings: newSettings };
   } catch (error: any) {
@@ -765,10 +765,13 @@ function enqueueCadastroDataArrival(
   fonte: string,
   _data: Partial<PessoaData>,
   getTabManager?: () => any,
+  sourceTabId?: number,
 ): void {
   _cadastroUpdateQueue = _cadastroUpdateQueue
-    .then(() => processCadastroDataArrival(fonte, getTabManager))
-    .catch(() => {});
+    .then(() => processCadastroDataArrival(fonte, getTabManager, sourceTabId))
+    .catch((error) => {
+      console.error(`[SIGESS] Falha ao processar coleta de ${fonte}.`, error);
+    });
 }
 
 async function handleStartGovBatchGeneration(message: MessageRequest) {
