@@ -136,6 +136,10 @@ function folhaEncerrada(situacao?: string): boolean {
 }
 
 function classificarCompetencia(info: GuiaExistenteInfo): GpsExecutionAction {
+  if (info.status === "error") {
+    throw new Error(info.error || "Não foi possível consultar a competência no eSocial.");
+  }
+  if (info.status === "not_found") return "gerar";
   if (hasGuiaEmitida(info)) return "ja_existente";
   return folhaEncerrada(info.situacao) ? "reabrir_e_gerar" : "gerar";
 }
@@ -167,20 +171,21 @@ async function prepararPlanoDeGeracao(
 
   for (const item of state.competencias) {
     const competencia = `${item.ano}${item.mes}`;
-    const boleto = snapshot[competencia] || {
-      paga: false,
-      emissaoUrl: null,
-      valorDeclarado: 0,
-      valorPago: 0,
-      situacao: "",
-    };
-    const info: GuiaExistenteInfo = {
-      paga: (boleto.valorPago ?? 0) > 0,
-      emissaoUrl: boleto.emissaoUrl,
-      valorDeclarado: boleto.valorDeclarado,
-      valorPago: boleto.valorPago,
-      situacao: boleto.situacao,
-    };
+    const boleto = snapshot[competencia];
+    const info: GuiaExistenteInfo = boleto
+      ? {
+          status: "ok",
+          paga: (boleto.valorPago ?? 0) > 0,
+          emissaoUrl: boleto.emissaoUrl,
+          valorDeclarado: boleto.valorDeclarado,
+          valorPago: boleto.valorPago,
+          situacao: boleto.situacao,
+        }
+      : {
+          status: "not_found",
+          paga: false,
+          emissaoUrl: null,
+        };
     diagnostico[competencia] = info;
     plano[competencia] = classificarCompetencia(info);
   }
@@ -485,6 +490,9 @@ async function aguardarGuiaAposFechamento(
   const valorResumo = extractValorResumoDoFechamento(fechamentoPostDoc);
   const fechamentoConfirmadoNoHtml = hasFechamentoConfirmadoNoHtml(fechamentoPostDoc);
   let guiaAposFechamento = await consultarGuiaExistenteViaApi(competencia);
+  if (guiaAposFechamento.status === "error") {
+    throw new Error(guiaAposFechamento.error || "Falha ao confirmar a guia após o fechamento.");
+  }
 
   if (!guiaUrl && guiaAposFechamento.emissaoUrl && (guiaAposFechamento.valorDeclarado ?? 0) > 0) {
     guiaUrl = guiaAposFechamento.emissaoUrl;
@@ -509,6 +517,9 @@ async function aguardarGuiaAposFechamento(
   for (let attempt = 1; attempt <= 8; attempt += 1) {
     await delay(1500);
     guiaAposFechamento = await consultarGuiaExistenteViaApi(competencia);
+    if (guiaAposFechamento.status === "error") {
+      throw new Error(guiaAposFechamento.error || "Falha ao confirmar a guia após o fechamento.");
+    }
 
     console.debug("[SIGESS] Aguardando guia apos fechamento:", {
       competencia,
@@ -1216,11 +1227,13 @@ export function releaseGpsFlowLock() {
 }
 
 export type GuiaExistenteInfo = {
+  status: "ok" | "not_found" | "error";
   paga: boolean;
   emissaoUrl: string | null;
   valorDeclarado?: number;
   valorPago?: number;
   situacao?: string;
+  error?: string;
 };
 
 export function buildCompetenciaFromSettings(settings: AppSettings): string | null {
@@ -1234,29 +1247,34 @@ export function buildCompetenciaFromSettings(settings: AppSettings): string | nu
 }
 
 export async function consultarGuiaExistenteViaApi(competencia: string): Promise<GuiaExistenteInfo> {
-  try {
-    const boletoData = await fetchBoletoData(competencia);
-    const hasPaidValue = (boletoData.valorPago ?? 0) > 0;
-
-    console.debug("[SIGESS] Verificacao de guia existente via fetchBoletoData:", {
-      competencia,
-      valorDeclarado: boletoData.valorDeclarado,
-      valorPago: boletoData.valorPago,
-      hasPaidValue,
-      emissaoUrl: boletoData.emissaoUrl,
-    });
-
-    return {
-      paga: hasPaidValue,
-      emissaoUrl: boletoData.emissaoUrl,
-      valorDeclarado: boletoData.valorDeclarado,
-      valorPago: boletoData.valorPago,
-      situacao: boletoData.situacao,
-    };
-  } catch (error) {
-    console.debug("[SIGESS] Falha ao verificar guia existente via API:", error);
-    return { paga: false, emissaoUrl: null };
+  const result = await fetchBoletoData(competencia);
+  if (result.status === "not_found") {
+    console.debug("[SIGESS] Competência sem registro de guia:", { competencia });
+    return { status: "not_found", paga: false, emissaoUrl: null };
   }
+  if (result.status === "error") {
+    console.error("[SIGESS] Falha ao verificar guia existente via API:", result.error);
+    return { status: "error", paga: false, emissaoUrl: null, error: result.error };
+  }
+
+  const boletoData = result.data;
+  const hasPaidValue = (boletoData.valorPago ?? 0) > 0;
+  console.debug("[SIGESS] Verificacao de guia existente via fetchBoletoData:", {
+    competencia,
+    valorDeclarado: boletoData.valorDeclarado,
+    valorPago: boletoData.valorPago,
+    hasPaidValue,
+    emissaoUrl: boletoData.emissaoUrl,
+  });
+
+  return {
+    status: "ok",
+    paga: hasPaidValue,
+    emissaoUrl: boletoData.emissaoUrl,
+    valorDeclarado: boletoData.valorDeclarado,
+    valorPago: boletoData.valorPago,
+    situacao: boletoData.situacao,
+  };
 }
 
 function hasGuiaEmitida(info: GuiaExistenteInfo): boolean {
@@ -1267,14 +1285,18 @@ function hasGuiaEmitida(info: GuiaExistenteInfo): boolean {
 }
 
 export async function extrairValorTotalComercializadoDaPagina(competencia: string): Promise<number> {
-  try {
-    const comercializacaoData = await fetchComercializacaoData(competencia);
-    console.debug("[SIGESS] Valor total comercializado extraído:", comercializacaoData.valorComercializado);
-    return comercializacaoData.valorComercializado;
-  } catch (error) {
-    console.debug("[SIGESS] Erro ao extrair valor total da comercialização:", error);
+  const result = await fetchComercializacaoData(competencia);
+  if (result.status === "not_found") {
+    console.debug("[SIGESS] Nenhum valor de comercialização encontrado; usando zero declarado:", {
+      competencia,
+    });
     return 0;
   }
+  if (result.status === "error") {
+    throw new Error(`Falha ao consultar comercialização da competência ${competencia}: ${result.error}`);
+  }
+  console.debug("[SIGESS] Valor total comercializado extraído:", result.data.valorComercializado);
+  return result.data.valorComercializado;
 }
 
 export async function executarFluxoDirectoFromHome(settings: AppSettings): Promise<void> {
@@ -1352,8 +1374,10 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
 
   // The complete preflight decides whether the guide exists, whether the
   // sheet must be re-opened, or whether this competence can be generated.
-  const guiaExistente = activeQueue.diagnostico?.[competencia]
-    || await consultarGuiaExistenteViaApi(competencia);
+  const guiaExistente = activeQueue.diagnostico?.[competencia];
+  if (!guiaExistente) {
+    throw new Error(`Diagnóstico ausente para a competência ${competencia}.`);
+  }
   const acao = activeQueue.plano?.[competencia] || classificarCompetencia(guiaExistente);
   if (acao === "ja_existente" && hasGuiaEmitida(guiaExistente)) {
     // For an already registered DAE, use the same canonical route used by
