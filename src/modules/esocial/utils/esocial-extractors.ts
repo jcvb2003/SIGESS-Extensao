@@ -44,6 +44,40 @@ export function extractMoneyValues(text: string): number[] {
     .filter((value) => Number.isFinite(value));
 }
 
+export type ParsedCompetenciaRow = {
+  competencia: string;
+  situacao: string | null;
+  valorDeclarado: number | null;
+  valorPago: number;
+  emissaoHref: string | null;
+};
+
+/** Parses the canonical eSocial Competencias table for both DOM and fetch flows. */
+export function extractCompetenciaTableRows(doc: Document, ano?: string): ParsedCompetenciaRow[] {
+  const result: ParsedCompetenciaRow[] = [];
+  for (const row of Array.from(doc.querySelectorAll("table tbody tr"))) {
+    const link = row.querySelector("a[href*='competencia=']");
+    const competencia = extractCompetenciaFromUrl(link?.getAttribute("href") || null);
+    if (!competencia || (ano && !competencia.startsWith(ano))) continue;
+
+    const cells = Array.from(row.querySelectorAll("td"));
+    if (cells.length < 5) continue;
+    const emissaoLink = Array.from(row.querySelectorAll("a")).find(
+      (anchor) =>
+        (anchor.textContent || "").toLowerCase().includes("emitir") &&
+        (anchor.getAttribute("href") || "").includes("EmitirGuia"),
+    );
+    result.push({
+      competencia,
+      situacao: (cells[2]?.textContent || "").replace(/\s+/g, " ").trim() || null,
+      valorDeclarado: extractMoneyValues(cells[3]?.textContent || "")[0] ?? null,
+      valorPago: extractMoneyValues(cells[4]?.textContent || "")[0] ?? 0,
+      emissaoHref: emissaoLink?.getAttribute("href") || null,
+    });
+  }
+  return result.sort((left, right) => right.competencia.localeCompare(left.competencia));
+}
+
 export async function getStoredCredentials(): Promise<{ cpf: string; nome: string }> {
   const browserAPI = typeof browser !== "undefined" ? browser : (window as any).chrome;
   const creds = await browserAPI.storage.local.get(null);

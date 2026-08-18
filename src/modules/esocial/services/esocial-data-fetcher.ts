@@ -1,5 +1,5 @@
 import { parseHtml } from "./document-parser";
-import { extractCompetenciaFromUrl, extractMoneyValues } from "../utils/esocial-extractors";
+import { extractCompetenciaTableRows, extractMoneyValues } from "../utils/esocial-extractors";
 import { buildEsocialUrl } from "./esocial-api";
 
 export interface BoletoData {
@@ -81,51 +81,34 @@ export async function fetchBoletoData(competencia: string): Promise<DataFetchRes
   }
 }
 
-function extractBoletoDataFromRow(row: Element, competencia: string): BoletoData {
-  const cells = Array.from(row.querySelectorAll("td"));
-  const situacao = cells[2]?.textContent?.trim() || "";
-  const declaredText = cells[3]?.textContent?.trim() || "-";
-  const paidText = cells[4]?.textContent?.trim() || "-";
-  const declaredValues = extractMoneyValues(declaredText);
-  const paidValues = extractMoneyValues(paidText);
-  const valorDeclarado = declaredValues[0] ?? 0;
-  const valorPago = paidValues[0] ?? 0;
-
-  const emitirGuiaLink = Array.from(row.querySelectorAll("a")).find(
-    (a) =>
-      (a.textContent || "").toLowerCase().includes("emitir") &&
-      (a.getAttribute("href") || "").includes("EmitirGuia"),
-  );
+function extractBoletoDataFromParsedRow(row: ReturnType<typeof extractCompetenciaTableRows>[number]): BoletoData {
   let emissaoUrl: string | null = null;
-  if (emitirGuiaLink) {
-    const href = emitirGuiaLink.getAttribute("href") || "";
+  if (row.emissaoHref) {
+    const href = row.emissaoHref;
     const extracted = href.split("javascript:")[1]?.match(/['"]([^'"]+)['"]/)?.[1];
     if (extracted) emissaoUrl = buildEsocialUrl(extracted);
   }
 
   console.debug("[SIGESS] Boleto data fetched:", {
-    competencia,
-    situacao,
-    declaredText,
-    declaredValues,
-    paidText,
-    paidValues,
-    valorDeclarado,
-    valorPago,
-    hasEmissaoUrl: !!emissaoUrl,
+    competencia: row.competencia,
+    situacao: row.situacao || "",
+    valorDeclarado: row.valorDeclarado ?? 0,
+    valorPago: row.valorPago,
     emissaoUrl,
+    hasEmissaoUrl: !!emissaoUrl,
   });
 
-  return { valorDeclarado, valorPago, situacao, emissaoUrl };
+  return {
+    valorDeclarado: row.valorDeclarado ?? 0,
+    valorPago: row.valorPago,
+    situacao: row.situacao || "",
+    emissaoUrl,
+  };
 }
 
 function extractBoletoDataFromDocument(doc: Document, competencia: string): BoletoData | null {
-  const row = Array.from(doc.querySelectorAll("table tbody tr")).find((candidate) =>
-    extractCompetenciaFromUrl(
-      candidate.querySelector("a[href*='competencia=']")?.getAttribute("href") || null,
-    ) === competencia,
-  );
-  return row ? extractBoletoDataFromRow(row, competencia) : null;
+  const row = extractCompetenciaTableRows(doc).find((candidate) => candidate.competencia === competencia);
+  return row ? extractBoletoDataFromParsedRow(row) : null;
 }
 
 /** Reads the complete Competencias table for the generation preflight. */
@@ -143,11 +126,8 @@ export async function fetchBoletosDoAno(
 
   const doc = parseHtml(await response.text());
   const result: Record<string, BoletoData> = {};
-  for (const row of Array.from(doc.querySelectorAll("table tbody tr"))) {
-    const link = row.querySelector("a[href*='competencia=']");
-    const competencia = extractCompetenciaFromUrl(link?.getAttribute("href") || null);
-    if (!competencia || !competencia.startsWith(ano)) continue;
-    result[competencia] = extractBoletoDataFromRow(row, competencia);
+  for (const row of extractCompetenciaTableRows(doc, ano)) {
+    result[row.competencia] = extractBoletoDataFromParsedRow(row);
   }
 
   console.debug("[SIGESS] Diagnóstico completo de competências concluído:", {
