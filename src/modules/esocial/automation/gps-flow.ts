@@ -16,8 +16,7 @@ import {
   GPS_FLOW_QUEUE_STATE_KEY,
 } from "../utils/esocial-constants";
 import { parseHtml, resolveGuiaUrlFromDocument } from "../services/document-parser";
-import { resolveGuiaDownloadUrlFromAnchor } from "../services/guide-url-resolver";
-import { postJson, getText, buildEsocialUrl } from "../services/esocial-api";
+import { postJson, buildEsocialUrl } from "../services/esocial-api";
 import { buildComercializacaoPayload } from "../services/comercializacao";
 import { reportBatchStatus, showSuccessModal } from "./overlay-ui";
 import { baixarGuiaPdfDirecto } from "./guide-download";
@@ -353,130 +352,6 @@ async function executarFechamentoDireto(
     },
   );
 }
-/*
-
-  const fechamentoScreenFromRemuneracoes = await enviarRemuneracoes(
-    competencia,
-    parseHtml(enviarResp),
-    parseHtml(autonomosHtml),
-  );
-
-  const verificacaoTexto = fechamentoScreenFromRemuneracoes ? null : await verificarAcessoFechamento(competencia);
-  if (verificacaoTexto) {
-    const verificacao = safeParseJson<{ Sucesso?: boolean }>(verificacaoTexto);
-    if (verificacao && verificacao.Sucesso === false) {
-      throw new Error("O eSocial não liberou o fechamento da folha.");
-    }
-  }
-
-  const closureScreenMsg = esocialMessages.loadingClosureScreen();
-  logger.info("eSocial", closureScreenMsg.title);
-  reportBatchStatus(closureScreenMsg.status, closureScreenMsg.title, closureScreenMsg.description);
-
-  let fechamentoGetHtml = fechamentoScreenFromRemuneracoes;
-  if (!fechamentoGetHtml) {
-    fechamentoGetHtml = await carregarTelaFechamento(competencia);
-  } else {
-    console.debug("[SIGESS] Reaproveitando tela de fechamento retornada por EnviaRemuneracoes");
-  }
-  const fechamentoGetDoc = parseHtml(fechamentoGetHtml);
-  console.debug("[SIGESS] Campos da tela de fechamento:", snapshotFormFields(fechamentoGetDoc));
-
-  const closingMsgLegacy = esocialMessages.closingPayroll();
-  logger.info("eSocial", closingMsgLegacy.title);
-  reportBatchStatus(closingMsgLegacy.status, closingMsgLegacy.title, closingMsgLegacy.description);
-
-  setPendingGpsClosureState({
-    competencia,
-    valorComercializado,
-    step: "awaiting_closure_page",
-  });
-
-  const fechamentoUrl = buildEsocialUrl(`/FolhaPagamento/FechamentoFolha?competencia=${competencia}`);
-  if (window.location.href !== fechamentoUrl) {
-    console.debug("[SIGESS] Navegando para tela real de fechamento:", fechamentoUrl);
-    window.location.href = fechamentoUrl;
-    return;
-  }
-
-  submitNativeFechamentoForm(document, competencia);
-  return;
-
-  const fechamentoForm = buildFechamentoFormData(fechamentoGetDoc, competencia);
-
-  const closingMsg = esocialMessages.closingPayroll();
-  logger.info("eSocial", closingMsg.title);
-  reportBatchStatus(closingMsg.status, closingMsg.title, closingMsg.description);
-
-  const fechamentoPostResponse = await fetch(
-    buildEsocialUrl(`/FolhaPagamento/FechamentoFolha?competencia=${competencia}`),
-    {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: fechamentoForm.toString(),
-    },
-  );
-
-  if (!fechamentoPostResponse.ok) {
-    throw new Error(`Falha ao fechar folha: HTTP ${fechamentoPostResponse.status}`);
-  }
-
-  const fechamentoPostHtml = await fechamentoPostResponse.text();
-  const fechamentoPostDoc = parseHtml(fechamentoPostHtml);
-  console.debug("[SIGESS] Fechamento POST markers:", {
-    competencia,
-    hasTabsResumo: !!fechamentoPostDoc.querySelector("#tabs-resumo"),
-    hasEmitirGuia: !!fechamentoPostDoc.querySelector("#btn-emitir-guia"),
-    hasAlertSuccess: !!fechamentoPostDoc.querySelector(".alert-success"),
-    hasAlertDanger: !!fechamentoPostDoc.querySelector(".alert-danger, .alert-error"),
-    containsEncerradaSucesso: /Folha de pagamento encerrada com sucesso/i.test(fechamentoPostHtml),
-    containsEmEdicao: /Em edi[cç][aã]o/i.test(fechamentoPostHtml),
-    containsEncerrado: /Encerrado/i.test(fechamentoPostHtml),
-    htmlLength: fechamentoPostHtml.length,
-  });
-  const fechamentoHtmlError =
-    extractHtmlAlertMessage(fechamentoPostDoc) || extractHtmlAlertMessageFromHtml(fechamentoPostHtml);
-  if (fechamentoHtmlError) {
-    console.warn("[SIGESS] Mensagem de erro no fechamento:", fechamentoHtmlError);
-    console.warn("[SIGESS] Campos retornados apos erro no fechamento:", snapshotFormFields(fechamentoPostDoc));
-  }
-  const { guiaUrl, guiaAposFechamento, fechamentoConfirmado } = await aguardarGuiaAposFechamento(
-    fechamentoPostDoc,
-    competencia,
-  );
-
-  if (!guiaUrl || (!fechamentoConfirmado && (guiaAposFechamento.valorDeclarado ?? 0) <= 0)) {
-    console.warn("[SIGESS] Fechamento sem guia confirmada apos POST:", {
-      guiaUrl,
-      guiaAposFechamento,
-      fechamentoConfirmado,
-      fechamentoHtmlError,
-      preview: fechamentoPostHtml.slice(0, 1200),
-    });
-    console.warn("[SIGESS DEBUG] fechamentoPostHtml preview:", fechamentoPostHtml.slice(0, 4000));
-    throw new Error(
-      fechamentoHtmlError || "A folha nao foi fechada com guia confirmada apos o POST de fechamento.",
-    );
-  }
-
-  await baixarGuiaPdfDirecto(
-    guiaUrl!,
-    competencia,
-    true,
-    {
-      valorDeclarado: guiaAposFechamento.valorDeclarado,
-      valorPago: guiaAposFechamento.valorPago,
-    },
-  );
-
-  sessionStorage.setItem(`${GPS_FLOW_DONE_PREFIX}${competencia}`, "true");
-  showSuccessModal("Boleto Gerado!");
-}
-
-*/
 async function carregarDadosComercializacao(competencia: string): Promise<{
   comercializacaoHtml: string;
   autonomosHtml: string;
@@ -553,22 +428,6 @@ async function postForm(path: string, params: URLSearchParams): Promise<string> 
   }
 
   return text;
-}
-
-export async function verificarAcessoFechamento(competencia: string) {
-  const verifyingMsg = esocialMessages.verifyingClosureAccess();
-  logger.info("eSocial", verifyingMsg.title);
-  reportBatchStatus(verifyingMsg.status, verifyingMsg.title, verifyingMsg.description);
-
-  try {
-    const response = await getText(
-      `/FolhaPagamento/SeguradoEspecial/VerificarAcessoFechamentoFolhaAposEnvioEventosComercializacao?competencia=${competencia}`,
-    );
-    return response;
-  } catch (error) {
-    console.debug("[SIGESS] Falha ao verificar acesso ao fechamento:", error);
-    return null;
-  }
 }
 
 export function buildFechamentoFormData(doc: Document, competencia: string): URLSearchParams {
@@ -989,46 +848,6 @@ function normalizeMoneyValue(value: string): string {
   return trimmed || "0";
 }
 
-export function safeParseJson<T>(value: string): T | null {
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return null;
-  }
-}
-
-export async function enviarRemuneracoes(
-  competencia: string,
-  comercializacaoDoc: Document,
-  autonomosDoc: Document,
-): Promise<string> {
-  const path = `/FolhaPagamento/Listagem/EnviaRemuneracoes?competencia=${competencia}&considerarRegistrosExcluidos=true`;
-  const params = buildEnviaRemuneracoesFormData(competencia, comercializacaoDoc, autonomosDoc);
-
-  console.debug("[SIGESS] POST", path);
-  console.debug("[SIGESS] EnviaRemuneracoes body:", params.toString());
-
-  const response = await fetch(buildEsocialUrl(path), {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: params.toString(),
-  });
-
-  const text = await response.text();
-  console.debug("[SIGESS] EnviaRemuneracoes status:", response.status);
-  console.debug("[SIGESS] EnviaRemuneracoes final URL:", response.url);
-  console.debug("[SIGESS] EnviaRemuneracoes preview:", text.slice(0, 1200));
-
-  if (!response.ok) {
-    throw new Error(`Falha ao enviar remuneracoes: HTTP ${response.status}`);
-  }
-
-  return text;
-}
-
 export async function carregarTelaFechamento(competencia: string): Promise<string> {
   const response = await fetch(
     buildEsocialUrl(`/FolhaPagamento/FechamentoFolha?competencia=${competencia}`),
@@ -1403,92 +1222,6 @@ export type GuiaExistenteInfo = {
   valorPago?: number;
   situacao?: string;
 };
-
-export async function consultarGuiaExistente(competencia: string): Promise<GuiaExistenteInfo> {
-  try {
-    const targetUrl = buildEsocialUrl(
-      `/FolhaPagamento/Listagem/Competencias?competencia=${competencia}`,
-    );
-
-    const response = await fetch(targetUrl, {
-      method: "GET",
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      return { paga: false, emissaoUrl: null };
-    }
-
-    return extractGuiaExistenteInfo(parseHtml(await response.text()), competencia);
-  } catch (error) {
-    console.debug("[SIGESS] Falha ao verificar guia existente:", error);
-    return { paga: false, emissaoUrl: null };
-  }
-}
-
-export async function jaExisteGuiaComValor(competencia: string): Promise<boolean> {
-  return (await consultarGuiaExistente(competencia)).paga;
-}
-
-export function consultarGuiaExistenteNoDom(competencia: string): GuiaExistenteInfo {
-  try {
-    return extractGuiaExistenteInfo(document, competencia);
-  } catch (error) {
-    console.debug("[SIGESS] Falha ao extrair guia do DOM:", error);
-    return { paga: false, emissaoUrl: null };
-  }
-}
-
-function extractGuiaExistenteInfo(doc: Document, competencia: string): GuiaExistenteInfo {
-  const rows = Array.from(doc.querySelectorAll("table tbody tr"));
-
-  for (const row of rows) {
-    const link = row.querySelector(`a[href*="competencia=${competencia}"]`);
-    if (!link) continue;
-
-    const cells = Array.from(row.querySelectorAll("td"));
-    const declaredCell = cells[3];
-    const paidCell = cells[4];
-    if (!paidCell) return { paga: false, emissaoUrl: null };
-
-    const declaredValues = extractMoneyValues(declaredCell?.textContent || "");
-    const paidValues = extractMoneyValues(paidCell.textContent || "");
-    const valorDeclarado = declaredValues[0];
-    const valorPago = paidValues[0] ?? 0;
-    const hasPaidValue = paidValues.some((value) => value > 0);
-    const emitirGuiaAnchor = Array.from(row.querySelectorAll("a")).find((anchor) =>
-      isEmitirGuiaAnchor(anchor as HTMLAnchorElement),
-    ) as HTMLAnchorElement | undefined;
-    const emissaoUrl = emitirGuiaAnchor
-      ? resolveGuiaDownloadUrlFromAnchor(emitirGuiaAnchor)
-      : null;
-
-    console.debug("[SIGESS] Verificacao de guia existente na competencia:", {
-      competencia,
-      valorDeclarado,
-      valorPago,
-      hasPaidValue,
-      emissaoUrl,
-    });
-
-    return { paga: hasPaidValue, emissaoUrl, valorDeclarado, valorPago };
-  }
-
-  return { paga: false, emissaoUrl: null };
-}
-
-function isEmitirGuiaAnchor(anchor: HTMLAnchorElement): boolean {
-  const text = (anchor.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-  const href = anchor.getAttribute("href") || "";
-  const onclick = anchor.getAttribute("onclick") || "";
-
-  return (
-    text.includes("emitir guia") &&
-    (href.includes("EmitirGuiaMensal") ||
-      onclick.includes("EmitirGuiaMensal") ||
-      anchor.id === "btn-emitir-guia")
-  );
-}
 
 export function buildCompetenciaFromSettings(settings: AppSettings): string | null {
   const anoAtual = new Date().getFullYear();
