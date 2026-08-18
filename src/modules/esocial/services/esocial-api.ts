@@ -1,73 +1,10 @@
 import { ESOCIAL_PORTAL_BASE } from "../utils/esocial-constants";
+import { extractHtmlAlertMessage } from "./document-parser";
 
 function buildPortalUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${ESOCIAL_PORTAL_BASE}${normalizedPath}`;
-}
-
-function detectHtmlErrorMessage(html: string): string | null {
-  if (!html.includes("alert-danger") && !html.includes("alert-error")) {
-    console.debug("[SIGESS] No alert-danger or alert-error found in response");
-    return null;
-  }
-
-  console.debug("[SIGESS] Alert class found, parsing HTML for error message");
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-
-  // Look for error divs
-  const errorDiv = doc.querySelector(".alert-danger, .alert-error");
-  console.debug("[SIGESS] errorDiv found:", !!errorDiv);
-
-  if (!errorDiv) {
-    console.debug("[SIGESS] No error div found, checking for alternatives");
-    // Try looking for divs with alert-danger class directly
-    const allDivs = Array.from(doc.querySelectorAll("div"));
-    const alertDiv = allDivs.find((div) => {
-      const classes = div.className || "";
-      return classes.includes("alert-danger") || classes.includes("alert-error");
-    });
-
-    if (!alertDiv) {
-      console.debug("[SIGESS] No alert div found");
-      return null;
-    }
-
-    const listItems = Array.from(alertDiv.querySelectorAll("li"));
-    if (listItems.length > 0) {
-      const messages = listItems
-        .map((li) => (li.textContent || "").trim())
-        .filter((msg) => msg.length > 0);
-      console.debug("[SIGESS] Extracted error messages:", messages);
-      if (messages.length > 0) {
-        return messages.join(" | ");
-      }
-    }
-
-    const text = (alertDiv.textContent || "").trim();
-    console.debug("[SIGESS] Alert text:", text);
-    return text.length > 0 ? text : null;
-  }
-
-  // Extract error text from list items or direct content
-  const listItems = Array.from(errorDiv.querySelectorAll("li"));
-  console.debug("[SIGESS] Found list items:", listItems.length);
-
-  if (listItems.length > 0) {
-    const messages = listItems
-      .map((li) => (li.textContent || "").trim())
-      .filter((msg) => msg.length > 0);
-    console.debug("[SIGESS] Extracted messages:", messages);
-    if (messages.length > 0) {
-      return messages.join(" | ");
-    }
-  }
-
-  // Fallback to direct error div text
-  const text = (errorDiv.textContent || "").trim();
-  console.debug("[SIGESS] Fallback text:", text);
-  return text.length > 0 ? text : null;
 }
 
 export async function postJson(
@@ -102,8 +39,8 @@ export async function postJson(
   }
 
   console.debug("[SIGESS] Checking for HTML error message in POST response...");
-  const htmlErrorMessage = detectHtmlErrorMessage(text);
-  console.debug("[SIGESS] detectHtmlErrorMessage result:", htmlErrorMessage);
+  const htmlErrorMessage = extractHtmlAlertMessage(text);
+  console.debug("[SIGESS] extractHtmlAlertMessage result:", htmlErrorMessage);
   if (htmlErrorMessage) {
     console.error("[SIGESS] HTML error detected:", htmlErrorMessage);
     throw new Error(`Erro do eSocial: ${htmlErrorMessage}`);
@@ -144,8 +81,8 @@ export async function getText(path: string): Promise<string> {
   }
 
   console.debug("[SIGESS] Checking for HTML error message in GET response...");
-  const htmlErrorMessage = detectHtmlErrorMessage(text);
-  console.debug("[SIGESS] detectHtmlErrorMessage result:", htmlErrorMessage);
+  const htmlErrorMessage = extractHtmlAlertMessage(text);
+  console.debug("[SIGESS] extractHtmlAlertMessage result:", htmlErrorMessage);
   if (htmlErrorMessage) {
     console.error("[SIGESS] HTML error detected:", htmlErrorMessage);
     throw new Error(`Erro do eSocial: ${htmlErrorMessage}`);

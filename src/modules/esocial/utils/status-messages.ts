@@ -133,12 +133,6 @@ export const esocialMessages = {
     description: `Arquivo: ${filename}`,
   }),
 
-  guideOpenedInNewTab: (filename: string): StatusMessage => ({
-    status: "concluido",
-    title: "Boleto aberto em nova aba",
-    description: `Finalize a emissão: ${filename}`,
-  }),
-
   failedToResolveGuideUrl: (): StatusMessage => ({
     status: "erro",
     title: "Erro ao resolver boleto",

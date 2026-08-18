@@ -9,6 +9,20 @@ export function parseHtml(html: string): Document {
   return new DOMParser().parseFromString(html, "text/html");
 }
 
+export function extractHtmlAlertMessage(input: Document | string): string | null {
+  const doc = typeof input === "string" ? parseHtml(input) : input;
+  const alert = doc.querySelector(".alert-danger, .alert-error") as HTMLElement | null;
+  if (!alert) return null;
+
+  const listItems = Array.from(alert.querySelectorAll("li"))
+    .map((li) => (li.textContent || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  if (listItems.length > 0) return listItems.join(" | ");
+
+  const text = (alert.textContent || "").replace(/\s+/g, " ").trim();
+  return text || null;
+}
+
 export function looksLikeHtmlDocument(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   return (

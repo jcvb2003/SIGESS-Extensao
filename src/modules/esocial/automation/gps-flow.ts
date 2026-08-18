@@ -15,7 +15,7 @@ import {
   GPS_FLOW_PENDING_STATE_KEY,
   GPS_FLOW_QUEUE_STATE_KEY,
 } from "../utils/esocial-constants";
-import { parseHtml, resolveGuiaUrlFromDocument } from "../services/document-parser";
+import { extractHtmlAlertMessage, parseHtml, resolveGuiaUrlFromDocument } from "../services/document-parser";
 import { postJson, buildEsocialUrl } from "../services/esocial-api";
 import { buildComercializacaoPayload } from "../services/comercializacao";
 import { reportBatchStatus, showSuccessModal } from "./overlay-ui";
@@ -311,8 +311,7 @@ async function executarFechamentoDireto(
     fechamentoForm,
   );
   const fechamentoPostDoc = parseHtml(fechamentoPostHtml);
-  const fechamentoHtmlError =
-    extractHtmlAlertMessage(fechamentoPostDoc) || extractHtmlAlertMessageFromHtml(fechamentoPostHtml);
+  const fechamentoHtmlError = extractHtmlAlertMessage(fechamentoPostDoc) || extractHtmlAlertMessage(fechamentoPostHtml);
 
   console.debug("[SIGESS] Fechamento direto respondeu:", {
     competencia,
@@ -564,45 +563,6 @@ function extractValorResumoDoFechamento(doc: Document): number | undefined {
 
   const values = extractMoneyValues(totalText);
   return values.find((value) => value > 0);
-}
-
-function extractHtmlAlertMessage(doc: Document): string | null {
-  const alert = doc.querySelector(".alert-danger, .alert-error") as HTMLElement | null;
-  if (!alert) {
-    return null;
-  }
-
-  const listItems = Array.from(alert.querySelectorAll("li"))
-    .map((li) => (li.textContent || "").trim())
-    .filter(Boolean);
-
-  if (listItems.length > 0) {
-    return listItems.join(" | ");
-  }
-
-  const text = (alert.textContent || "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return text || null;
-}
-
-function extractHtmlAlertMessageFromHtml(html: string): string | null {
-  const match = html.match(
-    /<div[^>]+class="[^"]*(?:alert-danger|alert-error)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-  );
-  if (!match) {
-    return null;
-  }
-
-  const text = match[1]
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return text || null;
 }
 
 function snapshotFormFields(doc: Document) {
@@ -1117,7 +1077,7 @@ export async function resumePendingGpsFlow(settings?: AppSettings): Promise<bool
   });
 
   const fechamentoHtmlError =
-    extractHtmlAlertMessage(fechamentoDoc) || extractHtmlAlertMessageFromHtml(fechamentoHtml);
+    extractHtmlAlertMessage(fechamentoDoc) || extractHtmlAlertMessage(fechamentoHtml);
   if (fechamentoHtmlError) {
     console.warn("[SIGESS] Mensagem de erro no fechamento:", fechamentoHtmlError);
     console.warn("[SIGESS] Campos retornados apos erro no fechamento:", snapshotFormFields(fechamentoDoc));

@@ -104,7 +104,6 @@ export function observarBotaoEmitirGuia() {
             reportBatchStatus(downloadMsg.status, downloadMsg.title, downloadMsg.description, {
               lastError: error instanceof Error ? error.message : String(error)
             });
-            window.location.href = targetUrl;
           } finally {
             clearManualGuideDownloadInProgress();
           }
@@ -195,28 +194,9 @@ async function baixarGuiaPdf(
       }
 
       if (html && looksLikeHtmlDocument(html)) {
-        const identity = await getEsocialDownloadIdentity();
-        const filename = buildEsocialFilename(identity.nome, identity.cpf, competencia);
-
-        openBlobInNewTab(blob, contentType || "text/html");
-        const tabMsg = esocialMessages.guideOpenedInNewTab(filename);
-        logger.info("eSocial", tabMsg.title);
-        reportBatchStatus("boleto_salvo", tabMsg.title, tabMsg.description, {
-          loginConcluido: true,
-          progressStep: 3,
-          progressTotal: 3,
-          boletoGerado,
-          boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), ...valores },
-          overlayState: {
-            step: 3,
-            total: 3,
-            title: "Boleto aberto em nova aba",
-            description: `Finalize a emissão: ${filename}`,
-            complete: true,
-            hideAt: Date.now() + 4000,
-          },
-        });
-        return;
+        throw new Error(
+          `O endpoint da guia retornou HTML${contentType ? ` (${contentType})` : ""}; a emissão não foi confirmada como PDF.`,
+        );
       }
 
       throw new Error(
@@ -284,15 +264,6 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error || new Error("Falha ao ler o PDF para download."));
     reader.readAsDataURL(blob);
   });
-}
-
-function openBlobInNewTab(blob: Blob, mimeType: string) {
-  const typedBlob = blob.type ? blob : new Blob([blob], { type: mimeType });
-  const objectUrl = URL.createObjectURL(typedBlob);
-  window.open(objectUrl, "_blank", "noopener");
-  window.setTimeout(() => {
-    URL.revokeObjectURL(objectUrl);
-  }, 60_000);
 }
 
 async function getEsocialDownloadIdentity(): Promise<EsocialDownloadIdentity> {
