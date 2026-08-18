@@ -1,7 +1,7 @@
 import { recoverCadUnicoIncompleteSuccessLogin } from "../modules/automation/cadunico/navigation";
 import { CadUnicoPortalRuntime } from "../modules/automation/cadunico/runtime";
 import { InssPortalRuntime } from "../modules/automation/inss/runtime";
-import { EcacPortalRuntime } from "../modules/automation/ecac/runtime";
+import { ESocialPortalRuntime } from "../modules/automation/esocial/runtime";
 import { PesqBrasilPortalRuntime } from "../modules/automation/pesqbrasil/runtime";
 import { TsePortalRuntime } from "../modules/automation/tse/runtime";
 import { resolvePortalBridge } from "../modules/automation/cadastro/portal-bridges";
@@ -65,7 +65,7 @@ async function initMain() {
   let _cadastroSessionActive = false;
   const cadUnicoRuntime = new CadUnicoPortalRuntime();
   const inssRuntime = new InssPortalRuntime();
-  const ecacRuntime = new EcacPortalRuntime();
+  const esocialRuntime = new ESocialPortalRuntime();
   const pesqBrasilRuntime = new PesqBrasilPortalRuntime();
   const tseRuntime = new TsePortalRuntime({ canSubmit: canSubmitCadastroTse });
   const govBrConsentRuntime = new GovBrConsentRuntime();
@@ -119,12 +119,11 @@ async function initMain() {
     injectBridges();
 
     cadUnicoRuntime.run({ sessionActive: _cadastroSessionActive });
-    ecacRuntime.run({ sessionActive: _cadastroSessionActive });
-
     pesqBrasilRuntime.run({ sessionActive: _cadastroSessionActive });
     govBrConsentRuntime.run({ sessionActive: _cadastroSessionActive });
 
     inssRuntime.run({ sessionActive: _cadastroSessionActive });
+    esocialRuntime.run({ sessionActive: _cadastroSessionActive });
 
     tseRuntime.run({ sessionActive: _cadastroSessionActive, settings });
   }
@@ -201,13 +200,6 @@ async function initMain() {
         });
       }
     }
-  });
-
-  // Comando do background para clicar no botão Gov.br do eCAC.
-  // DOMInjector (mundo isolado) gera isTrusted=false, que validarHcaptcha rejeita.
-  // Injetar <script> executa validarHcaptcha no mundo principal da página.
-  (globalThis.browser || globalThis.chrome).runtime.onMessage.addListener((message: any) => {
-    ecacRuntime.handleMessage(message);
   });
 
   startAutomation();

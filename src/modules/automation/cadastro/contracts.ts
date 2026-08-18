@@ -1,13 +1,12 @@
 import type { AppSettings, PessoaData } from "../../../shared/types";
 
-export type CadastroPortalId = "cadunico" | "pesqbrasil" | "ecac" | "tse" | "inss";
+export type CadastroPortalId = "cadunico" | "pesqbrasil" | "esocial" | "tse" | "inss";
 
 export type CadastroSourceId =
   | "cadunico"
   | "cadunico_adv"
   | "pesqbrasil"
   | "pesqbrasil_mpa"
-  | "ecac_cpf"
   | "ecac_caepf"
   | "tse"
   | "inss";

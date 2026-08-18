@@ -2,8 +2,8 @@ import { UserCredentials } from "../../shared/types";
 import { DOMInjector } from "./dom-injector";
 import { StorageService } from "./storage";
 import { CADUNICO_HOST } from "../../modules/automation/cadunico/routes";
-import { INSS_HOST, isInssUrl } from "../../modules/automation/inss/routes";
-import { ECAC_HOST, isEcacAuthUrl, isEcacUrl } from "../../modules/automation/ecac/routes";
+import { INSS_HOST, isInssDataUrl, isInssUrl } from "../../modules/automation/inss/routes";
+import { isEsocialHomeUrl } from "../../modules/automation/esocial/routes";
 import {
   PESQBRASIL_AGRO_HOST,
   PESQBRASIL_MPA_HOST,
@@ -21,7 +21,6 @@ export interface AuthStrategy {
     credentials: UserCredentials,
   ): Promise<void>;
 }
-
 export abstract class BaseAuthStrategy implements AuthStrategy {
   abstract name: string;
   abstract urlTrigger: string;
@@ -203,7 +202,6 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     );
   }
 }
-
 export class PesqBrasilStrategy extends BaseAuthStrategy {
   name = "PesqBrasil";
   urlTrigger = PESQBRASIL_AGRO_HOST;
@@ -232,15 +230,6 @@ export class PesqBrasilStrategy extends BaseAuthStrategy {
       await this.handleGovBrLogin(tabId, credentials);
     }
 
-    // O Meu INSS pode concluir o retorno do Gov.br sem outro evento de navegação.
-    // A rota fora de #/login já é a área autenticada do portal.
-    if (
-      isInssUrl(tabUrl) &&
-      !tabUrl.includes("#/login") &&
-      !tabUrl.includes("sso.acesso.gov.br")
-    ) {
-      await this.markLoginComplete(tabId);
-    }
   }
 }
 
@@ -270,6 +259,7 @@ export class MTEStrategy extends BaseAuthStrategy {
     if (tabUrl.includes("sso.acesso.gov.br/login")) {
       await this.handleGovBrLogin(tabId, credentials);
     }
+
   }
 }
 
@@ -298,6 +288,12 @@ export class INSSStrategy extends BaseAuthStrategy {
 
     if (tabUrl.includes("sso.acesso.gov.br/login")) {
       await this.handleGovBrLogin(tabId, credentials);
+    }
+
+    // A URL de login já carrega o destino desejado. A autenticação só está
+    // concluída quando a rota efetiva de Dados Cadastrais for alcançada.
+    if (isInssDataUrl(tabUrl)) {
+      await this.markLoginComplete(tabId);
     }
   }
 }
@@ -352,6 +348,12 @@ export class ESocialStrategy extends BaseAuthStrategy {
     if (tabUrl.includes("sso.acesso.gov.br/login")) {
       await this.handleGovBrLogin(tabId, credentials);
     }
+
+    // Uma sessão GOV.BR já existente pode retornar diretamente para a Home do
+    // eSocial, sem passar novamente pela tela de senha.
+    if (isEsocialHomeUrl(tabUrl)) {
+      await this.markLoginComplete(tabId);
+    }
   }
 }
 
@@ -389,45 +391,6 @@ export class CadUnicoStrategy extends BaseAuthStrategy {
 
     if (tabUrl.includes("sso.acesso.gov.br/login")) {
       await this.handleGovBrLogin(tabId, credentials);
-    }
-  }
-}
-
-export class EcacStrategy extends BaseAuthStrategy {
-  name = "EcacCadastro";
-  urlTrigger = ECAC_HOST;
-
-  async execute(
-    tabId: number,
-    tabUrl: string,
-    credentials: UserCredentials,
-  ): Promise<void> {
-    // Página de login do eCAC — clica no botão Gov.br
-    if (
-      isEcacAuthUrl(tabUrl) &&
-      credentials.status !== "fazendo_login"
-    ) {
-      try {
-        await DOMInjector.waitForElement(tabId, "input[type='image']", 5000);
-        // input[type="image"] tem onclick= no mundo principal; scripting.executeScript (mundo isolado)
-        // não dispara o handler — delegamos ao content script que já corre no contexto da página.
-        await browser.tabs.sendMessage(tabId, { action: "clickEcacGovBrButton" });
-        await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
-      } catch (e) {}
-    }
-
-    if (tabUrl.includes("sso.acesso.gov.br/login")) {
-      await this.handleGovBrLogin(tabId, credentials);
-    }
-
-    // SSO bypass: Gov.br já tinha sessão ativa no container e redirecionou
-    // de volta para o eCAC sem passar pela tela de senha
-    if (
-      isEcacUrl(tabUrl) &&
-      !isEcacAuthUrl(tabUrl) &&
-      !tabUrl.includes("sso.acesso.gov.br")
-    ) {
-      await this.markLoginComplete(tabId);
     }
   }
 }

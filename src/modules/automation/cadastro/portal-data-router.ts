@@ -20,7 +20,7 @@ export function routePortalBridgeMessage(event: MessageEvent, enabled: boolean):
     const data = parseCaepfData(payload);
     if (data) saveCapturedPessoaData(data, "ecac_caepf", payload);
   } else if (type === "SIGESS_CAEPF_NOT_FOUND") {
-    reportCadastroPortalOutcome("ecac", "not_found", "caepf_pesquisa_vazia");
+    reportCadastroPortalOutcome("esocial", "not_found", "caepf_pesquisa_vazia");
   } else if (type === "SIGESS_CADUNICO_RAW_TOKEN") {
     const data = parseCadUnicoToken(payload as string);
     if (data) saveCapturedPessoaData(data, "cadunico");

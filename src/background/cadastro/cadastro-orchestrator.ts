@@ -10,6 +10,7 @@ import { getActiveCadastroSession } from "./cadastro-session-store";
 import {
   applyCadastroPortalOutcome,
   getCadastroPortalForDataSource,
+  isCadastroCollectionComplete,
   isCadastroSessionReadyToFinalize,
   type CadastroReportedOutcome,
 } from "./cadastro-session-controller";
@@ -99,6 +100,25 @@ export async function finalizeCadastroSession(session: CadastroSession): Promise
   await sanitizeCadastroContainer(session.cookieStoreId);
 }
 
+export async function finalizeCadastroSessionIfReady(session: CadastroSession): Promise<void> {
+  if (!isCadastroCollectionComplete(session)) return;
+
+  if (session.cadunicoDismissalRequired) {
+    if (!session.cadunicoDismissalReady) {
+      session.cadunicoDismissalReady = true;
+      session.interactionRequired = {
+        type: "govbr_contact_confirmation",
+        message: "Coleta concluída pela contingência. Dispensar o CadÚnico para encerrar a sessão.",
+        tabId: session.portais.cadunico.tabId,
+      };
+      await saveCadastroSession(session);
+    }
+    return;
+  }
+
+  if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
+}
+
 export async function processCadastroDataArrival(
   source: string,
   getTabManager?: () => any,
@@ -119,13 +139,13 @@ export async function processCadastroDataArrival(
 
   const cadunicoDependenciesOpened =
     typeof session.portais.pesqbrasil.tabId === "number" &&
-    typeof session.portais.ecac.tabId === "number";
+    typeof session.portais.esocial.tabId === "number";
   const canCloseCapturedTab = portalId !== "cadunico" ||
     (cadunicoDependenciesOpened && Boolean(session.portais.tse));
   if (portal.status === "concluido" && canCloseCapturedTab && typeof portal.tabId === "number") {
     try { await browser.tabs.remove(portal.tabId); } catch { /* Aba já fechada. */ }
   }
-  if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
+  await finalizeCadastroSessionIfReady(session);
 }
 
 export async function processCadastroPortalOutcome(
@@ -147,7 +167,7 @@ export async function processCadastroPortalOutcome(
   const portal = session.portais[portalId];
   const cadunicoDependenciesOpened =
     typeof session.portais.pesqbrasil.tabId === "number" &&
-    typeof session.portais.ecac.tabId === "number";
+    typeof session.portais.esocial.tabId === "number";
   const canCloseTab = portalId !== "cadunico" ||
     (cadunicoDependenciesOpened && Boolean(session.portais.tse));
   if (portal && canCloseTab && typeof portal.tabId === "number") {
@@ -158,5 +178,5 @@ export async function processCadastroPortalOutcome(
     }
   }
 
-  if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
+  await finalizeCadastroSessionIfReady(session);
 }

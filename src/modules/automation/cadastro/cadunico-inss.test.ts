@@ -16,6 +16,7 @@ describe("adaptadores CadÚnico e Meu INSS", () => {
     expect(CADASTRO_PORTAL_REGISTRY.inss.collectionUrl).toBe(INSS_DATA_URL);
     expect(isCadUnicoUrl(CADUNICO_HOME_URL)).toBe(true);
     expect(isInssUrl(INSS_LOGIN_URL)).toBe(true);
+    expect(isInssDataUrl(INSS_LOGIN_URL)).toBe(false);
     expect(isInssDataUrl(INSS_DATA_URL)).toBe(true);
   });
 

@@ -8,13 +8,17 @@ import {
   INSSStrategy,
   ESocialStrategy,
   CadUnicoStrategy,
-  EcacStrategy,
 } from "./auth-strategy";
 import { CADUNICO_HOME_URL, isCadUnicoUrl } from "../../modules/automation/cadunico/routes";
 import { INSS_DATA_URL, isInssDataUrl, isInssUrl } from "../../modules/automation/inss/routes";
-import { ECAC_COLLECTION_URL, ECAC_LOGIN_URL, isEcacCaepfCollectionUrl, isEcacUrl } from "../../modules/automation/ecac/routes";
 import { PESQBRASIL_MPA_URL, isPesqBrasilMpaUrl } from "../../modules/automation/pesqbrasil/routes";
 import { isMteUrl } from "../../modules/automation/mte/routes";
+import {
+  ESOCIAL_CAEPF_COLLECTION_URL,
+  ESOCIAL_LOGIN_URL,
+  isEsocialCaepfCollectionUrl,
+  isEsocialHomeUrl,
+} from "../../modules/automation/esocial/routes";
 import { closeCadastroContainerTabs, sanitizeCadastroContainer } from "../cadastro/cadastro-container";
 
 export class TabManager {
@@ -36,7 +40,6 @@ export class TabManager {
       new INSSStrategy(),
       new ESocialStrategy(),
       new CadUnicoStrategy(),
-      new EcacStrategy(),
     ];
   }
 
@@ -160,7 +163,7 @@ export class TabManager {
     senha: string,
     cookieStoreId: string,
     nome?: string,
-    portalType?: "cadunico" | "ecac" | "tse" | "pesqbrasil_mpa" | "inss",
+    portalType?: "cadunico" | "esocial" | "tse" | "pesqbrasil_mpa" | "inss",
     cadastroSessionId?: string,
   ): Promise<number | null> {
     try {
@@ -268,14 +271,14 @@ export class TabManager {
 
       await execute();
 
-      // O e-CAC pode concluir o login já na página autenticada, sem gerar outro
-      // evento de navegação. Rele as credenciais para usar o mesmo pós-login.
+      // Meu INSS e eSocial podem concluir o login na própria página autenticada.
+      // Rele as credenciais para usar o mesmo pós-login.
       const updatedCredentials = await StorageService.getCredentials(tabId);
       if (
         changeInfo.status === "complete" &&
         updatedCredentials?.isCadastroAutomatico &&
         updatedCredentials.loginConcluido &&
-        ["ecac", "inss"].includes(updatedCredentials.portalType || "")
+        ["esocial", "inss"].includes(updatedCredentials.portalType || "")
       ) {
         await this.handleCadastroPostLoginNav(tabId, tab.url, updatedCredentials);
       }
@@ -500,21 +503,21 @@ export class TabManager {
     // somente quando a mesma aba retorna ao portal autenticado.
     await StorageService.updateCadastroInteraction(creds.cadastroSessionId, undefined, tabId);
 
-    if (creds.portalType === "ecac") {
-      const ecac = session.portais.ecac;
-      // Navega para a página CAEPF se ainda não estiver lá
+    if (creds.portalType === "esocial") {
+      const esocial = session.portais.esocial;
+      // A Home específica confirma que o contexto Empregador Doméstico está pronto.
       if (
-        isEcacUrl(tabUrl) &&
-        !isEcacCaepfCollectionUrl(tabUrl) &&
-        !ecac.postLoginNavigationIssued &&
+        isEsocialHomeUrl(tabUrl) &&
+        !isEsocialCaepfCollectionUrl(tabUrl) &&
+        !esocial.postLoginNavigationIssued &&
         !this.postLoginNavigationInFlight.has(tabId)
       ) {
         this.postLoginNavigationInFlight.add(tabId);
-        ecac.postLoginNavigationIssued = true;
-        ecac.updatedAt = Date.now();
+        esocial.postLoginNavigationIssued = true;
+        esocial.updatedAt = Date.now();
         await StorageService.set({ [key]: session });
         await browser.tabs.update(tabId, {
-          url: ECAC_COLLECTION_URL,
+          url: ESOCIAL_CAEPF_COLLECTION_URL,
         });
       }
     } else if (creds.portalType === "cadunico") {
@@ -570,22 +573,22 @@ export class TabManager {
 
     // Marca os portais como "abrindo" antes de abrir as tabs
     session.portais.pesqbrasil = { status: "abrindo" };
-    session.portais.ecac = { status: "abrindo" };
+    session.portais.esocial = { status: "abrindo" };
     await StorageService.set({ [key]: session });
 
-    const [pesqTabId, ecacTabId] = await Promise.all([
+    const [pesqTabId, esocialTabId] = await Promise.all([
       this.createSessionInContainer(
         PESQBRASIL_MPA_URL,
         cpf, senha, cookieStoreId, nome, "pesqbrasil_mpa", cadastroSessionId,
       ),
       this.createSessionInContainer(
-        ECAC_LOGIN_URL,
-        cpf, senha, cookieStoreId, nome, "ecac", cadastroSessionId,
+        ESOCIAL_LOGIN_URL,
+        cpf, senha, cookieStoreId, nome, "esocial", cadastroSessionId,
       ),
     ]);
 
     if (pesqTabId) session.portais.pesqbrasil.tabId = pesqTabId;
-    if (ecacTabId) session.portais.ecac.tabId = ecacTabId;
+    if (esocialTabId) session.portais.esocial.tabId = esocialTabId;
     await StorageService.set({ [key]: session });
 
     const cadunico = session.portais.cadunico;
@@ -595,7 +598,7 @@ export class TabManager {
       tseDecidido &&
       typeof cadunico.tabId === "number" &&
       typeof pesqTabId === "number" &&
-      typeof ecacTabId === "number"
+      typeof esocialTabId === "number"
     ) {
       try {
         await browser.tabs.remove(cadunico.tabId);
@@ -618,7 +621,7 @@ export class TabManager {
       if (session?.sessionState === "active") {
         const portalMap: Record<string, keyof typeof session.portais> = {
           cadunico: "cadunico",
-          ecac: "ecac",
+          esocial: "esocial",
           pesqbrasil_mpa: "pesqbrasil",
           tse: "tse",
           inss: "inss",

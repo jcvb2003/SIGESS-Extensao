@@ -37,7 +37,11 @@ export function getCadastroPortalForDataSource(
 }
 
 export function isCadastroSessionReadyToFinalize(session: CadastroSession): boolean {
-  const expected: CadastroPortalId[] = ["cadunico", "pesqbrasil", "ecac"];
+  return !session.cadunicoDismissalRequired && isCadastroCollectionComplete(session);
+}
+
+export function isCadastroCollectionComplete(session: CadastroSession): boolean {
+  const expected: CadastroPortalId[] = ["cadunico", "pesqbrasil", "esocial"];
   if (session.portais.inss) expected.push("inss");
   if (session.portais.tse) expected.push("tse");
   return expected.every((portalId) => isCadastroPortalTerminal(session.portais[portalId]));

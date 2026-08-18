@@ -12,7 +12,7 @@ function createSession(): CadastroSession {
     portais: {
       cadunico: { status: "concluido" },
       pesqbrasil: { status: "coletando" },
-      ecac: { status: "erro" },
+      esocial: { status: "erro" },
       tse: { status: "dispensado", evidence: "dados_eleitorais_cadunico" },
     },
   };
@@ -25,7 +25,6 @@ describe("projeção canônica do status de coleta", () => {
       tse: "idle",
       pesqbrasil: "waiting",
       caepf: "failed",
-      ecac: "failed",
     });
   });
 
@@ -40,7 +39,6 @@ describe("projeção canônica do status de coleta", () => {
     const projected = projectCaptureStatuses(data, createSession());
     expect(projected.pesqbrasil).toBe("collected");
     expect(projected.caepf).toBe("collected");
-    expect(projected.ecac).toBe("failed");
     expect(projected.tse).toBe("collected");
   });
 
@@ -60,13 +58,12 @@ describe("projeção canônica do status de coleta", () => {
     expect(projectCaptureStatuses(data).cadunico).toBe("collected");
   });
 
-  it("encerra o e-CAC como nao encontrado quando a pesquisa CAEPF retorna vazia", () => {
+  it("encerra o eSocial como nao encontrado quando a pesquisa CAEPF retorna vazia", () => {
     const session = createSession();
-    session.portais.ecac = { status: "nao_encontrado", evidence: "caepf_pesquisa_vazia" };
+    session.portais.esocial = { status: "nao_encontrado", evidence: "caepf_pesquisa_vazia" };
 
     expect(projectCaptureStatuses({}, session)).toMatchObject({
       caepf: "not_found",
-      ecac: "not_found",
     });
   });
 

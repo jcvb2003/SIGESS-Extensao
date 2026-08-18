@@ -33,8 +33,9 @@ import {
 import {
   canSubmitCadastroTse,
   navigateAuthenticatedCadastroInss,
+  navigateAuthenticatedCadastroEsocial,
   reportGovBrContactConfirmation,
-  useInssAsCadastroAlternative,
+  dismissCadunicoAndFinalizeCadastro,
 } from "./cadastro/cadastro-interaction-handler";
 import {
   processCadastroDataArrival,
@@ -144,7 +145,7 @@ export async function routeMessage(
       case "canSubmitCadastroTse":
         return await canSubmitCadastroTse(sender);
       case "govBrContactConfirmationDetected":
-        return await reportGovBrContactConfirmation(sender);
+        return await reportGovBrContactConfirmation(sender, getTabManager);
       case "govBrLoginDomReady": {
         const tabId = sender?.tab?.id;
         if (typeof tabId !== "number" || sender?.tab?.url?.includes("sso.acesso.gov.br") !== true) {
@@ -153,8 +154,8 @@ export async function routeMessage(
         await getTabManager().handleGovBrLoginDomReady(tabId);
         return { success: true };
       }
-      case "usarInssComoAlternativa":
-        return await useInssAsCadastroAlternative(sender, getTabManager);
+      case "dispensarCadunicoEEncerrar":
+        return await dismissCadunicoAndFinalizeCadastro();
       case "limparDadosCapturados": {
         const settings = await StorageService.clearCapturedPessoaData();
         return { success: true, settings };
@@ -168,6 +169,8 @@ export async function routeMessage(
         return await handleOpenExtensionUpdate();
       case "inssAuthenticated":
         return await navigateAuthenticatedCadastroInss(sender);
+      case "esocialAuthenticated":
+        return await navigateAuthenticatedCadastroEsocial(sender);
       case "checkReloginEligible":
         return await handleCheckReloginEligible(sender);
       case "triggerRelogin":

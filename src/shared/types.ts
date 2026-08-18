@@ -22,7 +22,7 @@ export interface CadastroSession {
   portais: {
     cadunico: CadastroPortalEntry;
     pesqbrasil: CadastroPortalEntry;
-    ecac: CadastroPortalEntry;
+    esocial: CadastroPortalEntry;
     tse?: CadastroPortalEntry;
     inss?: CadastroPortalEntry;
   };
@@ -33,6 +33,10 @@ export interface CadastroSession {
     message: string;
     tabId?: number;
   };
+  /** A contingência do CadÚnico mantém a sessão aberta até confirmação humana. */
+  cadunicoDismissalRequired?: boolean;
+  /** Todos os demais portais terminaram e a dispensa já pode encerrar o container. */
+  cadunicoDismissalReady?: boolean;
 }
 
 export interface UserCredentials {
@@ -42,7 +46,7 @@ export interface UserCredentials {
   valorComercializado?: string;
   isCadastroAutomatico?: boolean;
   cadastroSessionId?: string;
-  portalType?: "mte" | "pesqbrasil_mpa" | "esocial" | "inss" | "cadunico" | "ecac" | "tse";
+  portalType?: "mte" | "pesqbrasil_mpa" | "esocial" | "inss" | "cadunico" | "tse";
   gerarGps?: boolean;
   consultarGuias?: boolean;
   selectedYear?: string;

@@ -13,7 +13,7 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   "updateSettings",
   "iniciarCadastroAutomatico",
   "cancelarCadastroAutomatico",
-  "usarInssComoAlternativa",
+  "dispensarCadunicoEEncerrar",
   "limparDadosCapturados",
   "abrirDataInspector",
 ]);

@@ -16,7 +16,7 @@ async function isCadastroSessionStale(session: CadastroSession): Promise<boolean
   const tabIds = [
     session.portais.cadunico.tabId,
     session.portais.pesqbrasil?.tabId,
-    session.portais.ecac?.tabId,
+    session.portais.esocial?.tabId,
     session.portais.tse?.tabId,
   ].filter((id): id is number => typeof id === "number");
 
@@ -99,7 +99,7 @@ export async function iniciarCadastroAutomatico(
       portais: {
         cadunico: { status: "abrindo" },
         pesqbrasil: { status: "aguardando" },
-        ecac: { status: "aguardando" },
+        esocial: { status: "aguardando" },
       },
     };
     await saveCadastroSession(session);

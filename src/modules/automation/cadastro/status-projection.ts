@@ -2,7 +2,7 @@ import type { CadastroPortalEntry, CadastroSession, PessoaData } from "../../../
 import { hasMeaningfulSourceData } from "./source-projections";
 
 export type CaptureStatus = "collected" | "skipped" | "not_found" | "waiting" | "failed" | "idle";
-export type CaptureStatusId = "cadunico" | "tse" | "pesqbrasil" | "caepf" | "ecac";
+export type CaptureStatusId = "cadunico" | "tse" | "pesqbrasil" | "caepf";
 
 export type CaptureStatusProjection = Record<CaptureStatusId, CaptureStatus>;
 
@@ -36,7 +36,6 @@ export function projectCaptureStatuses(
   const tseCollected = sourceCollected(["tse"]) || Boolean(sources.tse?.capturado && hasElectoralData);
   const pesqBrasilCollected = sourceCollected(["pesqbrasil", "pesq_brasil"]);
   const caepfCollected = sourceCollected(["ecac_caepf", "caepf", "esocial"]);
-  const ecacCollected = sourceCollected(["ecac_cpf"]);
 
   return {
     cadunico: cadUnicoCollected || inssCollected ? "collected" : projectPortal(session?.portais.cadunico),
@@ -48,8 +47,7 @@ export function projectCaptureStatuses(
           ? "idle"
         : projectPortal(session?.portais.tse),
     pesqbrasil: pesqBrasilCollected ? "collected" : projectPortal(session?.portais.pesqbrasil),
-    caepf: caepfCollected ? "collected" : projectPortal(session?.portais.ecac),
-    ecac: ecacCollected ? "collected" : projectPortal(session?.portais.ecac),
+    caepf: caepfCollected ? "collected" : projectPortal(session?.portais.esocial),
   };
 }
 

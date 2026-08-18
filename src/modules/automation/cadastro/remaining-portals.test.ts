@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { CADASTRO_PORTAL_REGISTRY } from "./portal-registry";
 import { resolvePortalBridge } from "./portal-bridges";
 import {
-  ECAC_COLLECTION_URL,
-  isEcacAuthUrl,
-  isEcacCaepfCollectionUrl,
-} from "../ecac/routes";
+  ESOCIAL_CAEPF_COLLECTION_URL,
+  ESOCIAL_HOME_URL,
+  isEsocialCaepfCollectionUrl,
+  isEsocialHomeUrl,
+} from "../esocial/routes";
 import {
   PESQBRASIL_MPA_URL,
   isPesqBrasilMpaUrl,
@@ -14,11 +15,11 @@ import {
 import { TSE_QUERY_URL, isTseAutoatendimentoUrl } from "../tse/routes";
 
 describe("adaptadores dos portais restantes", () => {
-  it("mantém a coleta do e-CAC restrita ao CAEPF id=89", () => {
-    expect(CADASTRO_PORTAL_REGISTRY.ecac.collectionUrl).toBe(ECAC_COLLECTION_URL);
-    expect(isEcacCaepfCollectionUrl(ECAC_COLLECTION_URL)).toBe(true);
-    expect(isEcacCaepfCollectionUrl("https://cav.receita.fazenda.gov.br/ecac/Aplicacao.aspx?id=15")).toBe(false);
-    expect(isEcacAuthUrl("https://cav.receita.fazenda.gov.br/autenticacao/login")).toBe(true);
+  it("entra no CAEPF pelo contexto autenticado do eSocial", () => {
+    expect(CADASTRO_PORTAL_REGISTRY.esocial.collectionUrl).toBe(ESOCIAL_CAEPF_COLLECTION_URL);
+    expect(isEsocialHomeUrl(ESOCIAL_HOME_URL)).toBe(true);
+    expect(isEsocialCaepfCollectionUrl(ESOCIAL_CAEPF_COLLECTION_URL)).toBe(true);
+    expect(isEsocialCaepfCollectionUrl("https://www.esocial.gov.br/portal/Home/Inicial")).toBe(false);
   });
 
   it("mantém o PesqBrasil MPA como portal aberto pelo cadastro", () => {
@@ -35,7 +36,8 @@ describe("adaptadores dos portais restantes", () => {
 
   it("resolve bridges apenas pelos hosts canônicos", () => {
     expect(resolvePortalBridge("pesqbrasil-pescadorprofissional.mpa.gov.br")).toBe("assets/pesqbrasil_bridge.js");
-    expect(resolvePortalBridge("cav.receita.fazenda.gov.br")).toBe("assets/caepf_bridge.js");
+    expect(resolvePortalBridge("caepf.receita.fazenda.gov.br")).toBe("assets/caepf_bridge.js");
+    expect(resolvePortalBridge("www.esocial.gov.br")).toBe("assets/caepf_bridge.js");
     expect(resolvePortalBridge("www.tse.jus.br")).toBe("assets/tse_bridge.js");
     expect(resolvePortalBridge("example.com")).toBeNull();
   });

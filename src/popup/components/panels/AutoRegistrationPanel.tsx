@@ -31,7 +31,7 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
     { id: "cadunico", label: "CadÚnico" },
     { id: "pesqbrasil", label: "PesqBrasil" },
     { id: "tse", label: "TSE" },
-    { id: "receita", label: "Receita Federal" },
+    { id: "esocial", label: "eSocial" },
   ];
 
   const handleClear = async () => {
@@ -116,23 +116,17 @@ const AutoRegistrationPanel: React.FC<AutoRegistrationPanelProps> = ({ settings,
         </div>
         <div className="sources-grid">
           {sources.map((source) => {
-            if (source.id === "receita") {
+            if (source.id === "esocial") {
               const caiCaptured = isCaptureStatusSatisfied(captureStatuses.caepf);
-              const ecacCaptured = isCaptureStatusSatisfied(captureStatuses.ecac);
-              const anyCaptured = caiCaptured || ecacCaptured;
 
               return (
-                <div key={source.id} className={`source-item ${anyCaptured ? "active" : ""}`} style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '8px 10px' }}>
+                <div key={source.id} className={`source-item ${caiCaptured ? "active" : ""}`} style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '8px 10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                    <div style={{ display: 'flex', gap: '3px' }}>
-                      {caiCaptured ? <CheckCircle2 size={12} className="status-icon success" /> : <CircleDashed size={12} className="status-icon pending" />}
-                      {ecacCaptured ? <CheckCircle2 size={12} className="status-icon success" /> : <CircleDashed size={12} className="status-icon pending" />}
-                    </div>
+                    {caiCaptured ? <CheckCircle2 size={12} className="status-icon success" /> : <CircleDashed size={12} className="status-icon pending" />}
                     <span className="source-label" style={{ fontSize: '10px', fontWeight: 700 }}>{source.label}</span>
                   </div>
                   <div style={{ fontSize: '9px', color: '#64748b', display: 'flex', flexDirection: 'column', gap: '1px' }}>
                     <span style={{ color: caiCaptured ? '#10b981' : 'inherit' }}>• Inscrição (CAEPF)</span>
-                    <span style={{ color: ecacCaptured ? '#10b981' : 'inherit' }}>• Dados Cadastrais</span>
                   </div>
                 </div>
               );

@@ -53,8 +53,7 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
       { id: "cadunico",   label: "CadÚnico" },
       { id: "tse",        label: "TSE" },
       { id: "pesqbrasil", label: "PesqBrasil" },
-      { id: "esocial",    label: "CEI/CAEPF" },
-      { id: "ecac",       label: "e-CAC" }
+      { id: "esocial",    label: "eSocial / CAEPF" }
     ];
 
     sources.forEach(src => {
@@ -197,7 +196,6 @@ import { resolvePortalBridge } from "../automation/cadastro/portal-bridges";
       tse: projected.tse,
       pesqbrasil: projected.pesqbrasil,
       esocial: projected.caepf,
-      ecac: projected.ecac,
     };
 
     Object.entries(mapping).forEach(([id, status]) => {
