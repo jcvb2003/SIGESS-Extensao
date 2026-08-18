@@ -79,6 +79,7 @@ export type GovBatchItemStatus =
   | "verificando_boleto"
   | "boleto_salvo"
   | "gerando_pdf"
+  | "iniciando_geracao"
   | "redirecionando"
   | "concluido"
   | "erro"

@@ -794,6 +794,8 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
     if (!credentials || credentials.portalType !== "esocial") continue;
 
     const first = item.competencias[0];
+    const competenciaInicial = `${first.ano}${String(first.mes).padStart(2, "0")}`;
+    const competenciaInicialLabel = `${String(first.mes).padStart(2, "0")}/${first.ano}`;
     await StorageService.updateCredentials(item.tabId, {
       gerarGps: true,
       consultarGuias: false,
@@ -801,14 +803,14 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
       selectedYear: first.ano,
       selectedMonth: first.mes,
       valorComercializado: first.valorComercializado,
-      competenciaAtual: undefined,
-      competenciaIndice: undefined,
+      competenciaAtual: competenciaInicial,
+      competenciaIndice: 0,
       competenciasTotal: item.competencias.length,
       competenciasResultados: [],
       boletoGerado: false,
-      status: "redirecionando",
+      status: "iniciando_geracao",
       statusTitle: "Preparando geração",
-      statusDescription: "Retornando à página de geração do eSocial...",
+      statusDescription: `Abrindo o contexto de geração para ${competenciaInicialLabel}...`,
       lastError: undefined,
       lastUpdatedAt: Date.now(),
     });
