@@ -782,48 +782,6 @@ function isTransientDctfValidationError(message: string): boolean {
     && normalized.includes("gerar a guia");
 }
 
-function isPayrollClosedInContext(doc: Document, competencia: string): boolean {
-  const statusInput = doc.querySelector<HTMLInputElement>(
-    "#SituacaoFolha, input[name='SituacaoFolha']",
-  );
-  const status = statusInput?.value?.trim() || "";
-  if (status === "4") {
-    console.debug("[SIGESS] Contexto indica folha encerrada pelo estado nativo:", {
-      competencia,
-      situacaoFolha: status,
-    });
-    return true;
-  }
-
-  const reaberturaControl = Array.from(doc.querySelectorAll("a, button"))
-    .find((element) => {
-      const text = (element.textContent || "").replace(/\s+/g, " ").trim();
-      const onclick = element.getAttribute("onclick") || "";
-      return /reabrir m[eê]s/i.test(text) || /Reabertura/i.test(onclick);
-    });
-  if (reaberturaControl) {
-    console.debug("[SIGESS] Contexto indica folha encerrada pelo controle de reabertura:", {
-      competencia,
-      controle: reaberturaControl.textContent?.trim() || reaberturaControl.tagName,
-    });
-    return true;
-  }
-
-  const closedControl = doc.querySelector(
-    ".encerrar-folha[disabled], #btn-encerrar-mes[disabled]",
-  );
-  if (closedControl) {
-    console.debug("[SIGESS] Contexto indica folha encerrada pelo botão nativo desabilitado:", {
-      competencia,
-    });
-    return true;
-  }
-
-  const bodyText = (doc.body?.textContent || "").replace(/\s+/g, " ");
-  return /folha(?: de pagamento)?\s+(?:está\s+)?(?:encerrada|fechada)/i.test(bodyText)
-    || /folha encerrada/i.test(bodyText);
-}
-
 function iniciarReaberturaDaCompetencia(
   settings: AppSettings,
   competencia: string,
@@ -1708,10 +1666,10 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     return;
   }
 
-  // Uma URL de emissão sem valor declarado/pago não comprova a existência de
-  // um DAE utilizável. Quando o contexto renderizado confirma que a folha está
-  // encerrada, reabra-a pela rota nativa antes de enviar os dados novamente.
-  if (acao === "reabrir_e_gerar" || isPayrollClosedInContext(document, competencia)) {
+  // A consulta completa é a única fonte da decisão de reabertura. Uma
+  // competência classificada como "gerar" nunca deve ser desviada por
+  // heurísticas do DOM ou por controles genéricos da página.
+  if (acao === "reabrir_e_gerar") {
     iniciarReaberturaDaCompetencia(
       settings,
       competencia,
