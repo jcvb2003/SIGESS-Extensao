@@ -121,12 +121,6 @@ export const esocialMessages = {
     description: "Recuperando informações...",
   }),
 
-  verifyingClosureAccess: (): StatusMessage => ({
-    status: "processando",
-    title: "Verificando acesso ao encerramento",
-    description: "Validando permissões...",
-  }),
-
   pdfDownloadedSuccessfully: (filename: string): StatusMessage => ({
     status: "concluido",
     title: "Boleto salvo com sucesso",

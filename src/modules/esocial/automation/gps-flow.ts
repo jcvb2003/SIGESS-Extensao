@@ -311,7 +311,7 @@ async function executarFechamentoDireto(
     fechamentoForm,
   );
   const fechamentoPostDoc = parseHtml(fechamentoPostHtml);
-  const fechamentoHtmlError = extractHtmlAlertMessage(fechamentoPostDoc) || extractHtmlAlertMessage(fechamentoPostHtml);
+  const fechamentoHtmlError = extractHtmlAlertMessage(fechamentoPostDoc);
 
   console.debug("[SIGESS] Fechamento direto respondeu:", {
     competencia,
@@ -1076,8 +1076,7 @@ export async function resumePendingGpsFlow(settings?: AppSettings): Promise<bool
     htmlLength: fechamentoHtml.length,
   });
 
-  const fechamentoHtmlError =
-    extractHtmlAlertMessage(fechamentoDoc) || extractHtmlAlertMessage(fechamentoHtml);
+  const fechamentoHtmlError = extractHtmlAlertMessage(fechamentoDoc);
   if (fechamentoHtmlError) {
     console.warn("[SIGESS] Mensagem de erro no fechamento:", fechamentoHtmlError);
     console.warn("[SIGESS] Campos retornados apos erro no fechamento:", snapshotFormFields(fechamentoDoc));
@@ -1338,7 +1337,10 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
   if (!guiaExistente) {
     throw new Error(`Diagnóstico ausente para a competência ${competencia}.`);
   }
-  const acao = activeQueue.plano?.[competencia] || classificarCompetencia(guiaExistente);
+  const acao = activeQueue.plano?.[competencia];
+  if (!acao) {
+    throw new Error(`Plano de execução ausente para a competência ${competencia}.`);
+  }
   if (acao === "ja_existente" && hasGuiaEmitida(guiaExistente)) {
     // For an already registered DAE, use the same canonical route used by
     // the native "Emitir Guia" action. The URL extracted from the
