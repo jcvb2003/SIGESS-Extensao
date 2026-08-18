@@ -158,14 +158,14 @@ async function prepararPlanoDeGeracao(
   // their table read; this still completes diagnosis before any mutation.
   const anoAtual = competenciaAtual.slice(0, 4);
   anos.sort((left, right) => (left === anoAtual ? -1 : right === anoAtual ? 1 : 0));
-  const snapshot: Record<string, Awaited<ReturnType<typeof fetchBoletosDoAno>>[string]> = {};
-  for (const ano of anos) {
-    const yearSnapshot = await fetchBoletosDoAno(
+  const yearSnapshots = await Promise.all(
+    anos.map((ano) => fetchBoletosDoAno(
       ano,
       ano === anoAtual ? competenciaAtual : undefined,
-    );
-    Object.assign(snapshot, yearSnapshot);
-  }
+    )),
+  );
+  const snapshot: Record<string, Awaited<ReturnType<typeof fetchBoletosDoAno>>[string]> = {};
+  for (const yearSnapshot of yearSnapshots) Object.assign(snapshot, yearSnapshot);
   const diagnostico: Record<string, GuiaExistenteInfo> = {};
   const plano: Record<string, GpsExecutionAction> = {};
 
