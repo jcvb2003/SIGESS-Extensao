@@ -22,7 +22,7 @@ import { buildComercializacaoPayload } from "../services/comercializacao";
 import { reportBatchStatus, showSuccessModal } from "./overlay-ui";
 import { baixarGuiaPdfDirecto } from "./guide-download";
 import { esocialMessages } from "../utils/status-messages";
-import { fetchBoletoData, fetchComercializacaoData } from "../services/esocial-data-fetcher";
+import { fetchBoletoData, fetchBoletosDoAno, fetchComercializacaoData } from "../services/esocial-data-fetcher";
 
 type PendingGpsClosureState = {
   competencia: string;
@@ -45,7 +45,11 @@ type GpsQueueState = {
   competencias: EsocialCompetenciaPlanejada[];
   index: number;
   resultados: GovBatchCompetenciaResult[];
+  diagnostico?: Record<string, GuiaExistenteInfo>;
+  plano?: Record<string, GpsExecutionAction>;
 };
+
+type GpsExecutionAction = "ja_existente" | "reabrir_e_gerar" | "gerar";
 
 function normalizePlannedCompetencias(settings: AppSettings): EsocialCompetenciaPlanejada[] {
   const planned = (settings.competencias || [])
@@ -125,6 +129,72 @@ function initializeGpsQueue(settings: AppSettings): GpsQueueState {
   };
   writeGpsQueueState(state);
   return state;
+}
+
+function folhaEncerrada(situacao?: string): boolean {
+  const normalized = (situacao || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return normalized.includes("encerrad") || normalized.includes("fechad");
+}
+
+function classificarCompetencia(info: GuiaExistenteInfo): GpsExecutionAction {
+  if (hasGuiaEmitida(info)) return "ja_existente";
+  return folhaEncerrada(info.situacao) ? "reabrir_e_gerar" : "gerar";
+}
+
+async function prepararPlanoDeGeracao(
+  state: GpsQueueState,
+  competenciaAtual: string,
+): Promise<GpsQueueState> {
+  if (state.diagnostico && state.plano) return state;
+
+  const anos = Array.from(new Set(state.competencias.map((item) => item.ano)));
+  if (anos.length === 0) return state;
+
+  // Keep the current competence's year first so the context synchronization
+  // belongs to the page that started this generation. Other years only need
+  // their table read; this still completes diagnosis before any mutation.
+  const anoAtual = competenciaAtual.slice(0, 4);
+  anos.sort((left, right) => (left === anoAtual ? -1 : right === anoAtual ? 1 : 0));
+  const snapshot: Record<string, Awaited<ReturnType<typeof fetchBoletosDoAno>>[string]> = {};
+  for (const ano of anos) {
+    const yearSnapshot = await fetchBoletosDoAno(
+      ano,
+      ano === anoAtual ? competenciaAtual : undefined,
+    );
+    Object.assign(snapshot, yearSnapshot);
+  }
+  const diagnostico: Record<string, GuiaExistenteInfo> = {};
+  const plano: Record<string, GpsExecutionAction> = {};
+
+  for (const item of state.competencias) {
+    const competencia = `${item.ano}${item.mes}`;
+    const boleto = snapshot[competencia] || {
+      paga: false,
+      emissaoUrl: null,
+      valorDeclarado: 0,
+      valorPago: 0,
+      situacao: "",
+    };
+    const info: GuiaExistenteInfo = {
+      paga: (boleto.valorPago ?? 0) > 0,
+      emissaoUrl: boleto.emissaoUrl,
+      valorDeclarado: boleto.valorDeclarado,
+      valorPago: boleto.valorPago,
+      situacao: boleto.situacao,
+    };
+    diagnostico[competencia] = info;
+    plano[competencia] = classificarCompetencia(info);
+  }
+
+  const prepared = { ...state, diagnostico, plano };
+  writeGpsQueueState(prepared);
+  console.debug("[SIGESS] Plano interno de geração preparado:", {
+    competencias: state.competencias.map((item) => {
+      const competencia = `${item.ano}${item.mes}`;
+      return { competencia, acao: plano[competencia], diagnostico: diagnostico[competencia] };
+    }),
+  });
+  return prepared;
 }
 
 function markCurrentCompetenciaResult(
@@ -1518,7 +1588,7 @@ export async function extrairValorTotalComercializadoDaPagina(competencia: strin
 
 export async function executarFluxoDirectoFromHome(settings: AppSettings): Promise<void> {
   const queue = initializeGpsQueue(settings);
-  const activeQueue = markCurrentCompetenciaResult("processando") || queue;
+  let activeQueue = markCurrentCompetenciaResult("processando") || queue;
   const planned = queue.competencias[queue.index];
   const competencia = planned ? `${planned.ano}${planned.mes}` : buildCompetenciaFromSettings(settings);
   if (!competencia) {
@@ -1570,6 +1640,11 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     return;
   }
 
+  // The current ListarPagamentos context is the synchronization boundary for
+  // the whole tab. Read the complete Competencias table once, then keep the
+  // resulting action plan in sessionStorage while the queue advances.
+  activeQueue = await prepararPlanoDeGeracao(activeQueue, competencia);
+
   const checkMsg = esocialMessages.verifyingBoletoStatus();
   logger.info("eSocial", checkMsg.title);
   reportBatchStatus(checkMsg.status, checkMsg.title, checkMsg.description, {
@@ -1584,17 +1659,12 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     },
   });
 
-  const valorTotalComercializado = await extrairValorTotalComercializadoDaPagina(competencia);
-
-  console.debug("[SIGESS] Valor comercializado para decisao inicial:", {
-    valorTotalComercializado,
-  });
-
-  // A leitura da comercialização pode retornar zero enquanto o contexto do
-  // eSocial ainda está sendo materializado. Isso não significa, por si só,
-  // que a folha precise ser reaberta.
-  const guiaExistente = await consultarGuiaExistenteViaApi(competencia);
-  if (hasGuiaEmitida(guiaExistente)) {
+  // The complete preflight decides whether the guide exists, whether the
+  // sheet must be re-opened, or whether this competence can be generated.
+  const guiaExistente = activeQueue.diagnostico?.[competencia]
+    || await consultarGuiaExistenteViaApi(competencia);
+  const acao = activeQueue.plano?.[competencia] || classificarCompetencia(guiaExistente);
+  if (acao === "ja_existente" && hasGuiaEmitida(guiaExistente)) {
     // For an already registered DAE, use the same canonical route used by
     // the native "Emitir Guia" action. The URL extracted from the
     // Competencias HTML may refer to a javascript wrapper or an intermediate
@@ -1620,7 +1690,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
       competencia,
       false,
       {
-        valorComercializado: valorTotalComercializado,
+        valorComercializado: 0,
         valorDeclarado: guiaExistente.valorDeclarado,
         valorPago: guiaExistente.valorPago,
       },
@@ -1630,7 +1700,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
       competencia,
       "ja_existente",
       {
-        valorComercializado: valorTotalComercializado,
+        valorComercializado: 0,
         valorDeclarado: guiaExistente.valorDeclarado,
         valorPago: guiaExistente.valorPago,
       },
@@ -1641,7 +1711,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
   // Uma URL de emissão sem valor declarado/pago não comprova a existência de
   // um DAE utilizável. Quando o contexto renderizado confirma que a folha está
   // encerrada, reabra-a pela rota nativa antes de enviar os dados novamente.
-  if (isPayrollClosedInContext(document, competencia)) {
+  if (acao === "reabrir_e_gerar" || isPayrollClosedInContext(document, competencia)) {
     iniciarReaberturaDaCompetencia(
       settings,
       competencia,
@@ -1650,6 +1720,15 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     );
     return;
   }
+
+  // Only generated competencies need the commercialisation value. Existing
+  // guides and re-opened sheets have already been classified by the preflight,
+  // avoiding one extra request per competency.
+  const valorTotalComercializado = await extrairValorTotalComercializadoDaPagina(competencia);
+
+  console.debug("[SIGESS] Valor comercializado para decisao inicial:", {
+    valorTotalComercializado,
+  });
 
   console.debug("[SIGESS] Competencia sem guia emitida; prosseguindo para geração direta:", {
     competencia,

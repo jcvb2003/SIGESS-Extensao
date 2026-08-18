@@ -1,5 +1,4 @@
 import { StorageService } from "./storage";
-import { DOMInjector } from "./dom-injector";
 import { CadastroSession, UserCredentials } from "../../shared/types";
 import {
   AuthStrategy,
@@ -27,8 +26,7 @@ export class TabManager {
   private readonly processingTabs = new Set<number>();
   private readonly pendingGovBrDomReplay = new Set<number>();
   private readonly postLoginNavigationInFlight = new Set<number>();
-  private readonly govBrFocusRestore = new Map<number, { tabId: number | null; pendingTabs: Set<number> }>();
-  private readonly govBrCpfWatchers = new Set<number>();
+  private readonly govBrAuthorizeFocusRestore = new Map<number, number | null>();
 
   constructor() {
     this.strategies = [
@@ -186,8 +184,7 @@ export class TabManager {
         lastUpdatedAt: Date.now(),
       });
       // O TSE precisa de uma primeira renderização em foreground para iniciar
-      // sua SPA com confiabilidade. Os demais portais permanecem em segundo plano
-      // e recebem foco apenas durante a inicialização do Gov.br.
+      // sua SPA com confiabilidade. Os demais portais permanecem em segundo plano.
       await browser.tabs.update(tab.id, { url, active: portalType === "tse" });
       return tab.id;
     } catch (error) {
@@ -232,8 +229,6 @@ export class TabManager {
       // the eSocial flow (ListarPagamentos -> Competencias, generation pages,
       // etc.) must not reset the status back to the initial login message.
       await StorageService.updateCredentials(tabId, { govBrPasswordSubmitted: false });
-      await this.restoreGovBrFocus(tabId);
-
       if (completedCredentials?.isCadastroAutomatico && changeInfo.status === "complete") {
         await this.handleCadastroPostLoginNav(tabId, tab.url, completedCredentials);
       }
@@ -264,18 +259,18 @@ export class TabManager {
 
     if (strategy) {
       const execute = () => this.executeWithRetry(tabId, tab.url!, credentials, strategy);
-      if (tab.url.includes("sso.acesso.gov.br")) {
-        await this.focusGovBrTab(tabId);
-        this.watchGovBrCpfField(tabId);
+
+      if (tab.url.includes("sso.acesso.gov.br/authorize")) {
+        await this.focusGovBrAuthorize(tabId);
+      } else if (tab.url.includes("sso.acesso.gov.br/login")) {
+        await this.restoreGovBrAuthorizeFocus(tabId);
       }
+
       await execute();
 
       // O e-CAC pode concluir o login já na página autenticada, sem gerar outro
       // evento de navegação. Rele as credenciais para usar o mesmo pós-login.
       const updatedCredentials = await StorageService.getCredentials(tabId);
-      if (updatedCredentials?.loginConcluido) {
-        await this.restoreGovBrFocus(tabId);
-      }
       if (
         changeInfo.status === "complete" &&
         updatedCredentials?.isCadastroAutomatico &&
@@ -319,7 +314,6 @@ export class TabManager {
     );
     if (!strategy) return;
 
-    await this.focusGovBrTab(tabId);
     await this.executeWithRetry(tabId, tab.url, credentials, strategy);
   }
 
@@ -650,102 +644,52 @@ export class TabManager {
     await this.clearTabContainer(tabId);
     this.processingTabs.delete(tabId);
     this.postLoginNavigationInFlight.delete(tabId);
-    this.govBrCpfWatchers.delete(tabId);
-    for (const [windowId, state] of this.govBrFocusRestore.entries()) {
-      state.pendingTabs.delete(tabId);
-      if (state.pendingTabs.size === 0) this.govBrFocusRestore.delete(windowId);
-    }
-
+    this.govBrAuthorizeFocusRestore.delete(tabId);
     if (containerId && !creds?.isCadastroAutomatico && this.supportsContextualIdentities()) {
       this.enqueueContainerOp(() => this.processContainerRetention(containerId));
     }
   }
 
-  private async focusGovBrTab(tabId: number): Promise<void> {
-    const tab = await browser.tabs.get(tabId);
-    if (tab.active || typeof tab.windowId !== "number") return;
+  private async focusGovBrAuthorize(tabId: number): Promise<void> {
+    const tab = await browser.tabs.get(tabId).catch(() => null);
+    if (!tab || tab.active || typeof tab.windowId !== "number") return;
+    if (this.govBrAuthorizeFocusRestore.has(tabId)) return;
 
-    const credentials = await StorageService.getCredentials(tabId);
-    // No login manual, a aba do portal deve permanecer aberta e focada para
-    // que o usuário continue trabalhando nela após a autenticação.
-    if (!credentials?.isCadastroAutomatico) {
+    const activeTabs = await browser.tabs.query({ windowId: tab.windowId, active: true });
+    const activeTabId = activeTabs[0]?.id;
+    const trackedPreviousTabId = typeof activeTabId === "number"
+      ? this.govBrAuthorizeFocusRestore.get(activeTabId)
+      : undefined;
+    const previousTabId = trackedPreviousTabId !== undefined ? trackedPreviousTabId : activeTabId;
+    this.govBrAuthorizeFocusRestore.set(
+      tabId,
+      typeof previousTabId === "number" && previousTabId !== tabId ? previousTabId : null,
+    );
+
+    try {
       await browser.tabs.update(tabId, { active: true });
-      return;
+    } catch (error) {
+      this.govBrAuthorizeFocusRestore.delete(tabId);
+      console.debug(`[SIGESS] Não foi possível focar a inicialização Gov.br na aba ${tabId}:`, error);
     }
-
-    let state = this.govBrFocusRestore.get(tab.windowId);
-    if (!state) {
-      const activeTabs = await browser.tabs.query({ windowId: tab.windowId, active: true });
-      const previous = activeTabs[0];
-      state = {
-        tabId: typeof previous?.id === "number" && previous.id !== tabId ? previous.id : null,
-        pendingTabs: new Set<number>(),
-      };
-      this.govBrFocusRestore.set(tab.windowId, state);
-    }
-    state.pendingTabs.add(tabId);
-
-    await browser.tabs.update(tabId, { active: true });
   }
 
-  private async restoreGovBrFocus(tabId: number): Promise<void> {
-    const credentials = await StorageService.getCredentials(tabId);
-    if (credentials?.govBrTwoFactorPending) return;
+  private async restoreGovBrAuthorizeFocus(tabId: number): Promise<void> {
+    const previousTabId = this.govBrAuthorizeFocusRestore.get(tabId);
+    if (previousTabId === undefined) return;
+    this.govBrAuthorizeFocusRestore.delete(tabId);
+    if (previousTabId === null) return;
 
     const tab = await browser.tabs.get(tabId).catch(() => null);
     if (!tab || typeof tab.windowId !== "number") return;
-    const state = this.govBrFocusRestore.get(tab.windowId);
-    if (!state) return;
-    state.pendingTabs.delete(tabId);
-    if (state.pendingTabs.size > 0) return;
 
     try {
       const activeTabs = await browser.tabs.query({ windowId: tab.windowId, active: true });
-      if (activeTabs[0]?.id === tabId && state.tabId !== null) {
-        await browser.tabs.update(state.tabId, { active: true });
-      }
+      if (activeTabs[0]?.id !== tabId) return;
+      await browser.tabs.update(previousTabId, { active: true });
     } catch {
-      // A aba anterior pode ter sido fechada durante o fluxo.
-    } finally {
-      this.govBrFocusRestore.delete(tab.windowId);
+      // A aba anterior pode ter sido fechada durante a inicialização.
     }
-  }
-
-  private watchGovBrCpfField(tabId: number): void {
-    if (this.govBrCpfWatchers.has(tabId)) return;
-    this.govBrCpfWatchers.add(tabId);
-
-    void (async () => {
-      try {
-        for (let attempt = 0; attempt < 100; attempt += 1) {
-          const credentials = await StorageService.getCredentials(tabId);
-          if (!credentials || credentials.loginConcluido || credentials.govBrTwoFactorPending) return;
-
-          const tab = await browser.tabs.get(tabId).catch(() => null);
-          if (!tab?.url?.includes("sso.acesso.gov.br")) return;
-
-          try {
-            const cpfVisible = await DOMInjector.execute(
-              tabId,
-              () => {
-                const field = document.querySelector("#accountId") as HTMLElement | null;
-                return Boolean(field && field.offsetParent !== null);
-              },
-            );
-            if (cpfVisible) {
-              await this.restoreGovBrFocus(tabId);
-              return;
-            }
-          } catch {
-            // A página pode estar transitando entre as telas do Gov.br.
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, 150));
-        }
-      } finally {
-        this.govBrCpfWatchers.delete(tabId);
-      }
-    })();
   }
 
   private async processContainerRetention(containerId: string): Promise<void> {

@@ -1,5 +1,5 @@
 import { parseHtml } from "./document-parser";
-import { extractMoneyValues } from "../utils/esocial-extractors";
+import { extractCompetenciaFromUrl, extractMoneyValues } from "../utils/esocial-extractors";
 import { buildEsocialUrl } from "./esocial-api";
 
 export interface BoletoData {
@@ -64,59 +64,8 @@ export async function fetchBoletoData(competencia: string): Promise<BoletoData> 
     const html = await response.text();
     const doc = parseHtml(html);
 
-    // Find the table row for this competencia
-    const rows = Array.from(doc.querySelectorAll("table tbody tr"));
-    for (const row of rows) {
-      const link = row.querySelector(`a[href*="competencia=${competencia}"]`);
-      if (!link) continue;
-
-      const cells = Array.from(row.querySelectorAll("td"));
-
-      // Table structure:
-      // [0]=Competência | [1]=Vencimento | [2]=Situação | [3]=Declarado | [4]=Pago | [5]=Detalhar | [6]=Ações
-
-      const situacao = cells[2]?.textContent?.trim() || "";
-
-      // Extract Declarado (column 3)
-      const declaredText = cells[3]?.textContent?.trim() || "-";
-      const declaredValues = extractMoneyValues(declaredText);
-      let valorDeclarado = declaredValues[0] ?? 0;
-
-      // Extract Pago (column 4)
-      const paidText = cells[4]?.textContent?.trim() || "-";
-      const paidValues = extractMoneyValues(paidText);
-      const valorPago = paidValues[0] ?? 0;
-
-      // Try to find "Emitir Guia" link
-      const emitirGuiaLink = Array.from(row.querySelectorAll("a")).find(
-        (a) =>
-          (a.textContent || "").toLowerCase().includes("emitir") &&
-          (a.getAttribute("href") || "").includes("EmitirGuia")
-      );
-      let emissaoUrl: string | null = null;
-      if (emitirGuiaLink) {
-        const href = emitirGuiaLink.getAttribute("href") || "";
-        const extracted = href.split("javascript:")[1]?.match(/['"]([^'"]+)['"]/)?.[1];
-        if (extracted) {
-          emissaoUrl = buildEsocialUrl(extracted);
-        }
-      }
-
-      console.debug("[SIGESS] Boleto data fetched:", {
-        competencia,
-        situacao,
-        declaredText: cells[3]?.textContent?.trim(),
-        declaredValues,
-        paidText: cells[4]?.textContent?.trim(),
-        paidValues,
-        valorDeclarado,
-        valorPago,
-        hasEmissaoUrl: !!emissaoUrl,
-        emissaoUrl,
-      });
-
-      return { valorDeclarado, valorPago, situacao, emissaoUrl };
-    }
+    const data = extractBoletoDataFromDocument(doc, competencia);
+    if (data) return data;
 
     console.warn("[SIGESS] Competência não encontrada na página");
     return { valorDeclarado: 0, valorPago: 0, situacao: "", emissaoUrl: null };
@@ -124,6 +73,83 @@ export async function fetchBoletoData(competencia: string): Promise<BoletoData> 
     console.error("[SIGESS] Erro ao buscar dados de boleto:", error);
     return { valorDeclarado: 0, valorPago: 0, situacao: "", emissaoUrl: null };
   }
+}
+
+function extractBoletoDataFromRow(row: Element, competencia: string): BoletoData {
+  const cells = Array.from(row.querySelectorAll("td"));
+  const situacao = cells[2]?.textContent?.trim() || "";
+  const declaredText = cells[3]?.textContent?.trim() || "-";
+  const paidText = cells[4]?.textContent?.trim() || "-";
+  const declaredValues = extractMoneyValues(declaredText);
+  const paidValues = extractMoneyValues(paidText);
+  const valorDeclarado = declaredValues[0] ?? 0;
+  const valorPago = paidValues[0] ?? 0;
+
+  const emitirGuiaLink = Array.from(row.querySelectorAll("a")).find(
+    (a) =>
+      (a.textContent || "").toLowerCase().includes("emitir") &&
+      (a.getAttribute("href") || "").includes("EmitirGuia"),
+  );
+  let emissaoUrl: string | null = null;
+  if (emitirGuiaLink) {
+    const href = emitirGuiaLink.getAttribute("href") || "";
+    const extracted = href.split("javascript:")[1]?.match(/['"]([^'"]+)['"]/)?.[1];
+    if (extracted) emissaoUrl = buildEsocialUrl(extracted);
+  }
+
+  console.debug("[SIGESS] Boleto data fetched:", {
+    competencia,
+    situacao,
+    declaredText,
+    declaredValues,
+    paidText,
+    paidValues,
+    valorDeclarado,
+    valorPago,
+    hasEmissaoUrl: !!emissaoUrl,
+    emissaoUrl,
+  });
+
+  return { valorDeclarado, valorPago, situacao, emissaoUrl };
+}
+
+function extractBoletoDataFromDocument(doc: Document, competencia: string): BoletoData | null {
+  const row = Array.from(doc.querySelectorAll("table tbody tr")).find((candidate) =>
+    extractCompetenciaFromUrl(
+      candidate.querySelector("a[href*='competencia=']")?.getAttribute("href") || null,
+    ) === competencia,
+  );
+  return row ? extractBoletoDataFromRow(row, competencia) : null;
+}
+
+/** Reads the complete Competencias table for the generation preflight. */
+export async function fetchBoletosDoAno(
+  ano: string,
+  contextoCompetencia?: string,
+): Promise<Record<string, BoletoData>> {
+  if (contextoCompetencia) await syncServerState(contextoCompetencia);
+
+  const response = await fetch(
+    buildEsocialUrl(`/FolhaPagamento/Listagem/Competencias?ano=${ano}`),
+    { method: "GET", credentials: "include" },
+  );
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const doc = parseHtml(await response.text());
+  const result: Record<string, BoletoData> = {};
+  for (const row of Array.from(doc.querySelectorAll("table tbody tr"))) {
+    const link = row.querySelector("a[href*='competencia=']");
+    const competencia = extractCompetenciaFromUrl(link?.getAttribute("href") || null);
+    if (!competencia || !competencia.startsWith(ano)) continue;
+    result[competencia] = extractBoletoDataFromRow(row, competencia);
+  }
+
+  console.debug("[SIGESS] Diagnóstico completo de competências concluído:", {
+    ano,
+    total: Object.keys(result).length,
+    competencias: Object.keys(result),
+  });
+  return result;
 }
 
 /**
