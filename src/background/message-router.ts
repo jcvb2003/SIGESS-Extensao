@@ -41,6 +41,7 @@ import {
   processCadastroPortalOutcome,
 } from "./cadastro/cadastro-orchestrator";
 import { createCadastroCollectionEvent } from "./cadastro/cadastro-event";
+import { enqueueCadastroSessionWork } from "./cadastro/cadastro-session-queue";
 import { XPI_INSTALL_URL } from "../shared/services/update-block";
 import { clearStaticCacheRuntime } from "./services/static-cache-runtime";
 import { clearStaticCache } from "./services/static-cache-policy";
@@ -771,18 +772,14 @@ async function handleSavePessoaData(
 
 // ── Cadastro Automático ───────────────────────────────────────────────────
 
-// Garante que atualizações de portais sejam aplicadas em série —
-// pesqbrasil_mpa e ecac_caepf chegam simultaneamente e causam race condition
-// se cada um ler/escrever a sessão de forma concorrente.
-let _cadastroUpdateQueue: Promise<void> = Promise.resolve();
-
 function enqueueCadastroDataArrival(
   event: ReturnType<typeof createCadastroCollectionEvent>,
   getTabManager?: () => any,
 ): void {
   if (!event) return;
-  _cadastroUpdateQueue = _cadastroUpdateQueue
-    .then(() => processCadastroDataArrival(event.source, getTabManager, event.sourceTabId, event.sessionId))
+  void enqueueCadastroSessionWork(event.sessionId, () =>
+    processCadastroDataArrival(event.source, getTabManager, event.sourceTabId, event.sessionId),
+  )
     .catch((error) => {
       console.error(`[SIGESS] Falha ao processar coleta de ${event.source}.`, error);
     });
@@ -921,8 +918,23 @@ async function handleCadastroPortalOutcome(
     return { success: false, error: "aba_do_portal_nao_autorizada" };
   }
 
-  await processCadastroPortalOutcome(session, portalKey, outcome, String(message.reason || outcome), getTabManager);
-  return { success: true };
+  return await enqueueCadastroSessionWork(session.sessionId, async () => {
+    const activeSession = await getActiveSession();
+    const activePortal = activeSession?.portais[portalKey];
+    if (!activeSession || activeSession.sessionId !== session.sessionId || !activePortal) return { success: true };
+    if (!isRegisteredCadastroPortalSender(activeSession, portalKey, sender)) {
+      return { success: false, error: "aba_do_portal_nao_autorizada" };
+    }
+
+    await processCadastroPortalOutcome(
+      activeSession,
+      portalKey,
+      outcome,
+      String(message.reason || outcome),
+      getTabManager,
+    );
+    return { success: true };
+  });
 }
 
 async function openDataInspector(): Promise<MessageResponse> {
