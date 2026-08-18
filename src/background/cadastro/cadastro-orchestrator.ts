@@ -164,9 +164,10 @@ export async function processCadastroDataArrival(
   source: string,
   getTabManager?: () => any,
   sourceTabId?: number,
+  sessionId?: string,
 ): Promise<void> {
   const session = await getActiveCadastroSession();
-  if (!session) return;
+  if (!session || (sessionId && session.sessionId !== sessionId)) return;
   const portalId = getCadastroPortalForDataSource(session, source);
   const portal = portalId ? session.portais[portalId] : null;
   if (!portalId || !portal) return;

@@ -11,7 +11,6 @@ import {
   MessageResponse,
   MultiLoginItem,
   UserCredentials,
-  PessoaData,
 } from "../shared/types";
 import { BadgeManager } from "./services/badge-manager";
 import { INSS_LOGIN_URL, isInssUrl } from "../modules/automation/inss/routes";
@@ -41,6 +40,7 @@ import {
   processCadastroDataArrival,
   processCadastroPortalOutcome,
 } from "./cadastro/cadastro-orchestrator";
+import { createCadastroCollectionEvent } from "./cadastro/cadastro-event";
 import { XPI_INSTALL_URL } from "../shared/services/update-block";
 import { clearStaticCacheRuntime } from "./services/static-cache-runtime";
 import { clearStaticCache } from "./services/static-cache-policy";
@@ -742,11 +742,26 @@ async function handleSavePessoaData(
   }
 
   try {
+    const tabId = sender?.tab?.id;
+    const session = await getActiveCadastroSession();
+    const credentials = typeof tabId === "number"
+      ? await StorageService.getCredentials(tabId)
+      : null;
+    const collectionEvent = session
+      ? createCadastroCollectionEvent(session, fonte, tabId, credentials)
+      : null;
+
+    // Capturas fora do cadastro automático continuam sendo persistidas. Mas
+    // uma aba automática de outra sessão não pode contaminar a sessão ativa.
+    if (session && credentials?.isCadastroAutomatico && !collectionEvent) {
+      return { success: false, error: "evento_de_coleta_fora_da_sessao_ativa" };
+    }
+
     const newSettings = await StorageService.mergePessoaData(data, fonte, message.snapshot);
 
     // Enfileira a atualização de sessão em série para evitar race condition
     // quando pesqbrasil_mpa e ecac_caepf chegam simultaneamente.
-    enqueueCadastroDataArrival(fonte, data, getTabManager, sender?.tab?.id);
+    if (collectionEvent) enqueueCadastroDataArrival(collectionEvent, getTabManager);
 
     return { success: true, settings: newSettings };
   } catch (error: any) {
@@ -762,15 +777,14 @@ async function handleSavePessoaData(
 let _cadastroUpdateQueue: Promise<void> = Promise.resolve();
 
 function enqueueCadastroDataArrival(
-  fonte: string,
-  _data: Partial<PessoaData>,
+  event: ReturnType<typeof createCadastroCollectionEvent>,
   getTabManager?: () => any,
-  sourceTabId?: number,
 ): void {
+  if (!event) return;
   _cadastroUpdateQueue = _cadastroUpdateQueue
-    .then(() => processCadastroDataArrival(fonte, getTabManager, sourceTabId))
+    .then(() => processCadastroDataArrival(event.source, getTabManager, event.sourceTabId, event.sessionId))
     .catch((error) => {
-      console.error(`[SIGESS] Falha ao processar coleta de ${fonte}.`, error);
+      console.error(`[SIGESS] Falha ao processar coleta de ${event.source}.`, error);
     });
 }
 
