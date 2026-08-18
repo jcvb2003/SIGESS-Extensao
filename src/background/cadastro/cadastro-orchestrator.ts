@@ -16,6 +16,10 @@ import {
 } from "./cadastro-session-controller";
 import { INSS_LOGIN_URL } from "../../modules/automation/inss/routes";
 import { TSE_QUERY_URL } from "../../modules/automation/tse/routes";
+import {
+  closeCadastroPortalTab,
+  closeCompletedCadastroTabsExceptCadunico,
+} from "./cadastro-tab-coordinator";
 
 export async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
   if (session.portais.inss) return;
@@ -121,43 +125,6 @@ export async function finalizeCadastroSessionIfReady(session: CadastroSession): 
   }
 
   if (isCadastroSessionReadyToFinalize(session)) await finalizeCadastroSession(session);
-}
-
-async function closeCadastroPortalTab(tabId: number, portalId: CadastroPortalId): Promise<void> {
-  try {
-    await browser.tabs.get(tabId);
-  } catch {
-    // A reconciliação pode alcançar uma aba já encerrada por outro evento.
-    return;
-  }
-
-  let confirmRemoval: (() => void) | undefined;
-  const removed = new Promise<void>((resolve) => {
-    confirmRemoval = resolve;
-  });
-  const onRemoved = (removedTabId: number) => {
-    if (removedTabId !== tabId) return;
-    browser.tabs.onRemoved.removeListener(onRemoved);
-    confirmRemoval?.();
-  };
-
-  browser.tabs.onRemoved.addListener(onRemoved);
-  try {
-    await browser.tabs.remove(tabId);
-    await removed;
-  } catch (error) {
-    browser.tabs.onRemoved.removeListener(onRemoved);
-    console.warn(`[SIGESS] Não foi possível fechar a aba ${portalId} (${tabId}).`, error);
-  }
-}
-
-async function closeCompletedCadastroTabsExceptCadunico(session: CadastroSession): Promise<void> {
-  const portalIds: CadastroPortalId[] = ["pesqbrasil", "esocial", "inss", "tse"];
-  await Promise.all(portalIds.map(async (portalId) => {
-    const portal = session.portais[portalId];
-    if (!portal || !isCadastroPortalTerminal(portal) || typeof portal.tabId !== "number") return;
-    await closeCadastroPortalTab(portal.tabId, portalId);
-  }));
 }
 
 export async function processCadastroDataArrival(
