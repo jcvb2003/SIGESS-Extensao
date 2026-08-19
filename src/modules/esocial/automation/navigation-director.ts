@@ -15,7 +15,7 @@ export function isListarPagamentosPage(url = window.location.href): boolean {
 
 async function waitForListarPagamentosReady(): Promise<void> {
   if (document.readyState === "loading") {
-    await new Promise<void>((resolve) => document.addEventListener("DOMContentLoaded", resolve, { once: true }));
+    await new Promise<void>((resolve) => document.addEventListener("DOMContentLoaded", () => resolve(), { once: true }));
   }
   await Utils.waitForElement("body", 15000, document, false);
   await new Promise((resolve) => window.setTimeout(resolve, 750));
