@@ -515,56 +515,29 @@ async function aguardarGuiaAposFechamento(
   let guiaUrl = resolveGuiaUrlFromDocument(fechamentoPostDoc, competencia);
   const valorResumo = extractValorResumoDoFechamento(fechamentoPostDoc);
   const fechamentoConfirmadoNoHtml = hasFechamentoConfirmadoNoHtml(fechamentoPostDoc);
-  let guiaAposFechamento = await consultarGuiaExistenteViaApi(competencia);
-  if (guiaAposFechamento.status === "error") {
-    throw new Error(guiaAposFechamento.error || "Falha ao confirmar a guia após o fechamento.");
-  }
-
-  if (!guiaUrl && guiaAposFechamento.emissaoUrl && (guiaAposFechamento.valorDeclarado ?? 0) > 0) {
-    guiaUrl = guiaAposFechamento.emissaoUrl;
-  }
-
   if (guiaUrl && fechamentoConfirmadoNoHtml) {
     return {
       guiaUrl,
       guiaAposFechamento: {
-        ...guiaAposFechamento,
+        status: "ok",
+        paga: false,
         emissaoUrl: guiaUrl,
-        valorDeclarado: valorResumo ?? guiaAposFechamento.valorDeclarado,
+        valorDeclarado: valorResumo,
       },
       fechamentoConfirmado: true,
     };
   }
 
-  if (guiaUrl && (guiaAposFechamento.valorDeclarado ?? 0) > 0) {
-    return { guiaUrl, guiaAposFechamento, fechamentoConfirmado: true };
+  // Sem o marcador nativo de sucesso, uma única leitura é apenas diagnóstico.
+  // O fluxo não usa espera temporal para inferir que o eSocial terminou.
+  const guiaAposFechamento = await consultarGuiaExistenteViaApi(competencia);
+  if (guiaAposFechamento.status === "error") {
+    throw new Error(guiaAposFechamento.error || "Falha ao confirmar a guia após o fechamento.");
   }
 
-  for (let attempt = 1; attempt <= 8; attempt += 1) {
-    await delay(1500);
-    guiaAposFechamento = await consultarGuiaExistenteViaApi(competencia);
-    if (guiaAposFechamento.status === "error") {
-      throw new Error(guiaAposFechamento.error || "Falha ao confirmar a guia após o fechamento.");
-    }
-
-    console.debug("[SIGESS] Aguardando guia apos fechamento:", {
-      competencia,
-      attempt,
-      valorDeclarado: guiaAposFechamento.valorDeclarado,
-      valorPago: guiaAposFechamento.valorPago,
-      emissaoUrl: guiaAposFechamento.emissaoUrl,
-    });
-
-    if (
-      guiaAposFechamento.emissaoUrl &&
-      (guiaAposFechamento.valorDeclarado ?? 0) > 0
-    ) {
-      return {
-        guiaUrl: guiaAposFechamento.emissaoUrl,
-        guiaAposFechamento,
-        fechamentoConfirmado: true,
-      };
-    }
+  if (guiaAposFechamento.emissaoUrl && (guiaAposFechamento.valorDeclarado ?? 0) > 0) {
+    guiaUrl = guiaAposFechamento.emissaoUrl;
+    return { guiaUrl, guiaAposFechamento, fechamentoConfirmado: true };
   }
 
   return { guiaUrl, guiaAposFechamento, fechamentoConfirmado: false };
@@ -712,10 +685,6 @@ async function advanceGpsQueueAfterCompletion(
       description: completedMsg.description,
     },
   });
-
-  // Keep the completion checkpoint observable by the Web before the next
-  // navigation overwrites the current status.
-  await new Promise<void>((resolve) => window.setTimeout(resolve, 800));
 
   state.index += 1;
   writeGpsQueueState(state);
@@ -926,10 +895,6 @@ function replaceParamValues(params: URLSearchParams, name: string, value: string
   for (let index = 0; index < existingValues.length; index += 1) {
     params.append(name, value);
   }
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function waitForDocumentBody(): Promise<void> {

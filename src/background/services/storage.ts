@@ -238,12 +238,18 @@ export class StorageService {
     extra?: Partial<UserCredentials>,
   ): Promise<UserCredentials | null> {
     const shouldKeepError = status === "erro";
+    const current = await this.getCredentials(tabId);
+    if (!current) return null;
 
     return this.updateCredentials(tabId, {
       status,
       statusTitle,
       statusDescription,
       ...extra,
+      // Status intermediários descrevem apenas a etapa corrente. Eles não
+      // podem apagar a consulta nem o histórico sequencial já confirmado.
+      consultas: extra?.consultas ?? current.consultas,
+      competenciasResultados: extra?.competenciasResultados ?? current.competenciasResultados,
       lastError: shouldKeepError ? extra?.lastError : undefined,
     });
   }
