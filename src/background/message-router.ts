@@ -528,6 +528,7 @@ async function handleEnqueueGovBatchSessions(
       selectedYear: item.selectedYear,
       selectedMonth: item.selectedMonth,
       competencias: item.competencias,
+      automationRunId: item.runId,
       type: "esocial",
       timestamp: Date.now(),
     });
@@ -554,6 +555,7 @@ async function handleEnqueueGovBatchSessions(
     selectedYear: item.selectedYear,
     selectedMonth: item.selectedMonth,
     competencias: item.competencias,
+    automationRunId: item.automationRunId,
   }));
 
   const openResult = await handleStartBatchLogin(
@@ -596,6 +598,7 @@ async function handleGetGovBatchStatuses(message: MessageRequest) {
   const rawItems = Object.entries(allCredentials)
     .map(([key, credentials]) => ({
       tabId: Number(key.replace("credenciais_", "")),
+      runId: credentials.automationRunId,
       cpf: String(credentials.cpf || "").replace(/\D/g, ""),
       nome: credentials.nome,
       status: credentials.status || (credentials.loginConcluido ? "concluido" : "aguardando_pagina"),
@@ -847,6 +850,7 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
     const competenciaInicial = `${first.ano}${String(first.mes).padStart(2, "0")}`;
     const competenciaInicialLabel = `${String(first.mes).padStart(2, "0")}/${first.ano}`;
     await StorageService.updateCredentials(item.tabId, {
+      automationRunId: item.runId,
       gerarGps: true,
       consultarGuias: false,
       competencias: item.competencias,

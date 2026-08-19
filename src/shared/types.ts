@@ -40,6 +40,8 @@ export interface CadastroSession {
 }
 
 export interface UserCredentials {
+  /** Identifica uma execução Web↔Extensão, sem substituir a identidade tabId. */
+  automationRunId?: string;
   cpf: string;
   senha: string;
   nome?: string;
@@ -128,6 +130,7 @@ export interface GovBatchCompetenciaResult {
 }
 
 export interface MultiLoginItem {
+  automationRunId?: string;
   id: string;
   nome: string;
   cpf: string;
@@ -144,6 +147,7 @@ export interface MultiLoginItem {
 }
 
 export interface GovBatchQueueItem {
+  runId: string;
   cpf: string;
   senha: string;
   nome?: string;
@@ -157,6 +161,7 @@ export interface GovBatchQueueItem {
 }
 
 export interface GovBatchGenerationItem {
+  runId: string;
   tabId: number;
   competencias: EsocialCompetenciaPlanejada[];
 }
