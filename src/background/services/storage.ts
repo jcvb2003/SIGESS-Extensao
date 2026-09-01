@@ -36,8 +36,16 @@ export class StorageService {
 
   static async getSettings(): Promise<AppSettings> {
     const result = await this.get<AppSettings>("sigessSettings");
-    const current = result.sigessSettings || ({} as AppSettings);
-    return normalizeReapSettings(current);
+    const current = (result.sigessSettings || {}) as Partial<AppSettings>;
+    return normalizeReapSettings({
+      consultarGuias: false,
+      gerarGps: false,
+      selectedYear: "current",
+      selectedMonth: "",
+      valorComercializado: "",
+      reapData: {},
+      ...current,
+    });
   }
 
   static async saveSettings(settings: AppSettings): Promise<void> {
