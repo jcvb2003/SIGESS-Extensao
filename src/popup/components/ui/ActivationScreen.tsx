@@ -86,12 +86,13 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({ license, act
                   type="text"
                   placeholder="Seu código de ativação"
                   value={activationKey}
-                  onChange={(e) => setActivationKey(e.target.value)}
+                  onChange={(e) => setActivationKey(e.target.value.toUpperCase())}
                   disabled={activating}
                   style={{
                     width: '100%', padding: '13px 14px 13px 42px', borderRadius: 14,
                     border: '1.5px solid var(--color-accent)', fontSize: 13, fontWeight: '600',
                     background: 'white', color: 'var(--color-text)', outline: 'none',
+                    textTransform: 'uppercase',
                     boxShadow: '0 0 0 4px rgba(15, 118, 110, 0.04)'
                   }}
                 />

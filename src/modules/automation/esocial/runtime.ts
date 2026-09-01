@@ -1,14 +1,25 @@
 import type { CadastroPortalRuntimeAdapter, CadastroPortalRuntimeContext } from "../cadastro/contracts";
-import { isEsocialHomeUrl } from "./routes";
+import { isEsocialCadastroDomesticoUrl, isEsocialHomeUrl } from "./routes";
+import { reportCadastroPortalOutcome } from "../cadastro/portal-outcome-reporter";
 
-/** Confirma no DOM a Home autenticada quando o redirect do eSocial não gera
- * um evento de navegação útil para o background. */
+/** Confirma a navegação autenticada do eSocial quando o redirect não gera um
+ * evento de navegação útil para o background. */
 export class ESocialPortalRuntime implements CadastroPortalRuntimeAdapter {
   readonly id = "esocial" as const;
   private authenticatedReported = false;
+  private caepfNotFoundReported = false;
 
   run({ sessionActive }: CadastroPortalRuntimeContext): void {
-    if (!sessionActive || !isEsocialHomeUrl(globalThis.location.href) || this.authenticatedReported) return;
+    const currentUrl = globalThis.location.href;
+    if (!sessionActive) return;
+    if (isEsocialCadastroDomesticoUrl(currentUrl)) {
+      if (this.caepfNotFoundReported) return;
+      this.caepfNotFoundReported = true;
+      reportCadastroPortalOutcome("esocial", "not_found", "url_cadastro_domestico");
+      return;
+    }
+    this.caepfNotFoundReported = false;
+    if (!isEsocialHomeUrl(currentUrl) || this.authenticatedReported) return;
     this.authenticatedReported = true;
     void (globalThis.browser || globalThis.chrome).runtime.sendMessage({ action: "esocialAuthenticated" });
   }

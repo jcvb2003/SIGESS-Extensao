@@ -5,6 +5,7 @@ import {
   ESOCIAL_CAEPF_COLLECTION_URL,
   ESOCIAL_HOME_URL,
   isEsocialCaepfCollectionUrl,
+  isEsocialCadastroDomesticoUrl,
   isEsocialHomeUrl,
 } from "../esocial/routes";
 import {
@@ -20,6 +21,11 @@ describe("adaptadores dos portais restantes", () => {
     expect(isEsocialHomeUrl(ESOCIAL_HOME_URL)).toBe(true);
     expect(isEsocialCaepfCollectionUrl(ESOCIAL_CAEPF_COLLECTION_URL)).toBe(true);
     expect(isEsocialCaepfCollectionUrl("https://www.esocial.gov.br/portal/Home/Inicial")).toBe(false);
+  });
+
+  it("reconhece CadastroDomestico como evidência de ausência de CAEPF", () => {
+    expect(isEsocialCadastroDomesticoUrl("https://www.esocial.gov.br/portal/Empregador/CadastroDomestico")).toBe(true);
+    expect(isEsocialCadastroDomesticoUrl("https://www.esocial.gov.br/portal/Home/Inicial")).toBe(false);
   });
 
   it("mantém o PesqBrasil MPA como portal aberto pelo cadastro", () => {

@@ -17,6 +17,7 @@ import {
   ESOCIAL_CAEPF_COLLECTION_URL,
   ESOCIAL_LOGIN_URL,
   isEsocialCaepfCollectionUrl,
+  isEsocialCadastroDomesticoUrl,
   isEsocialHomeUrl,
 } from "../../modules/automation/esocial/routes";
 import { closeCadastroContainerTabs, sanitizeCadastroContainer } from "../cadastro/cadastro-container";
@@ -205,6 +206,26 @@ export class TabManager {
 
     const credentials = await StorageService.getCredentials(tabId);
     if (!credentials) return;
+
+    if (
+      credentials.portalType === "esocial" &&
+      credentials.gerarGps &&
+      isEsocialCadastroDomesticoUrl(tab.url) &&
+      changeInfo.status === "complete"
+    ) {
+      await StorageService.updateBatchStatus(
+        tabId,
+        "erro",
+        "CAEPF não cadastrado",
+        "Não é possível gerar o boleto porque não existe CAEPF cadastrado para este usuário no eSocial.",
+        {
+          loginConcluido: true,
+          boletoGerado: false,
+          lastError: "caepf_nao_cadastrado",
+        },
+      );
+      return;
+    }
 
     // O eSocial pode retornar da autenticação diretamente para a Home sem
     // preservar o marcador de senha no evento final. A própria rota é a
