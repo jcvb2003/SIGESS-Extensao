@@ -3,6 +3,10 @@
     "{e9df396f-bdd8-4e79-bc7c-92017a928891}": {
       "updates": [
         {
+          "version": "3.1.28",
+          "update_link": "https://github.com/jcvb2003/SIGESS-Extensao/releases/download/v3.1.28/sigess.xpi"
+        },
+        {
           "version": "3.1.27",
           "update_link": "https://github.com/jcvb2003/SIGESS-Extensao/releases/download/v3.1.27/sigess.xpi"
         },
