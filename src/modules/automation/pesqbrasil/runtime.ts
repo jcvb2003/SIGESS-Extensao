@@ -1,5 +1,6 @@
 import type { CadastroPortalRuntimeAdapter, CadastroPortalRuntimeContext } from "../cadastro/contracts";
-import { isPesqBrasilUrl } from "./routes";
+import { reportCadastroPortalOutcome } from "../cadastro/portal-outcome-reporter";
+import { isPesqBrasilUrl, isPesqBrasilWithoutReliabilitySealUrl } from "./routes";
 
 export class PesqBrasilPortalRuntime implements CadastroPortalRuntimeAdapter {
   readonly id = "pesqbrasil" as const;
@@ -7,6 +8,10 @@ export class PesqBrasilPortalRuntime implements CadastroPortalRuntimeAdapter {
 
   run(context: CadastroPortalRuntimeContext): void {
     if (!context.sessionActive || !isPesqBrasilUrl(globalThis.location.href)) return;
+    if (isPesqBrasilWithoutReliabilitySealUrl(globalThis.location.href)) {
+      reportCadastroPortalOutcome("pesqbrasil", "unavailable", "usuario_sem_selo_confiabilidade");
+      return;
+    }
     if (!this.govBrClickAttempted) {
       this.govBrClickAttempted = true;
       this.scheduleGovBrClick();

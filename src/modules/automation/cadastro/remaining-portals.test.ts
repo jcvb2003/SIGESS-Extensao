@@ -11,6 +11,7 @@ import {
 import {
   PESQBRASIL_MPA_URL,
   isPesqBrasilMpaUrl,
+  isPesqBrasilWithoutReliabilitySealUrl,
   isPesqBrasilUrl,
 } from "../pesqbrasil/routes";
 import { TSE_QUERY_URL, isTseAutoatendimentoUrl } from "../tse/routes";
@@ -32,6 +33,13 @@ describe("adaptadores dos portais restantes", () => {
     expect(CADASTRO_PORTAL_REGISTRY.pesqbrasil.entryUrl).toBe(PESQBRASIL_MPA_URL);
     expect(isPesqBrasilMpaUrl(PESQBRASIL_MPA_URL)).toBe(true);
     expect(isPesqBrasilUrl("https://pesqbrasil-pescadorprofissional.agro.gov.br/")).toBe(true);
+  });
+
+  it("reconhece o retorno de usuário sem selo de confiabilidade", () => {
+    expect(isPesqBrasilWithoutReliabilitySealUrl(
+      "https://pesqbrasil-pescadorprofissional.mpa.gov.br/login?error=%7B%22status%22%3A%22UNAUTHORIZED%22%2C%22message%22%3A%22USUARIO_SEM_SELO_CONFIABILIDADE%22%7D",
+    )).toBe(true);
+    expect(isPesqBrasilWithoutReliabilitySealUrl(PESQBRASIL_MPA_URL)).toBe(false);
   });
 
   it("mantém a rota específica de consulta do TSE", () => {

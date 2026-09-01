@@ -20,6 +20,9 @@ import {
   closeCompletedCadastroTabsExceptCadunico,
 } from "./cadastro-tab-coordinator";
 
+const GOV_BRONZE_ACCESS_MESSAGE =
+  "Conta Gov.br em nível bronze. Aumente para o nível ouro para acessar os portais da coleta.";
+
 export async function openCadastroInss(session: CadastroSession, getTabManager: () => any): Promise<void> {
   if (session.portais.inss) return;
 
@@ -134,7 +137,7 @@ export async function processCadastroDataArrival(
   sessionId?: string,
 ): Promise<void> {
   const session = await getActiveCadastroSession();
-  if (!session || (sessionId && session.sessionId !== sessionId)) return;
+  if (!session || session.sessionState !== "active" || (sessionId && session.sessionId !== sessionId)) return;
   const portalId = getCadastroPortalForDataSource(session, source);
   const portal = portalId ? session.portais[portalId] : null;
   if (!portalId || !portal) return;
@@ -166,7 +169,21 @@ export async function processCadastroPortalOutcome(
   evidence: string,
   getTabManager: () => any,
 ): Promise<void> {
+  if (session.sessionState !== "active") return;
   applyCadastroPortalOutcome(session, portalId, outcome, evidence);
+
+  if (evidence === "usuario_sem_selo_confiabilidade") {
+    const settings = await StorageService.getSettings();
+    const raw = (settings.pessoaData_projections || {}) as Record<string, Partial<PessoaData>>;
+    session.sessionState = "error";
+    session.errorMessage = GOV_BRONZE_ACCESS_MESSAGE;
+    session.mergeRequest = { raw };
+    await saveCadastroSession(session);
+    await closeCadastroContainerTabs(session.cookieStoreId);
+    await sanitizeCadastroContainer(session.cookieStoreId);
+    return;
+  }
+
   await saveCadastroSession(session);
   if (portalId === "cadunico" && outcome === "not_found") {
     await openCadastroInss(session, getTabManager);

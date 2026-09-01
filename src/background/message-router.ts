@@ -917,7 +917,7 @@ async function handleCadastroPortalOutcome(
 
   const session = await getActiveSession();
   const portal = session?.portais[portalKey];
-  if (!session || !portal) return { success: true };
+  if (!session || session.sessionState !== "active" || !portal) return { success: true };
   if (!isRegisteredCadastroPortalSender(session, portalKey, sender)) {
     return { success: false, error: "aba_do_portal_nao_autorizada" };
   }
@@ -925,7 +925,12 @@ async function handleCadastroPortalOutcome(
   return await enqueueCadastroSessionWork(session.sessionId, async () => {
     const activeSession = await getActiveSession();
     const activePortal = activeSession?.portais[portalKey];
-    if (!activeSession || activeSession.sessionId !== session.sessionId || !activePortal) return { success: true };
+    if (
+      !activeSession ||
+      activeSession.sessionState !== "active" ||
+      activeSession.sessionId !== session.sessionId ||
+      !activePortal
+    ) return { success: true };
     if (!isRegisteredCadastroPortalSender(activeSession, portalKey, sender)) {
       return { success: false, error: "aba_do_portal_nao_autorizada" };
     }

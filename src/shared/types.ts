@@ -10,6 +10,7 @@ export interface CadastroPortalEntry {
     | "erro";
   tabId?: number;
   evidence?: string;
+  statusMessage?: string;
   updatedAt?: number;
   postLoginNavigationIssued?: boolean;
 }

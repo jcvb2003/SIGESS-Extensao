@@ -8,6 +8,11 @@ export type CadastroReportedOutcome = Extract<
   "not_found" | "unavailable" | "failed"
 >;
 
+const PORTAL_STATUS_MESSAGES: Record<string, string> = {
+  usuario_sem_selo_confiabilidade:
+    "Conta Gov.br em nível bronze. Aumente para o nível ouro para acessar este portal.",
+};
+
 export type CadastroFinalizationPhase =
   | "collecting"
   | "awaiting_cadunico_dismissal"
@@ -30,6 +35,7 @@ export function applyCadastroPortalOutcome(
       ? "indisponivel"
       : "erro";
   portal.evidence = evidence;
+  portal.statusMessage = PORTAL_STATUS_MESSAGES[evidence];
   portal.updatedAt = Date.now();
   return true;
 }

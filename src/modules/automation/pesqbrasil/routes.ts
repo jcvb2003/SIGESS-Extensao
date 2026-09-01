@@ -10,3 +10,18 @@ export function isPesqBrasilUrl(url: string): boolean {
 export function isPesqBrasilMpaUrl(url: string): boolean {
   return url.includes(PESQBRASIL_MPA_HOST);
 }
+
+export function isPesqBrasilWithoutReliabilitySealUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!isPesqBrasilMpaUrl(parsed.href) || parsed.pathname !== "/login") return false;
+
+    const error = parsed.searchParams.get("error");
+    if (!error) return false;
+
+    const details = JSON.parse(error) as { message?: unknown };
+    return details.message === "USUARIO_SEM_SELO_CONFIABILIDADE";
+  } catch {
+    return false;
+  }
+}
