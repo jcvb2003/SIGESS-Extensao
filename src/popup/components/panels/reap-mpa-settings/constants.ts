@@ -1,40 +1,46 @@
 export const IBAMA_DEFESO_URL = "https://www.gov.br/ibama/pt-br/assuntos/biodiversidade/biodiversidade-aquatica/periodos-de-defeso";
 
 export const REAP_STATE_OPTIONS = [
-  { value: 1, label: "RONDONIA", enabled: false },
-  { value: 2, label: "ACRE", enabled: false },
-  { value: 3, label: "AMAZONAS", enabled: false },
-  { value: 4, label: "RORAIMA", enabled: false },
+  { value: 1, label: "RONDONIA", enabled: true },
+  { value: 2, label: "ACRE", enabled: true },
+  { value: 3, label: "AMAZONAS", enabled: true },
+  { value: 4, label: "RORAIMA", enabled: true },
   { value: 5, label: "PARA", enabled: true },
-  { value: 6, label: "AMAPA", enabled: false },
-  { value: 7, label: "TOCANTINS", enabled: false },
+  { value: 6, label: "AMAPA", enabled: true },
+  { value: 7, label: "TOCANTINS", enabled: true },
   { value: 8, label: "MARANHAO", enabled: true },
-  { value: 9, label: "PIAUI", enabled: false },
-  { value: 10, label: "CEARA", enabled: false },
-  { value: 11, label: "RIO GRANDE DO NORTE", enabled: false },
-  { value: 12, label: "PARAIBA", enabled: false },
-  { value: 13, label: "PERNAMBUCO", enabled: false },
-  { value: 14, label: "ALAGOAS", enabled: false },
-  { value: 15, label: "SERGIPE", enabled: false },
-  { value: 16, label: "BAHIA", enabled: false },
-  { value: 17, label: "MINAS GERAIS", enabled: false },
-  { value: 18, label: "ESPIRITO SANTO", enabled: false },
-  { value: 19, label: "RIO DE JANEIRO", enabled: false },
-  { value: 20, label: "SAO PAULO", enabled: false },
-  { value: 21, label: "PARANA", enabled: false },
-  { value: 22, label: "SANTA CATARINA", enabled: false },
-  { value: 23, label: "RIO GRANDE DO SUL", enabled: false },
-  { value: 24, label: "MATO GROSSO DO SUL", enabled: false },
-  { value: 25, label: "MATO GROSSO", enabled: false },
-  { value: 26, label: "GOIAS", enabled: false },
-  { value: 27, label: "DISTRITO FEDERAL", enabled: false },
+  { value: 9, label: "PIAUI", enabled: true },
+  { value: 10, label: "CEARA", enabled: true },
+  { value: 11, label: "RIO GRANDE DO NORTE", enabled: true },
+  { value: 12, label: "PARAIBA", enabled: true },
+  { value: 13, label: "PERNAMBUCO", enabled: true },
+  { value: 14, label: "ALAGOAS", enabled: true },
+  { value: 15, label: "SERGIPE", enabled: true },
+  { value: 16, label: "BAHIA", enabled: true },
+  { value: 17, label: "MINAS GERAIS", enabled: true },
+  { value: 18, label: "ESPIRITO SANTO", enabled: true },
+  { value: 19, label: "RIO DE JANEIRO", enabled: true },
+  { value: 20, label: "SAO PAULO", enabled: true },
+  { value: 21, label: "PARANA", enabled: true },
+  { value: 22, label: "SANTA CATARINA", enabled: true },
+  { value: 23, label: "RIO GRANDE DO SUL", enabled: true },
+  { value: 24, label: "MATO GROSSO DO SUL", enabled: true },
+  { value: 25, label: "MATO GROSSO", enabled: true },
+  { value: 26, label: "GOIAS", enabled: true },
+  { value: 27, label: "DISTRITO FEDERAL", enabled: true },
   { value: 28, label: "EX", enabled: false },
 ] as const;
 
+export const REAP_STATE_UF_BY_CODE: Record<number, string> = {
+  1: "RO", 2: "AC", 3: "AM", 4: "RR", 5: "PA", 6: "AP", 7: "TO",
+  8: "MA", 9: "PI", 10: "CE", 11: "RN", 12: "PB", 13: "PE", 14: "AL",
+  15: "SE", 16: "BA", 17: "MG", 18: "ES", 19: "RJ", 20: "SP", 21: "PR",
+  22: "SC", 23: "RS", 24: "MS", 25: "MT", 26: "GO", 27: "DF",
+};
+
 // O portal MPA disponibiliza todos estes códigos no campo
-// `estadosComercializacao`. O campo de residência usa a lista acima porque
-// depende dos municípios cadastrados localmente; comercialização não deve
-// herdar essa restrição.
+// `estadosComercializacao`; a mesma cobertura é usada para residência porque
+// os municípios de todos os estados estão disponíveis localmente.
 export const REAP_COMMERCIALIZATION_STATE_OPTIONS = REAP_STATE_OPTIONS.map(({ value, label }) => ({
   value,
   label,

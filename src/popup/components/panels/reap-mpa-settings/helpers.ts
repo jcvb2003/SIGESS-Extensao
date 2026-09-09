@@ -1,9 +1,5 @@
 import { MUNICIPIOS_LIST } from "../../../../shared/data/municipios";
-import { REAP_STATE_OPTIONS } from "./constants";
-
-const stateLabelById = new Map<number, string>(
-  REAP_STATE_OPTIONS.map((option) => [option.value, option.label]),
-);
+import { REAP_STATE_UF_BY_CODE } from "./constants";
 
 export function formatBRL(raw: string) {
   const n = parseFloat(raw);
@@ -12,9 +8,8 @@ export function formatBRL(raw: string) {
 }
 
 export function getMunicipiosByUf(ufCode?: number) {
-  const ufLabel = ufCode ? stateLabelById.get(ufCode) : undefined;
-  const ufSigla = ufLabel === "PARA" ? "PA" : ufLabel === "MARANHAO" ? "MA" : "";
-  return MUNICIPIOS_LIST
-    .filter((municipio) => municipio.camposAdicionais.siglaUf === ufSigla)
+  const ufSigla = ufCode ? REAP_STATE_UF_BY_CODE[ufCode] : undefined;
+  return (ufSigla ? MUNICIPIOS_LIST
+    .filter((municipio) => municipio.camposAdicionais.siglaUf === ufSigla) : [])
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
 }

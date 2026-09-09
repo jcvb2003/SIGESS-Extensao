@@ -56,20 +56,20 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({ license, act
 
             <div className="form-group">
               <label className="reap-label" htmlFor="dev-name">
-                Computador da Estação
+                Nome do dispositivo
               </label>
               <div style={{ position: 'relative' }}>
                 <input
                   id="dev-name"
                   type="text"
-                  placeholder="Ex: Recepção Central"
+                  placeholder="Ex: RECEPÇÃO CENTRAL"
                   value={deviceName}
-                  onChange={(e) => setDeviceName(e.target.value)}
+                  onChange={(e) => setDeviceName(e.target.value.toUpperCase())}
                   disabled={activating}
                   style={{
                     width: '100%', padding: '13px 14px 13px 42px', borderRadius: 14,
                     border: '1.5px solid #e2e8f0', fontSize: 13, fontWeight: '500',
-                    background: 'white', color: 'var(--color-text)', outline: 'none', transition: 'all 0.2s'
+                    background: 'white', color: 'var(--color-text)', outline: 'none', textTransform: 'uppercase', transition: 'all 0.2s'
                   }}
                 />
                 <Monitor size={17} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
