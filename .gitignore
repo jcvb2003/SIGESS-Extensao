@@ -30,6 +30,7 @@ web-ext-artifacts/
 
 # AI Agent tooling (all IDEs)
 .agents/
+.serena/
 .claude/
 .kiro/
 .trae/
