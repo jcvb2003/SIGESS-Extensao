@@ -23,13 +23,7 @@ const ReapMpaSettingsForm: React.FC<ReapMpaSettingsFormProps> = ({
 }) => {
   return (
     <div className="stack" style={{ gap: "16px" }}>
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: "16px",
-        borderBottom: "1px solid var(--color-border)",
-        paddingBottom: "16px",
-      }}>
+      <div className="reap-intro-grid">
         <ReapPage1Section settings={settings} onUpdate={onUpdate} />
         <ReapPage2Section settings={settings} onUpdate={onUpdate} />
       </div>

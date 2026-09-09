@@ -53,24 +53,38 @@ function SearchableSelect({
       className="searchable-select"
       onBlur={() => window.setTimeout(() => setOpen(false), 120)}
     >
-      <input
-        id={id}
-        className="gps-select searchable-select-input"
-        role="combobox"
-        aria-expanded={open}
-        aria-controls={`${id}-listbox`}
-        value={query}
-        placeholder={placeholder}
-        disabled={disabled}
-        autoComplete="off"
-        onFocus={() => setOpen(true)}
-        onChange={(event) => {
-          const nextQuery = event.target.value;
-          setQuery(nextQuery);
-          setOpen(true);
-          if (!nextQuery) onChange(undefined);
-        }}
-      />
+      <div className={`searchable-select-control${open ? " is-open" : ""}`}>
+        <input
+          id={id}
+          className="searchable-select-input"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={`${id}-listbox`}
+          value={query}
+          placeholder={placeholder}
+          disabled={disabled}
+          autoComplete="off"
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            const nextQuery = event.target.value;
+            setQuery(nextQuery);
+            setOpen(true);
+            if (!nextQuery) onChange(undefined);
+          }}
+        />
+        <button
+          type="button"
+          className="searchable-select-trigger"
+          aria-label={open ? "Ocultar opções" : "Exibir opções"}
+          aria-controls={`${id}-listbox`}
+          aria-expanded={open}
+          disabled={disabled}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span aria-hidden="true" />
+        </button>
+      </div>
       {open && !disabled && (
         <div id={`${id}-listbox`} className="searchable-select-menu" role="listbox">
           {visibleOptions.map((option) => (
@@ -299,64 +313,47 @@ export function ReapPage3Section({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div className="form-group">
             <label className="reap-label" htmlFor="mpaLocalPesca">Local</label>
-            <select
+            <SearchableSelect
               id="mpaLocalPesca"
-              className="gps-select"
-              value={settings.mpaLocalPesca ?? ""}
-              onChange={(e) => onUpdate({ mpaLocalPesca: Number(e.target.value) })}
-            >
-              <option value="">Selecione...</option>
-              {FISHING_LOCATION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+              value={settings.mpaLocalPesca}
+              options={FISHING_LOCATION_OPTIONS}
+              placeholder="Selecione..."
+              onChange={(value) => onUpdate({ mpaLocalPesca: value })}
+            />
           </div>
 
           <div className="form-group">
             <label className="reap-label" htmlFor="mpaMetodoPesca">Petrecho</label>
-            <select
+            <SearchableSelect
               id="mpaMetodoPesca"
-              className="gps-select"
-              value={settings.mpaMetodoPesca ?? settings.mpaPetrecho ?? ""}
-              onChange={(e) => onUpdate({ mpaMetodoPesca: Number(e.target.value) })}
-            >
-              <option value="">Selecione...</option>
-              {APETRECHOS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+              value={settings.mpaMetodoPesca ?? settings.mpaPetrecho}
+              options={APETRECHOS_OPTIONS}
+              placeholder="Selecione..."
+              onChange={(value) => onUpdate({ mpaMetodoPesca: value })}
+            />
           </div>
 
           <div className="form-group">
             <label className="reap-label" htmlFor="mpaUF">UF</label>
-            <select
+            <SearchableSelect
               id="mpaUF"
-              className="gps-select"
-              value={fishingUf ?? ""}
-              onChange={(e) => onUpdate({ mpaUF: Number(e.target.value), mpaMunicipio: undefined })}
-            >
-              <option value="">Selecione...</option>
-              {REAP_STATE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value} disabled={!option.enabled}>
-                  {option.label}{option.enabled ? "" : " (indisponível)"}
-                </option>
-              ))}
-            </select>
+              value={fishingUf}
+              options={ALPHABETICAL_STATE_OPTIONS}
+              placeholder="Selecione..."
+              onChange={(value) => onUpdate({ mpaUF: value, mpaMunicipio: undefined })}
+            />
           </div>
 
           <div className="form-group">
             <label className="reap-label" htmlFor="mpaMunicipio">Município</label>
-            <select
+            <SearchableSelect
               id="mpaMunicipio"
-              className="gps-select"
-              value={settings.mpaMunicipio || ""}
-              onChange={(e) => onUpdate({ mpaMunicipio: Number(e.target.value) })}
-            >
-              <option value="">Selecione...</option>
-              {fishingMunicipios.map((municipio) => (
-                <option key={municipio.id} value={municipio.id}>{municipio.nome}</option>
-              ))}
-            </select>
+              value={settings.mpaMunicipio}
+              options={fishingMunicipios.map((municipio) => ({ value: municipio.id, label: municipio.nome }))}
+              placeholder={fishingUf ? "Pesquisar município" : "Selecione o estado primeiro"}
+              disabled={!fishingUf}
+              onChange={(value) => onUpdate({ mpaMunicipio: value })}
+            />
           </div>
         </div>
       </div>

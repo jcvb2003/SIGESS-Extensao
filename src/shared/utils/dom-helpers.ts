@@ -142,14 +142,17 @@ export async function fillAutocomplete(
   
   if (item) {
     item.scrollIntoView({ block: "nearest" });
-    const radioInput = item.querySelector<HTMLInputElement>(
-      'input[type="radio"]',
+    const choiceInput = item.querySelector<HTMLInputElement>(
+      'input[type="radio"], input[type="checkbox"]',
     );
     const label = item.querySelector("label") as HTMLElement;
-    if (radioInput) {
-      radioInput.checked = true;
-      radioInput.dispatchEvent(new Event("change", { bubbles: true }));
-      radioInput.click();
+    if (choiceInput) {
+      // Radio and checkbox options are toggle controls. Clicking an already
+      // selected checkbox would undo the value the automation just filled.
+      if (!choiceInput.checked) {
+        choiceInput.click();
+        choiceInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
     } else if (label) {
       label.click();
     } else {
@@ -217,7 +220,9 @@ export async function selectOption(
       
   if (!container || signal?.stopRequested) return false;
   
-  const inputs = Array.from(container.querySelectorAll("input"));
+  const inputs = Array.from(container.querySelectorAll<HTMLInputElement>(
+    'input[type="radio"], input[type="checkbox"]',
+  ));
   const matchingInput = inputs.find((i) => i.value === valueOrText);
   if (matchingInput) {
     if (!matchingInput.checked) {

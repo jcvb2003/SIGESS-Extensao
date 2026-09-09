@@ -267,6 +267,8 @@ export function ReapSpeciesSection({
   const selectedSpeciesIds =
     settings.mpaSpecies?.map((s) => s.id).filter((id): id is number => id !== undefined) || [];
   const filled = settings.mpaSpecies?.filter((s) => s?.id).length ?? 0;
+  const requestedSpeciesCount = settings.mpaSpeciesCount ?? 0;
+  const speciesCountExceedsRegistered = requestedSpeciesCount > filled;
   const [revealedOptionalCount, setRevealedOptionalCount] = useState(0);
   const lastFilledSpeciesIndex = (settings.mpaSpecies || []).reduce(
     (lastIndex, species, index) => (species?.id ? index : lastIndex),
@@ -361,13 +363,23 @@ export function ReapSpeciesSection({
             id="mpaSpeciesCount"
             className="gps-select"
             value={settings.mpaSpeciesCount ?? ""}
-            onChange={(e) => onUpdate({ mpaSpeciesCount: Number(e.target.value) })}
+            onChange={(e) => {
+              const nextCount = Number(e.target.value);
+              if (nextCount <= filled) void onUpdate({ mpaSpeciesCount: nextCount });
+            }}
           >
             <option value="">Selecione...</option>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <option key={n} value={n}>{n} espécies</option>
+              <option key={n} value={n} disabled={n > filled}>{n} espécies</option>
             ))}
           </select>
+          {speciesCountExceedsRegistered ? (
+            <p className="reap-note reap-error-note">
+              Cadastre pelo menos {requestedSpeciesCount} espécies para usar esta quantidade no REAP.
+            </p>
+          ) : filled === 0 ? (
+            <p className="reap-note">Cadastre uma espécie para definir a quantidade no REAP.</p>
+          ) : null}
         </div>
 
         <div className="stack" style={{ gap: "8px" }}>
