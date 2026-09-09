@@ -7,6 +7,7 @@ import {
   EsocialConsultaCompetencia,
   GovBatchQueueItem,
   GovBatchGenerationItem,
+  GovBatchConsultationItem,
   MessageRequest,
   MessageResponse,
   MultiLoginItem,
@@ -19,6 +20,7 @@ import {
   isPesqBrasilMpaUrl,
 } from "../modules/automation/pesqbrasil/routes";
 import { MTE_URL } from "../modules/automation/mte/routes";
+import { ESOCIAL_HOME_URL } from "../modules/automation/esocial/routes";
 import {
   getActiveCadastroSession,
 } from "./cadastro/cadastro-session-store";
@@ -119,6 +121,8 @@ export async function routeMessage(
         return await handleEnqueueGovBatchSessions(message, getTabManager);
       case "startGovBatchGeneration":
         return await handleStartGovBatchGeneration(message);
+      case "startGovBatchConsultation":
+        return await handleStartGovBatchConsultation(message);
       case "getGovBatchStatuses":
         return await handleGetGovBatchStatuses(message);
       case "getESocialAutomationSettings":
@@ -786,6 +790,64 @@ function enqueueCadastroDataArrival(
     .catch((error) => {
       console.error(`[SIGESS] Falha ao processar coleta de ${event.source}.`, error);
     });
+}
+
+async function handleStartGovBatchConsultation(message: MessageRequest) {
+  const license = await LicenseService.checkLicense();
+  if (!license.ok) {
+    return {
+      success: false,
+      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
+    };
+  }
+
+  const items = Array.isArray((message as any).items)
+    ? ((message as any).items as GovBatchConsultationItem[])
+    : [];
+  if (items.length === 0) {
+    return { success: false, error: "Nenhuma sessão autenticada foi informada para a consulta." };
+  }
+
+  let started = 0;
+  for (const item of items) {
+    if (!Number.isInteger(item?.tabId) || !/^\d{4}$/.test(item.selectedYear)) continue;
+
+    const credentials = await StorageService.getCredentials(item.tabId);
+    if (!credentials || credentials.portalType !== "esocial" || !credentials.loginConcluido) continue;
+
+    await StorageService.updateCredentials(item.tabId, {
+      automationRunId: item.runId,
+      gerarGps: false,
+      consultarGuias: true,
+      selectedYear: item.selectedYear,
+      selectedMonth: item.selectedMonth || credentials.selectedMonth,
+      competencias: undefined,
+      consultas: undefined,
+      competenciasResultados: undefined,
+      boletoGerado: false,
+      status: "consultando",
+      statusTitle: "Consultando competências",
+      statusDescription: `Consultando as competências de ${item.selectedYear}...`,
+      lastError: undefined,
+      lastUpdatedAt: Date.now(),
+    });
+
+    try {
+      await browser.tabs.update(item.tabId, { url: ESOCIAL_HOME_URL, active: false });
+      started += 1;
+    } catch {
+      await StorageService.updateCredentials(item.tabId, {
+        status: "erro",
+        statusTitle: "Falha ao iniciar consulta",
+        statusDescription: "Não foi possível navegar na sessão eSocial existente.",
+        lastError: "A aba autenticada não está mais disponível.",
+      });
+    }
+  }
+
+  return started > 0
+    ? { success: true, count: started }
+    : { success: false, error: "Nenhuma sessão eSocial autenticada disponível para reaproveitamento." };
 }
 
 async function handleStartGovBatchGeneration(message: MessageRequest) {

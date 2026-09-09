@@ -5,6 +5,7 @@ console.log("[SIGESS] Content Script active");
 const ALLOWED_MESSAGE_TYPES = new Set([
   "enqueueGovBatchSessions",
   "startGovBatchGeneration",
+  "startGovBatchConsultation",
   "getGovBatchStatuses",
   "getESocialAutomationSettings",
   "getAutoRegistrationSnapshot",

@@ -167,6 +167,13 @@ export interface GovBatchGenerationItem {
   competencias: EsocialCompetenciaPlanejada[];
 }
 
+export interface GovBatchConsultationItem {
+  runId: string;
+  tabId: number;
+  selectedYear: string;
+  selectedMonth?: string;
+}
+
 export interface AppSettings {
   consultarGuias: boolean;
   gerarGps: boolean;
