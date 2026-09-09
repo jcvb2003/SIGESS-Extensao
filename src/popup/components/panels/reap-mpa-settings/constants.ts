@@ -31,20 +31,29 @@ export const REAP_STATE_OPTIONS = [
   { value: 28, label: "EX", enabled: false },
 ] as const;
 
+// O portal MPA disponibiliza todos estes códigos no campo
+// `estadosComercializacao`. O campo de residência usa a lista acima porque
+// depende dos municípios cadastrados localmente; comercialização não deve
+// herdar essa restrição.
+export const REAP_COMMERCIALIZATION_STATE_OPTIONS = REAP_STATE_OPTIONS.map(({ value, label }) => ({
+  value,
+  label,
+}));
+
 export const WORK_RELATION_OPTIONS = [
   "Economia Familiar",
   "Individual/Autônomo",
 ];
 
 export const FISHING_LOCATION_OPTIONS = [
-  { value: 1, label: "Acude" },
-  { value: 2, label: "Estuario" },
+  { value: 1, label: "Açude" },
+  { value: 2, label: "Estuário" },
   { value: 3, label: "Mar" },
   { value: 4, label: "Lago" },
   { value: 5, label: "Lagoa" },
   { value: 6, label: "Rio" },
   { value: 7, label: "Represa" },
-  { value: 8, label: "Reservatorio" },
+  { value: 8, label: "Reservatório" },
   { value: 9, label: "Laguna" },
 ];
 

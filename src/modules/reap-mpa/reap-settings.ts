@@ -33,14 +33,14 @@ const REAP_STATE_LABELS: Record<number, string> = {
 };
 
 const REAP_FISHING_LOCATION_LABELS: Record<number, string> = {
-  1: "Acude",
-  2: "Estuario",
+  1: "Açude",
+  2: "Estuário",
   3: "Mar",
   4: "Lago",
   5: "Lagoa",
   6: "Rio",
   7: "Represa",
-  8: "Reservatorio",
+  8: "Reservatório",
   9: "Laguna",
 };
 

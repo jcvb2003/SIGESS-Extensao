@@ -3,6 +3,7 @@ import {
   APETRECHOS_OPTIONS,
   FISHING_LOCATION_OPTIONS,
   MONTH_LABELS,
+  REAP_COMMERCIALIZATION_STATE_OPTIONS,
   REAP_STATE_OPTIONS,
   WORK_RELATION_OPTIONS,
 } from "./constants";
@@ -168,10 +169,8 @@ export function ReapPage2Section({
             })}
           >
             <option value="">Selecione...</option>
-            {REAP_STATE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value} disabled={!option.enabled}>
-                {option.label}{option.enabled ? "" : " (indisponível)"}
-              </option>
+            {REAP_COMMERCIALIZATION_STATE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
           <p className="reap-note">Selecione apenas um estado.</p>

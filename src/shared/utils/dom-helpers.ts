@@ -157,6 +157,7 @@ export async function fillAutocomplete(
     }
     await sleep(400);
     input.blur();
+    await closeBrSelect(container);
     return true;
   }
   console.warn(`Autocomplete: Item "${value}" não encontrado.`);
@@ -178,6 +179,30 @@ function findInList(container: HTMLElement, text: string): boolean {
     return true;
   }
   return false;
+}
+
+async function closeBrSelect(container: HTMLElement) {
+  const trigger = container.querySelector<HTMLElement>("button[data-trigger]");
+  const combobox = container.matches('[role="combobox"]')
+    ? container
+    : container.closest<HTMLElement>('[role="combobox"]') || container;
+  const list = container.querySelector<HTMLElement>(".br-list")
+    || combobox.querySelector<HTMLElement>(".br-list");
+  const isOpen = () =>
+    combobox.getAttribute("aria-expanded") === "true"
+    || trigger?.getAttribute("aria-expanded") === "true"
+    || list?.getAttribute("expanded") === "expanded";
+
+  if (isOpen() && trigger) {
+    trigger.click();
+    await sleep(100);
+  }
+
+  if (isOpen()) {
+    const input = container.querySelector<HTMLInputElement>("input");
+    input?.blur();
+    container.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+  }
 }
 
 export async function selectOption(
@@ -207,6 +232,7 @@ export async function selectOption(
         matchingInput.click();
       }
     }
+    await closeBrSelect(container);
     return true;
   }
   
@@ -216,16 +242,23 @@ export async function selectOption(
   );
   if (targetLabel) {
     targetLabel.click();
+    await closeBrSelect(container);
     return true;
   }
-  
-  if (findInList(container, valueOrText)) return true;
+
+  if (findInList(container, valueOrText)) {
+    await closeBrSelect(container);
+    return true;
+  }
   
   const trigger = container.querySelector<HTMLElement>("button[data-trigger]");
   if (trigger) {
     trigger.click();
     await sleep(800);
-    if (findInList(container, valueOrText)) return true;
+    if (findInList(container, valueOrText)) {
+      await closeBrSelect(container);
+      return true;
+    }
   }
   return false;
 }

@@ -55,7 +55,7 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({ license, act
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             <div className="form-group">
-              <label htmlFor="dev-name" style={{ fontSize: 10, fontWeight: '800', color: '#64748b', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+              <label className="reap-label" htmlFor="dev-name">
                 Computador da Estação
               </label>
               <div style={{ position: 'relative' }}>
@@ -77,7 +77,7 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({ license, act
             </div>
 
             <div className="form-group">
-              <label htmlFor="act-key" style={{ fontSize: 10, fontWeight: '800', color: '#64748b', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+              <label className="reap-label" htmlFor="act-key">
                 Chave da Licença
               </label>
               <div style={{ position: 'relative' }}>
@@ -90,8 +90,8 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({ license, act
                   disabled={activating}
                   style={{
                     width: '100%', padding: '13px 14px 13px 42px', borderRadius: 14,
-                    border: '1.5px solid var(--color-accent)', fontSize: 13, fontWeight: '600',
-                    background: 'white', color: 'var(--color-text)', outline: 'none',
+                    border: '1.5px solid var(--color-accent)', fontSize: 13, fontWeight: '500',
+                    fontFamily: 'inherit', background: 'white', color: 'var(--color-text)', outline: 'none',
                     textTransform: 'uppercase',
                     boxShadow: '0 0 0 4px rgba(15, 118, 110, 0.04)'
                   }}
@@ -118,7 +118,7 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({ license, act
                 transition: 'all 0.2s'
               }}
             >
-              {activating ? "Validando Chave..." : "Ativar SIGESS Agora"}
+              {activating ? "Validando Chave..." : "Ativar"}
             </button>
 
             {license?.reason && license.reason !== "no_key" && (
