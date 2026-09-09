@@ -430,10 +430,38 @@ async function carregarDadosComercializacao(competencia: string): Promise<{
     throw new Error("Nao foi possivel carregar os pagamentos de autonomos da competencia.");
   }
 
+  const comercializacaoHtml = await comercializacaoResponse.text();
+  const autonomosHtml = await autonomosResponse.text();
+  if (respostaIndicaCaepfAusente(comercializacaoHtml) || respostaIndicaCaepfAusente(autonomosHtml)) {
+    throw new Error("CAEPF_NAO_VINCULADO_AO_CEI");
+  }
+
   return {
-    comercializacaoHtml: await comercializacaoResponse.text(),
-    autonomosHtml: await autonomosResponse.text(),
+    comercializacaoHtml,
+    autonomosHtml,
   };
+}
+
+function respostaIndicaCaepfAusente(html: string): boolean {
+  return /N[aã]o existem estabelecimentos CAEPF v[aá]lidos na compet[eê]ncia/i.test(html);
+}
+
+function isCaepfNotLinkedError(errorMessage: string): boolean {
+  return errorMessage === "CAEPF_NAO_VINCULADO_AO_CEI";
+}
+
+function resolveGpsErrorStatus(competencia: string, errorMessage: string) {
+  if (isCaepfNotLinkedError(errorMessage)) {
+    return esocialMessages.caepfNotLinked(competencia);
+  }
+  if (errorMessage.includes("já foi fechada")) {
+    return esocialMessages.payrollAlreadyClosed(competencia);
+  }
+  return esocialMessages.failedToGenerateGuide();
+}
+
+function resolveGpsErrorDescription(competencia: string, errorMessage: string): string {
+  return resolveGpsErrorStatus(competencia, errorMessage).description;
 }
 
 async function postForm(path: string, params: URLSearchParams): Promise<string> {
@@ -995,15 +1023,14 @@ export async function resumePendingGpsFlow(settings?: AppSettings): Promise<bool
       await executarFluxoDiretoGps(settings, pending.competencia);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const queueAfterError = markCurrentCompetenciaResult("erro", errorMessage);
+      const statusMsg = resolveGpsErrorStatus(pending.competencia, errorMessage);
+      const displayError = resolveGpsErrorDescription(pending.competencia, errorMessage);
+      const queueAfterError = markCurrentCompetenciaResult("erro", displayError);
       clearGpsQueueState();
       releaseGpsFlowLock();
-      const statusMsg = errorMessage.includes("já foi fechada")
-        ? esocialMessages.payrollAlreadyClosed(pending.competencia)
-        : esocialMessages.failedToGenerateGuide();
       logger.error("eSocial", statusMsg.title, { error: errorMessage });
       reportBatchStatus(statusMsg.status, statusMsg.title, statusMsg.description, {
-        lastError: errorMessage,
+        lastError: displayError,
         ...(queueAfterError ? queueStatusExtra(queueAfterError, pending.competencia) : {}),
         overlayState: null,
       });
@@ -1447,16 +1474,14 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    let statusMsg = esocialMessages.failedToGenerateGuide();
-    if (errorMessage.includes("já foi fechada")) {
-      statusMsg = esocialMessages.payrollAlreadyClosed(competencia);
-    }
+    const statusMsg = resolveGpsErrorStatus(competencia, errorMessage);
+    const displayError = resolveGpsErrorDescription(competencia, errorMessage);
 
     logger.error("eSocial", statusMsg.title, { error: errorMessage });
-    const queueAfterError = markCurrentCompetenciaResult("erro", errorMessage);
+    const queueAfterError = markCurrentCompetenciaResult("erro", displayError);
     clearGpsQueueState();
     reportBatchStatus(statusMsg.status, statusMsg.title, statusMsg.description, {
-      lastError: errorMessage,
+      lastError: displayError,
       ...(queueAfterError ? queueStatusExtra(queueAfterError, competencia) : {}),
       overlayState: null,
     });

@@ -145,6 +145,12 @@ export const esocialMessages = {
     description: "Não foi possível concluir a emissão. Tente novamente.",
   }),
 
+  caepfNotLinked: (competencia: string): StatusMessage => ({
+    status: "erro",
+    title: `CAEPF não vinculado ao CEI em ${formatCompetencia(competencia)}`,
+    description: "Não existem estabelecimentos CAEPF válidos nesta competência. Vincule ou regularize o CAEPF no eSocial antes de gerar o boleto.",
+  }),
+
   manualEmitGuideDetected: (): StatusMessage => ({
     status: "processando",
     title: "Baixando PDF do boleto",
