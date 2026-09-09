@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { AppSettings } from "../../../../shared/types";
 import {
   APETRECHOS_OPTIONS,
@@ -8,6 +9,97 @@ import {
   WORK_RELATION_OPTIONS,
 } from "./constants";
 import { getMunicipiosByUf } from "./helpers";
+
+const ALPHABETICAL_STATE_OPTIONS = [...REAP_STATE_OPTIONS].sort((a, b) =>
+  a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }),
+);
+const ALPHABETICAL_COMMERCIALIZATION_OPTIONS = [...REAP_COMMERCIALIZATION_STATE_OPTIONS].sort((a, b) =>
+  a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }),
+);
+
+type SearchableOption = { value: number; label: string; disabled?: boolean };
+
+function SearchableSelect({
+  id,
+  value,
+  options,
+  placeholder,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  value?: number;
+  options: SearchableOption[];
+  placeholder: string;
+  disabled?: boolean;
+  onChange: (value?: number) => void;
+}) {
+  const selected = options.find((option) => option.value === value);
+  const [query, setQuery] = useState(selected?.label ?? "");
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setQuery(selected?.label ?? "");
+  }, [selected?.label, value]);
+
+  const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
+  const filtered = options.filter((option) =>
+    option.label.toLocaleLowerCase("pt-BR").includes(normalizedQuery),
+  );
+  const visibleOptions = filtered.slice(0, 100);
+
+  return (
+    <div
+      className="searchable-select"
+      onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+    >
+      <input
+        id={id}
+        className="gps-select searchable-select-input"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={`${id}-listbox`}
+        value={query}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoComplete="off"
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          const nextQuery = event.target.value;
+          setQuery(nextQuery);
+          setOpen(true);
+          if (!nextQuery) onChange(undefined);
+        }}
+      />
+      {open && !disabled && (
+        <div id={`${id}-listbox`} className="searchable-select-menu" role="listbox">
+          {visibleOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className="searchable-select-option"
+              role="option"
+              aria-selected={option.value === value}
+              disabled={option.disabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                setQuery(option.label);
+                setOpen(false);
+                onChange(option.value);
+              }}
+            >
+              {option.label}{option.disabled ? " (indisponível)" : ""}
+            </button>
+          ))}
+          {visibleOptions.length === 0 && <span className="searchable-select-empty">Nenhum resultado.</span>}
+          {filtered.length > visibleOptions.length && (
+            <span className="searchable-select-empty">Digite para refinar a busca.</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function MonthGrid({
   selectedMonths,
@@ -88,34 +180,25 @@ export function ReapPage1Section({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div className="form-group">
             <label className="reap-label" htmlFor="mpaResidenceUF">Estado</label>
-            <select
+            <SearchableSelect
               id="mpaResidenceUF"
-              className="gps-select"
-              value={residenceUf ?? ""}
-              onChange={(e) => onUpdate({ mpaResidenceUF: Number(e.target.value), mpaResidenceMunicipio: undefined })}
-            >
-              <option value="">Selecione...</option>
-              {REAP_STATE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value} disabled={!option.enabled}>
-                  {option.label}{option.enabled ? "" : " (indisponível)"}
-                </option>
-              ))}
-            </select>
+              value={residenceUf}
+              options={ALPHABETICAL_STATE_OPTIONS}
+              placeholder="Selecione o estado"
+              onChange={(value) => onUpdate({ mpaResidenceUF: value, mpaResidenceMunicipio: undefined })}
+            />
           </div>
 
           <div className="form-group">
             <label className="reap-label" htmlFor="mpaResidenceMunicipio">Município</label>
-            <select
+            <SearchableSelect
               id="mpaResidenceMunicipio"
-              className="gps-select"
-              value={settings.mpaResidenceMunicipio || ""}
-              onChange={(e) => onUpdate({ mpaResidenceMunicipio: Number(e.target.value) })}
-            >
-              <option value="">Selecione...</option>
-              {residenceMunicipios.map((municipio) => (
-                <option key={municipio.id} value={municipio.id}>{municipio.nome}</option>
-              ))}
-            </select>
+              value={settings.mpaResidenceMunicipio}
+              options={residenceMunicipios.map((municipio) => ({ value: municipio.id, label: municipio.nome }))}
+              placeholder={residenceUf ? "Pesquisar município" : "Selecione o estado primeiro"}
+              disabled={!residenceUf}
+              onChange={(value) => onUpdate({ mpaResidenceMunicipio: value })}
+            />
           </div>
         </div>
       </div>
@@ -160,19 +243,15 @@ export function ReapPage2Section({
 
         <div className="form-group">
           <label className="reap-label">Estados de comercialização</label>
-          <select
+          <SearchableSelect
             id="mpaCommercializationState"
-            className="gps-select"
-            value={commercializationState ?? ""}
-            onChange={(e) => onUpdate({
-              mpaCommercializationStates: e.target.value ? [Number(e.target.value)] : [],
+            value={commercializationState}
+            options={ALPHABETICAL_COMMERCIALIZATION_OPTIONS}
+            placeholder="Pesquisar estado"
+            onChange={(value) => onUpdate({
+              mpaCommercializationStates: value === undefined ? [] : [value],
             })}
-          >
-            <option value="">Selecione...</option>
-            {REAP_COMMERCIALIZATION_STATE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+          />
           <p className="reap-note">Selecione apenas um estado.</p>
         </div>
       </div>

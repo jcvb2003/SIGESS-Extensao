@@ -189,10 +189,17 @@ class ReapTurbo {
                     ...userConfig.areaRealizacao,
                     ambientePesca: [Number(userConfig.areaRealizacao.ambientePesca)]
                 }];
-                const existingRows = Array.isArray(oldMes.resultadosOperacaoPesca) ? oldMes.resultadosOperacaoPesca : [];
-                const speciesToSend = (mesConfig?.especies || [])
-                    .filter(Boolean)
-                    .slice(0, existingRows.length > 0 ? existingRows.length : (mesConfig?.especies?.length ?? 2));
+                const existingRows = Array.isArray(oldMes.resultadosOperacaoPesca)
+                    ? oldMes.resultadosOperacaoPesca
+                    : [];
+                // A quantidade de linhas já renderizadas no portal não define
+                // quantas espécies devem ser enviadas. O portal pode retornar
+                // apenas uma parte das linhas de um mês previamente preenchido;
+                // nesse caso, cortar o plano aqui fazia o Turbo perder espécies.
+                const speciesToSend = (mesConfig?.especies || []).filter(Boolean);
+                this.debugLogger.diag(
+                    `Mês ${mesNumber}: espécies configuradas=${speciesToSend.length}, linhas existentes=${existingRows.length}`,
+                );
                 m.resultadosOperacaoPesca = speciesToSend.map((esp: any, i: number) => {
                     const existingRow = existingRows[i];
                     const preserveId = existingRow?.id && existingRow?.especiePescado === esp.especiePescado;

@@ -124,10 +124,10 @@ export function normalizeReapSettings(settings: AppSettings): AppSettings {
     ...(defesoMonths === undefined ? {} : { mpaDefesoMonths: defesoMonths }),
     ...(metodoPesca === undefined ? {} : { mpaMetodoPesca: metodoPesca }),
     ...(documentoMode === undefined ? {} : { mpaDocumentoMode: documentoMode }),
-    ...(settings.mpaMascDaysMin === undefined ? {} : { mpaMascDaysMin: normalizeDaysPerMonth(settings.mpaMascDaysMin) }),
-    ...(settings.mpaMascDaysMax === undefined ? {} : { mpaMascDaysMax: normalizeDaysPerMonth(settings.mpaMascDaysMax) }),
-    ...(settings.mpaFemDaysMin === undefined ? {} : { mpaFemDaysMin: normalizeDaysPerMonth(settings.mpaFemDaysMin) }),
-    ...(settings.mpaFemDaysMax === undefined ? {} : { mpaFemDaysMax: normalizeDaysPerMonth(settings.mpaFemDaysMax) }),
+    mpaMascDaysMin: normalizeDaysPerMonth(settings.mpaMascDaysMin ?? "21"),
+    mpaMascDaysMax: normalizeDaysPerMonth(settings.mpaMascDaysMax ?? "25"),
+    mpaFemDaysMin: normalizeDaysPerMonth(settings.mpaFemDaysMin ?? "21"),
+    mpaFemDaysMax: normalizeDaysPerMonth(settings.mpaFemDaysMax ?? "25"),
   };
 }
 
