@@ -22,12 +22,9 @@ import {
 } from "../modules/automation/pesqbrasil/routes";
 import { MTE_URL } from "../modules/automation/mte/routes";
 import { ESOCIAL_HOME_URL } from "../modules/automation/esocial/routes";
-import {
-  getActiveCadastroSession,
-} from "./cadastro/cadastro-session-store";
-import {
-  type CadastroReportedOutcome,
-} from "./cadastro/cadastro-session-controller";
+import { normalizeCpf } from "../shared/utils/normalize-cpf";
+import { getActiveCadastroSession } from "./cadastro/cadastro-session-store";
+import { type CadastroReportedOutcome } from "./cadastro/cadastro-session-controller";
 import {
   cancelCadastroAutomatico,
   iniciarCadastroAutomatico,
@@ -48,7 +45,6 @@ import { enqueueCadastroSessionWork } from "./cadastro/cadastro-session-queue";
 import { XPI_INSTALL_URL } from "../shared/services/update-block";
 import { clearStaticCacheRuntime } from "./services/static-cache-runtime";
 import { clearStaticCache } from "./services/static-cache-policy";
-
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
   "checkLicense",
@@ -147,14 +143,21 @@ export async function routeMessage(
       case "SAVE_PESSOA_DATA":
         return await handleSavePessoaData(message, getTabManager, sender);
       case "REPORT_CADASTRO_PORTAL_OUTCOME":
-        return await handleCadastroPortalOutcome(message, getTabManager, sender);
+        return await handleCadastroPortalOutcome(
+          message,
+          getTabManager,
+          sender,
+        );
       case "canSubmitCadastroTse":
         return await canSubmitCadastroTse(sender);
       case "govBrContactConfirmationDetected":
         return await reportGovBrContactConfirmation(sender, getTabManager);
       case "govBrLoginDomReady": {
         const tabId = sender?.tab?.id;
-        if (typeof tabId !== "number" || sender?.tab?.url?.includes("sso.acesso.gov.br") !== true) {
+        if (
+          typeof tabId !== "number" ||
+          sender?.tab?.url?.includes("sso.acesso.gov.br") !== true
+        ) {
           return { success: false, error: "Sinal GOV.BR sem aba válida." };
         }
         await getTabManager().handleGovBrLoginDomReady(tabId);
@@ -189,12 +192,18 @@ export async function routeMessage(
         };
     }
   } catch (error: any) {
-    logger.error("Extension", "Erro ao processar requisição", { action, error: error.message });
+    logger.error("Extension", "Erro ao processar requisição", {
+      action,
+      error: error.message,
+    });
     return { success: false, error: error.message };
   }
 }
 
-async function getUpdateAvailable(): Promise<{ version?: string; url?: string } | null> {
+async function getUpdateAvailable(): Promise<{
+  version?: string;
+  url?: string;
+} | null> {
   const result = await StorageService.get<any>("updateAvailable");
   return result?.updateAvailable || null;
 }
@@ -203,10 +212,12 @@ async function handleGetESocialAutomationSettings(): Promise<MessageResponse> {
   const settings = await StorageService.getSettings();
   const rawYear = (settings.selectedYear || "").trim();
   const month = (settings.selectedMonth || "").padStart(2, "0");
-  const year = rawYear === "current" ? String(new Date().getFullYear()) : rawYear;
-  const competencia = year && month && /^\d{4}$/.test(year) && /^\d{2}$/.test(month)
-    ? `${year}-${month}`
-    : "";
+  const year =
+    rawYear === "current" ? String(new Date().getFullYear()) : rawYear;
+  const competencia =
+    year && month && /^\d{4}$/.test(year) && /^\d{2}$/.test(month)
+      ? `${year}-${month}`
+      : "";
 
   return {
     success: true,
@@ -225,9 +236,10 @@ async function handleGetESocialAutomationContext(
   sender?: browser.runtime.MessageSender,
 ): Promise<MessageResponse> {
   const tabId = sender?.tab?.id;
-  const credentials = typeof tabId === "number"
-    ? await StorageService.getCredentials(tabId)
-    : null;
+  const credentials =
+    typeof tabId === "number"
+      ? await StorageService.getCredentials(tabId)
+      : null;
 
   if (!credentials || (!credentials.gerarGps && !credentials.consultarGuias)) {
     return { success: true, data: { isBatchTab: false } };
@@ -235,10 +247,17 @@ async function handleGetESocialAutomationContext(
 
   const selectedYear = (credentials.selectedYear || "current").trim();
   const selectedMonth = (credentials.selectedMonth || "").padStart(2, "0");
-  const year = selectedYear === "current" ? String(new Date().getFullYear()) : selectedYear;
-  const competencia = year && selectedMonth && /^\d{4}$/.test(year) && /^\d{2}$/.test(selectedMonth)
-    ? `${year}${selectedMonth}`
-    : "";
+  const year =
+    selectedYear === "current"
+      ? String(new Date().getFullYear())
+      : selectedYear;
+  const competencia =
+    year &&
+    selectedMonth &&
+    /^\d{4}$/.test(year) &&
+    /^\d{2}$/.test(selectedMonth)
+      ? `${year}${selectedMonth}`
+      : "";
 
   return {
     success: true,
@@ -263,11 +282,11 @@ async function handleGetAutoRegistrationSnapshot(): Promise<MessageResponse> {
   const settings = await StorageService.getSettings();
   const pessoaData = settings.pessoaData
     ? {
-      ...settings.pessoaData,
-      ...(settings.pessoaData_sensitive?.senhaGovInss
-        ? { senhaGovInss: settings.pessoaData_sensitive.senhaGovInss }
-        : {}),
-    }
+        ...settings.pessoaData,
+        ...(settings.pessoaData_sensitive?.senhaGovInss
+          ? { senhaGovInss: settings.pessoaData_sensitive.senhaGovInss }
+          : {}),
+      }
     : null;
 
   return {
@@ -290,7 +309,10 @@ async function handleUpdateSettings(message: MessageRequest) {
   try {
     const current = await StorageService.getSettings();
     const newSettings = { ...current, ...message.settings };
-    if (message.settings.autoRegistrationEnabled === false && current.autoRegistrationEnabled) {
+    if (
+      message.settings.autoRegistrationEnabled === false &&
+      current.autoRegistrationEnabled
+    ) {
       await cancelCadastroAutomatico();
       const disabledSettings = await StorageService.disableAutomaticCapture();
       return { success: true, settings: disabledSettings };
@@ -308,7 +330,9 @@ async function handleUpdateSettings(message: MessageRequest) {
     logger.info("Configurações", "Configurações atualizadas com sucesso");
     return { success: true, settings: newSettings };
   } catch (error: any) {
-    logger.error("Configurações", "Erro ao atualizar", { error: error.message });
+    logger.error("Configurações", "Erro ao atualizar", {
+      error: error.message,
+    });
     throw error;
   }
 }
@@ -341,11 +365,15 @@ async function handleStartBatchLogin(
   const capturedCpf = capturedSettings.pessoaData?.cpf?.replace(/\D/g, "");
   if (capturedCpf) {
     const match = (credentials as any[]).find(
-      (cred) => String(cred.cpf).replace(/\D/g, "") === capturedCpf && cred.senha,
+      (cred) =>
+        String(cred.cpf).replace(/\D/g, "") === capturedCpf && cred.senha,
     );
     if (match) {
       try {
-        await StorageService.mergePessoaData({ senhaGovInss: match.senha }, "SIGESS_WEB");
+        await StorageService.mergePessoaData(
+          { senhaGovInss: match.senha },
+          "SIGESS_WEB",
+        );
       } catch {
         // silencioso
       }
@@ -367,6 +395,7 @@ async function handleStartBatchLogin(
         cred.selectedYear,
         cred.selectedMonth,
         cred.competencias,
+        cred.automationRunId,
       ),
     ),
   );
@@ -390,7 +419,10 @@ async function handleAbrirAbaContainer(
 
   try {
     if (!isUrlAllowed(url || "")) {
-      return { success: false, error: "Este host não está autorizado para login via container SIGESS." };
+      return {
+        success: false,
+        error: "Este host não está autorizado para login via container SIGESS.",
+      };
     }
   } catch (error) {
     console.warn("Falha ao validar host de destino:", error);
@@ -406,7 +438,9 @@ async function handleAbrirAbaContainer(
         cpf: message.cpf || message.auditoriaData.cpf,
       };
       await StorageService.mergePessoaData(dataWithCpf, "SIGESS_WEB");
-      console.log("[SIGESS] Dados de auditoria (SDPA) persistidos com sucesso.");
+      console.log(
+        "[SIGESS] Dados de auditoria (SDPA) persistidos com sucesso.",
+      );
     } catch (error) {
       console.warn("[SIGESS] Falha ao persistir dados de auditoria:", error);
     }
@@ -419,8 +453,11 @@ async function handleAbrirAbaContainer(
       return age < 30 * 60 * 1000;
     });
 
-    const normalizedCpf = normalizeQueueCpf(cpf);
-    if (normalizedCpf && queue.some((item) => normalizeQueueCpf(item.cpf) === normalizedCpf)) {
+    const normalizedCpf = normalizeCpf(cpf);
+    if (
+      normalizedCpf &&
+      queue.some((item) => normalizeCpf(item.cpf) === normalizedCpf)
+    ) {
       return {
         success: false,
         error: "Este CPF já está na fila de login múltiplo.",
@@ -428,7 +465,11 @@ async function handleAbrirAbaContainer(
     }
 
     if (queue.length >= 5) {
-      return { success: false, error: "Fila de login múltiplo cheia (máx 5). Abra o lote ou remova itens." };
+      return {
+        success: false,
+        error:
+          "Fila de login múltiplo cheia (máx 5). Abra o lote ou remova itens.",
+      };
     }
 
     const newItem: MultiLoginItem = {
@@ -438,15 +479,21 @@ async function handleAbrirAbaContainer(
       senha,
       url,
       valorComercializado,
-      type: url.includes("esocial") ? "esocial"
-        : isInssUrl(url) ? "inss"
-        : isPesqBrasilMpaUrl(url) ? "pesqbrasil_mpa"
-        : "mte",
+      type: url.includes("esocial")
+        ? "esocial"
+        : isInssUrl(url)
+          ? "inss"
+          : isPesqBrasilMpaUrl(url)
+            ? "pesqbrasil_mpa"
+            : "mte",
       timestamp: Date.now(),
     };
 
     const newQueue = [...queue, newItem];
-    await StorageService.saveSettings({ ...settings, multiLoginQueue: newQueue });
+    await StorageService.saveSettings({
+      ...settings,
+      multiLoginQueue: newQueue,
+    });
     BadgeManager.setQueueCount(newQueue.length);
 
     return { success: true, queued: true, nome: newItem.nome };
@@ -459,10 +506,13 @@ async function handleAbrirAbaContainer(
     senha,
     randIndex,
     nome,
-    url.includes("esocial") ? "esocial"
-      : isInssUrl(url) ? "inss"
-      : isPesqBrasilMpaUrl(url) ? "pesqbrasil_mpa"
-      : "mte",
+    url.includes("esocial")
+      ? "esocial"
+      : isInssUrl(url)
+        ? "inss"
+        : isPesqBrasilMpaUrl(url)
+          ? "pesqbrasil_mpa"
+          : "mte",
     valorComercializado,
   );
   return { success: true };
@@ -485,7 +535,10 @@ async function handleEnqueueGovBatchSessions(
     : [];
 
   if (rawItems.length === 0) {
-    return { success: false, error: "Nenhum item GOV foi informado para a fila." };
+    return {
+      success: false,
+      error: "Nenhum item GOV foi informado para a fila.",
+    };
   }
 
   const settings = await StorageService.getSettings();
@@ -499,11 +552,12 @@ async function handleEnqueueGovBatchSessions(
   if (availableSlots === 0) {
     return {
       success: false,
-      error: "Fila da extensão cheia (máx 5). Abra o lote atual antes de enviar novos itens.",
+      error:
+        "Fila da extensão cheia (máx 5). Abra o lote atual antes de enviar novos itens.",
     };
   }
 
-  const existingCpfs = new Set(queue.map((item) => normalizeQueueCpf(item.cpf)));
+  const existingCpfs = new Set(queue.map((item) => normalizeCpf(item.cpf)));
   const newQueueItems: MultiLoginItem[] = [];
 
   for (const item of rawItems) {
@@ -515,7 +569,7 @@ async function handleEnqueueGovBatchSessions(
       break;
     }
 
-    const normalizedCpf = normalizeQueueCpf(item.cpf);
+    const normalizedCpf = normalizeCpf(item.cpf);
     if (!normalizedCpf || existingCpfs.has(normalizedCpf)) {
       continue;
     }
@@ -547,7 +601,10 @@ async function handleEnqueueGovBatchSessions(
   }
 
   const nextQueue = [...queue, ...newQueueItems];
-  await StorageService.saveSettings({ ...settings, multiLoginQueue: nextQueue });
+  await StorageService.saveSettings({
+    ...settings,
+    multiLoginQueue: nextQueue,
+  });
   BadgeManager.setQueueCount(nextQueue.length);
 
   const credentials = newQueueItems.map((item) => ({
@@ -573,9 +630,13 @@ async function handleEnqueueGovBatchSessions(
   );
 
   const remainingQueue = nextQueue.filter(
-    (queuedItem) => !newQueueItems.some((newItem) => newItem.id === queuedItem.id),
+    (queuedItem) =>
+      !newQueueItems.some((newItem) => newItem.id === queuedItem.id),
   );
-  await StorageService.saveSettings({ ...settings, multiLoginQueue: remainingQueue });
+  await StorageService.saveSettings({
+    ...settings,
+    multiLoginQueue: remainingQueue,
+  });
   BadgeManager.setQueueCount(remainingQueue.length);
 
   return {
@@ -600,15 +661,18 @@ async function handleGetGovBatchStatuses(message: MessageRequest) {
   );
 
   const allCredentials = await StorageService.getAllCredentials();
-  const rawItems = Object.entries(allCredentials)
+  const activeItems = Object.entries(allCredentials)
     .map(([key, credentials]) => ({
       tabId: Number(key.replace("credenciais_", "")),
       runId: credentials.automationRunId,
       cpf: String(credentials.cpf || "").replace(/\D/g, ""),
       nome: credentials.nome,
-      status: credentials.status || (credentials.loginConcluido ? "concluido" : "aguardando_pagina"),
+      status:
+        credentials.status ||
+        (credentials.loginConcluido ? "concluido" : "aguardando_pagina"),
       statusTitle: credentials.statusTitle,
       statusDescription: credentials.statusDescription,
+      sessionClosedByUser: false,
       progressFlow: credentials.progressFlow,
       progressStage: credentials.progressStage,
       loginConcluido: !!credentials.loginConcluido,
@@ -622,7 +686,20 @@ async function handleGetGovBatchStatuses(message: MessageRequest) {
       lastError: credentials.lastError,
       lastUpdatedAt: credentials.lastUpdatedAt,
     }))
-    .filter((item) => item.cpf && (normalizedCpfs.size === 0 || normalizedCpfs.has(item.cpf)));
+    .filter(
+      (item) =>
+        item.cpf && (normalizedCpfs.size === 0 || normalizedCpfs.has(item.cpf)),
+    );
+  const closedItems = (await StorageService.getClosedGovBatchStatuses())
+    .map((item) => ({
+      ...item,
+      cpf: normalizeCpf(item.cpf),
+    }))
+    .filter(
+      (item) =>
+        item.cpf && (normalizedCpfs.size === 0 || normalizedCpfs.has(item.cpf)),
+    );
+  const rawItems = [...activeItems, ...closedItems];
 
   const latestByCpf = new Map<string, (typeof rawItems)[number]>();
   for (const item of rawItems) {
@@ -646,7 +723,10 @@ async function handleUpdateGovBatchStatus(
 ) {
   const tabId = sender?.tab?.id;
   if (typeof tabId !== "number") {
-    return { success: false, error: "Nao foi possivel identificar a aba da automacao." };
+    return {
+      success: false,
+      error: "Nao foi possivel identificar a aba da automacao.",
+    };
   }
 
   const msg = message as MessageRequest & {
@@ -721,11 +801,16 @@ async function handleTurboFillReap(message: MessageRequest) {
   }
 
   const { config } = message;
-  if (!config) return { success: false, error: "Configuração do Turbo não fornecida" };
+  if (!config)
+    return { success: false, error: "Configuração do Turbo não fornecida" };
 
   try {
-    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    if (!tabs[0]?.id) return { success: false, error: "Nenhuma aba ativa encontrada" };
+    const tabs = await browser.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    if (!tabs[0]?.id)
+      return { success: false, error: "Nenhuma aba ativa encontrada" };
 
     const response = await browser.tabs.sendMessage(tabs[0].id, {
       action: "executeTurboFill",
@@ -735,7 +820,9 @@ async function handleTurboFillReap(message: MessageRequest) {
   } catch (error: any) {
     return {
       success: false,
-      error: error.message || "A aba atual do REAP não pôde receber a ação de Turbo. Certifique-se de estar na página correta do formulário e recarregue-a.",
+      error:
+        error.message ||
+        "A aba atual do REAP não pôde receber a ação de Turbo. Certifique-se de estar na página correta do formulário e recarregue-a.",
     };
   }
 }
@@ -753,9 +840,10 @@ async function handleSavePessoaData(
   try {
     const tabId = sender?.tab?.id;
     const session = await getActiveCadastroSession();
-    const credentials = typeof tabId === "number"
-      ? await StorageService.getCredentials(tabId)
-      : null;
+    const credentials =
+      typeof tabId === "number"
+        ? await StorageService.getCredentials(tabId)
+        : null;
     const collectionEvent = session
       ? createCadastroCollectionEvent(session, fonte, tabId, credentials)
       : null;
@@ -766,11 +854,16 @@ async function handleSavePessoaData(
       return { success: false, error: "evento_de_coleta_fora_da_sessao_ativa" };
     }
 
-    const newSettings = await StorageService.mergePessoaData(data, fonte, message.snapshot);
+    const newSettings = await StorageService.mergePessoaData(
+      data,
+      fonte,
+      message.snapshot,
+    );
 
     // Enfileira a atualização de sessão em série para evitar race condition
     // quando pesqbrasil_mpa e ecac_caepf chegam simultaneamente.
-    if (collectionEvent) enqueueCadastroDataArrival(collectionEvent, getTabManager);
+    if (collectionEvent)
+      enqueueCadastroDataArrival(collectionEvent, getTabManager);
 
     return { success: true, settings: newSettings };
   } catch (error: any) {
@@ -786,11 +879,18 @@ function enqueueCadastroDataArrival(
 ): void {
   if (!event) return;
   void enqueueCadastroSessionWork(event.sessionId, () =>
-    processCadastroDataArrival(event.source, getTabManager, event.sourceTabId, event.sessionId),
-  )
-    .catch((error) => {
-      console.error(`[SIGESS] Falha ao processar coleta de ${event.source}.`, error);
-    });
+    processCadastroDataArrival(
+      event.source,
+      getTabManager,
+      event.sourceTabId,
+      event.sessionId,
+    ),
+  ).catch((error) => {
+    console.error(
+      `[SIGESS] Falha ao processar coleta de ${event.source}.`,
+      error,
+    );
+  });
 }
 
 async function handleStartGovBatchConsultation(message: MessageRequest) {
@@ -806,15 +906,24 @@ async function handleStartGovBatchConsultation(message: MessageRequest) {
     ? ((message as any).items as GovBatchConsultationItem[])
     : [];
   if (items.length === 0) {
-    return { success: false, error: "Nenhuma sessão autenticada foi informada para a consulta." };
+    return {
+      success: false,
+      error: "Nenhuma sessão autenticada foi informada para a consulta.",
+    };
   }
 
   let started = 0;
   for (const item of items) {
-    if (!Number.isInteger(item?.tabId) || !/^\d{4}$/.test(item.selectedYear)) continue;
+    if (!Number.isInteger(item?.tabId) || !/^\d{4}$/.test(item.selectedYear))
+      continue;
 
     const credentials = await StorageService.getCredentials(item.tabId);
-    if (!credentials || credentials.portalType !== "esocial" || !credentials.loginConcluido) continue;
+    if (
+      !credentials ||
+      credentials.portalType !== "esocial" ||
+      !credentials.loginConcluido
+    )
+      continue;
 
     await StorageService.updateCredentials(item.tabId, {
       automationRunId: item.runId,
@@ -836,13 +945,17 @@ async function handleStartGovBatchConsultation(message: MessageRequest) {
     });
 
     try {
-      await browser.tabs.update(item.tabId, { url: ESOCIAL_HOME_URL, active: false });
+      await browser.tabs.update(item.tabId, {
+        url: ESOCIAL_HOME_URL,
+        active: false,
+      });
       started += 1;
     } catch {
       await StorageService.updateCredentials(item.tabId, {
         status: "erro",
         statusTitle: "Falha ao iniciar consulta",
-        statusDescription: "Não foi possível navegar na sessão eSocial existente.",
+        statusDescription:
+          "Não foi possível navegar na sessão eSocial existente.",
         lastError: "A aba autenticada não está mais disponível.",
       });
     }
@@ -850,7 +963,11 @@ async function handleStartGovBatchConsultation(message: MessageRequest) {
 
   return started > 0
     ? { success: true, count: started }
-    : { success: false, error: "Nenhuma sessão eSocial autenticada disponível para reaproveitamento." };
+    : {
+        success: false,
+        error:
+          "Nenhuma sessão eSocial autenticada disponível para reaproveitamento.",
+      };
 }
 
 async function handleStartGovBatchGeneration(message: MessageRequest) {
@@ -866,12 +983,19 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
     ? ((message as any).items as GovBatchGenerationItem[])
     : [];
   if (items.length === 0) {
-    return { success: false, error: "Nenhuma competência pendente foi informada." };
+    return {
+      success: false,
+      error: "Nenhuma competência pendente foi informada.",
+    };
   }
 
   let started = 0;
   for (const item of items) {
-    if (!Number.isInteger(item?.tabId) || !Array.isArray(item.competencias) || item.competencias.length === 0) {
+    if (
+      !Number.isInteger(item?.tabId) ||
+      !Array.isArray(item.competencias) ||
+      item.competencias.length === 0
+    ) {
       continue;
     }
 
@@ -885,11 +1009,17 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
     const previousResults = credentials.competenciasResultados || [];
     const completedCompetencias = new Set(
       previousResults
-        .filter((result) => result.status === "concluido" || result.status === "ja_existente")
+        .filter(
+          (result) =>
+            result.status === "concluido" || result.status === "ja_existente",
+        )
         .map((result) => result.competencia),
     );
-    const firstPendingIndex = item.competencias.findIndex((planned) =>
-      !completedCompetencias.has(`${planned.ano}${String(planned.mes).padStart(2, "0")}`),
+    const firstPendingIndex = item.competencias.findIndex(
+      (planned) =>
+        !completedCompetencias.has(
+          `${planned.ano}${String(planned.mes).padStart(2, "0")}`,
+        ),
     );
 
     if (firstPendingIndex < 0) {
@@ -943,8 +1073,7 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
       // subsequente, use diretamente a página que materializa o contexto da
       // folha; voltar à Home perde esse contexto e pode fazer o eSocial
       // ignorar os valores enviados pela automação.
-      const targetUrl =
-        `https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competenciaInicial}`;
+      const targetUrl = `https://www.esocial.gov.br/portal/FolhaPagamento/Listagem/ListarPagamentos?competencia=${competenciaInicial}`;
 
       await browser.tabs.update(item.tabId, {
         url: targetUrl,
@@ -955,7 +1084,8 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
       await StorageService.updateCredentials(item.tabId, {
         status: "erro",
         statusTitle: "Falha ao iniciar geração",
-        statusDescription: "Não foi possível retornar à página de geração do eSocial.",
+        statusDescription:
+          "Não foi possível retornar à página de geração do eSocial.",
         lastError: error instanceof Error ? error.message : String(error),
       });
     }
@@ -963,13 +1093,10 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
 
   return started > 0
     ? { success: true, count: started }
-    : { success: false, error: "Nenhuma sessão autenticada pôde ser retomada." };
-}
-
-function normalizeQueueCpf(value: unknown): string {
-  const digits = String(value ?? "").replace(/\D/g, "");
-  if (!digits) return "";
-  return digits.length <= 11 ? digits.padStart(11, "0") : digits;
+    : {
+        success: false,
+        error: "Nenhuma sessão autenticada pôde ser retomada.",
+      };
 }
 
 const getActiveSession = getActiveCadastroSession;
@@ -978,7 +1105,9 @@ async function handleCadastroPortalOutcome(
   getTabManager: () => any,
   sender?: browser.runtime.MessageSender,
 ): Promise<MessageResponse> {
-  const portalKey = message.portal as keyof CadastroSession["portais"] | undefined;
+  const portalKey = message.portal as
+    | keyof CadastroSession["portais"]
+    | undefined;
   const outcome = message.outcome as CadastroReportedOutcome | undefined;
   if (!portalKey || !outcome) {
     return { success: false, error: "Resultado do portal inválido." };
@@ -986,7 +1115,8 @@ async function handleCadastroPortalOutcome(
 
   const session = await getActiveSession();
   const portal = session?.portais[portalKey];
-  if (!session || session.sessionState !== "active" || !portal) return { success: true };
+  if (!session || session.sessionState !== "active" || !portal)
+    return { success: true };
   if (!isRegisteredCadastroPortalSender(session, portalKey, sender)) {
     return { success: false, error: "aba_do_portal_nao_autorizada" };
   }
@@ -999,7 +1129,8 @@ async function handleCadastroPortalOutcome(
       activeSession.sessionState !== "active" ||
       activeSession.sessionId !== session.sessionId ||
       !activePortal
-    ) return { success: true };
+    )
+      return { success: true };
     if (!isRegisteredCadastroPortalSender(activeSession, portalKey, sender)) {
       return { success: false, error: "aba_do_portal_nao_autorizada" };
     }
@@ -1021,7 +1152,8 @@ async function openDataInspector(): Promise<MessageResponse> {
   const tab = existing[0];
   if (tab?.id !== undefined) {
     await browser.tabs.update(tab.id, { active: true });
-    if (tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
+    if (tab.windowId !== undefined)
+      await browser.windows.update(tab.windowId, { focused: true });
     return { success: true, tabId: tab.id, reused: true };
   }
   const created = await browser.tabs.create({ url });
@@ -1037,7 +1169,8 @@ async function handleOpenExtensionUpdate(): Promise<MessageResponse> {
   if (activeTab?.id === undefined) {
     return {
       success: false,
-      error: "Não foi possível localizar a aba ativa para instalar a atualização.",
+      error:
+        "Não foi possível localizar a aba ativa para instalar a atualização.",
     };
   }
 
@@ -1049,12 +1182,16 @@ async function handleGetESocialDownloadIdentity(
   sender?: browser.runtime.MessageSender,
 ): Promise<MessageResponse> {
   const tabId = sender?.tab?.id;
-  const credentials = typeof tabId === "number"
-    ? await StorageService.getCredentials(tabId)
-    : null;
+  const credentials =
+    typeof tabId === "number"
+      ? await StorageService.getCredentials(tabId)
+      : null;
 
   if (!credentials || credentials.portalType !== "esocial") {
-    return { success: false, error: "NÃ£o foi possÃ­vel identificar a aba do eSocial." };
+    return {
+      success: false,
+      error: "NÃ£o foi possÃ­vel identificar a aba do eSocial.",
+    };
   }
 
   return {
@@ -1089,7 +1226,8 @@ async function handleTriggerRelogin(
   getTabManager?: () => any,
 ): Promise<MessageResponse> {
   const tabId = sender?.tab?.id;
-  if (!tabId || !getTabManager) return { success: false, error: "Sem contexto de aba." };
+  if (!tabId || !getTabManager)
+    return { success: false, error: "Sem contexto de aba." };
   await getTabManager().triggerReloginForTab(tabId);
   return { success: true };
 }
@@ -1100,7 +1238,10 @@ export async function handleDownloadESocialGuide(message: MessageRequest) {
     return { success: false, error: "Dados do download não fornecidos." };
   }
 
-  console.log("[SIGESS] Background: Iniciando download com filename:", filename);
+  console.log(
+    "[SIGESS] Background: Iniciando download com filename:",
+    filename,
+  );
   let objectUrl: string | null = null;
   try {
     const blob = dataUrlToBlob(dataUrl);
@@ -1122,7 +1263,10 @@ export async function handleDownloadESocialGuide(message: MessageRequest) {
     return { success: true, downloadId };
   } catch (error: any) {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
-    return { success: false, error: error.message || "Falha ao baixar guia do eSocial." };
+    return {
+      success: false,
+      error: error.message || "Falha ao baixar guia do eSocial.",
+    };
   }
 }
 

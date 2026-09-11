@@ -93,6 +93,7 @@ export class TabManager {
     selectedYear?: string,
     selectedMonth?: string,
     competencias?: UserCredentials["competencias"],
+    automationRunId?: string,
   ): Promise<void> {
     try {
       const resolvedPortalType =
@@ -133,6 +134,7 @@ export class TabManager {
 
       if (tab.id) {
         await StorageService.saveCredentials(tab.id, {
+          automationRunId,
           cpf,
           senha,
           nome,
@@ -270,7 +272,15 @@ export class TabManager {
           : isSequentialGeneration
             ? "Abrindo a geração de competências..."
             : "Acessando o portal de serviços...",
-        { loginConcluido: true, govBrTwoFactorPending: false },
+        {
+          loginConcluido: true,
+          govBrTwoFactorPending: false,
+          ...(credentials.consultarGuias
+            ? { progressStage: "abrindo_consulta" as const }
+            : isSequentialGeneration
+              ? { progressStage: "preparando_competencia" as const }
+              : {}),
+        },
       );
       // Consume the post-login transition marker. Subsequent navigations in
       // the eSocial flow (ListarPagamentos -> Competencias, generation pages,
@@ -492,11 +502,16 @@ export class TabManager {
     }
 
     const host = this.extractHostLabel(url);
+    const description = host === "sso.acesso.gov.br"
+      ? "Acessando Gov.br"
+      : host
+        ? `Carregando ${host} para iniciar a automacao...`
+        : "Aguardando a pagina ficar pronta...";
     await StorageService.updateBatchStatus(
       tabId,
       "aguardando_pagina",
       "Aguardando página",
-      host ? `Carregando ${host} para iniciar a automacao...` : "Aguardando a pagina ficar pronta...",
+      description,
     );
   }
 
@@ -684,6 +699,10 @@ export class TabManager {
           await StorageService.set({ [key]: session });
         }
       }
+    }
+
+    if (creds?.portalType === "esocial" && creds.automationRunId) {
+      await StorageService.saveClosedGovBatchStatus(creds, tabId);
     }
 
     await StorageService.clearCredentials(tabId);

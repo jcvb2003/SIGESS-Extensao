@@ -1,9 +1,24 @@
-import { AppSettings, CadastroSession, GovBatchItemStatus, UserCredentials, PessoaData } from "../../shared/types";
+import {
+  AppSettings,
+  CadastroSession,
+  GovBatchClosedStatus,
+  GovBatchItemStatus,
+  UserCredentials,
+  PessoaData,
+} from "../../shared/types";
 import { normalizeReapSettings } from "../../modules/reap-mpa/reap-settings";
 import { CadastroSourceSnapshot } from "../../modules/automation/cadastro/contracts";
 import { resolveCadastroPortalBySource } from "../../modules/automation/cadastro/portal-registry";
-import { normalizeCapturedValue, normalizePessoaData } from "../../modules/automation/cadastro/source-normalizer";
-import { hasMeaningfulSourceData, projectSourceFields } from "../../modules/automation/cadastro/source-projections";
+
+import {
+  normalizeCapturedValue,
+  normalizePessoaData,
+} from "../../modules/automation/cadastro/source-normalizer";
+import {
+  hasMeaningfulSourceData,
+  projectSourceFields,
+} from "../../modules/automation/cadastro/source-projections";
+import { normalizeCpf } from "../../shared/utils/normalize-cpf";
 
 declare var chrome: any;
 declare var browser: any;
@@ -18,6 +33,8 @@ function getBrowserStorage() {
 
 export class StorageService {
   private static readonly CADASTRO_SESSION_KEY = "sigessActiveCadastro";
+  private static readonly CLOSED_GOV_BATCH_STATUSES_KEY =
+    "sigess_closed_gov_batch_statuses";
   static async get<T>(keys: string | string[]): Promise<Record<string, T>> {
     const storage = getBrowserStorage();
     if (!storage) return {} as Record<string, T>;
@@ -65,7 +82,9 @@ export class StorageService {
     };
     await this.saveSettings(clearedSettings);
 
-    const sessionResult = await this.get<CadastroSession>(this.CADASTRO_SESSION_KEY);
+    const sessionResult = await this.get<CadastroSession>(
+      this.CADASTRO_SESSION_KEY,
+    );
     const session = sessionResult[this.CADASTRO_SESSION_KEY];
     if (session?.mergeRequest) {
       delete session.mergeRequest;
@@ -111,18 +130,25 @@ export class StorageService {
     snapshot?: unknown,
   ): Promise<AppSettings> {
     const settings = await this.getSettings();
-    const currentPessoa: PessoaData = settings.pessoaData ?? { nome: "", cpf: "", fontes: {} };
-    const currentRaw = settings.pessoaData_raw ?? ({} as Record<string, Partial<PessoaData>>);
+    const currentPessoa: PessoaData = settings.pessoaData ?? {
+      nome: "",
+      cpf: "",
+      fontes: {},
+    };
+    const currentRaw =
+      settings.pessoaData_raw ?? ({} as Record<string, Partial<PessoaData>>);
     const currentProjections = settings.pessoaData_projections ?? currentRaw;
     const currentSnapshots = settings.pessoaData_snapshots ?? {};
     const currentSensitive = settings.pessoaData_sensitive ?? {};
-    
+
     // 1. Normalização do dado que está entrando (CPF 11 dígitos)
     const normalizedIn = normalizePessoaData(data);
-    if (data.senhaGovInss !== undefined) normalizedIn.senhaGovInss = data.senhaGovInss;
-    if (data.escolaridade !== undefined) normalizedIn.escolaridade = data.escolaridade;
+    if (data.senhaGovInss !== undefined)
+      normalizedIn.senhaGovInss = data.senhaGovInss;
+    if (data.escolaridade !== undefined)
+      normalizedIn.escolaridade = data.escolaridade;
     if (normalizedIn.cpf) {
-      normalizedIn.cpf = normalizedIn.cpf.toString().padStart(11, '0');
+      normalizedIn.cpf = normalizedIn.cpf.toString().padStart(11, "0");
     }
 
     // 2. Salva o dado bruto normalizado no snapshot da fonte
@@ -130,8 +156,8 @@ export class StorageService {
       ...currentRaw,
       [fonte]: {
         ...(currentRaw[fonte] || {}),
-        ...normalizedIn
-      }
+        ...normalizedIn,
+      },
     };
 
     const projectedIn = projectSourceFields(fonte, normalizedIn);
@@ -143,30 +169,34 @@ export class StorageService {
       },
     };
 
-    const newSnapshots: Record<string, CadastroSourceSnapshot> = snapshot === undefined
-      ? currentSnapshots
-      : {
-        ...currentSnapshots,
-        [fonte]: {
-          portal: sourceToPortalId(fonte),
-          outcome: "collected",
-          evidence: `payload:${fonte}`,
-          collectedAt: Date.now(),
-          data: normalizeCapturedValue(snapshot),
-        },
-      };
+    const newSnapshots: Record<string, CadastroSourceSnapshot> =
+      snapshot === undefined
+        ? currentSnapshots
+        : {
+            ...currentSnapshots,
+            [fonte]: {
+              portal: sourceToPortalId(fonte),
+              outcome: "collected",
+              evidence: `payload:${fonte}`,
+              collectedAt: Date.now(),
+              data: normalizeCapturedValue(snapshot),
+            },
+          };
 
     // 3. Reconsolidação Prioritária do pessoaData (objeto principal)
     // Ordem: 1. CadÚnico, 2. PesqBrasil, 3. Resto (Cronológico)
     const priorityOrder = [
-      'cadunico_adv', 'cadunico',
-      'pesqbrasil', 'pesq_brasil',
-      'inss'
+      "cadunico_adv",
+      "cadunico",
+      "pesqbrasil",
+      "pesq_brasil",
+      "inss",
     ];
 
-    let consolidated: PessoaData = { 
-      nome: "", cpf: "", 
-      fontes: { ...(currentPessoa.fontes || {}) } as Record<string, any> 
+    let consolidated: PessoaData = {
+      nome: "",
+      cpf: "",
+      fontes: { ...(currentPessoa.fontes || {}) } as Record<string, any>,
     };
 
     // Primeiro aplica o "Resto" (fontes que não estão na lista de prioridade explícita)
@@ -179,7 +209,7 @@ export class StorageService {
     // Depois aplica a prioridade (quem estiver no final do spread SOBRESCREVE)
     // Por isso aplicamos a prioridade REVERSA (menos prioritário primeiro)
     const reversedPriority = [...priorityOrder].reverse();
-    reversedPriority.forEach(f => {
+    reversedPriority.forEach((f) => {
       if (newProjections[f]) {
         consolidated = { ...consolidated, ...newProjections[f] };
       }
@@ -189,17 +219,18 @@ export class StorageService {
     consolidated.fontes ??= {};
     consolidateFontes(consolidated, fonte, newRaw[fonte]);
 
-    const newSettings: AppSettings = { 
-      ...settings, 
+    const newSettings: AppSettings = {
+      ...settings,
       pessoaData: consolidated,
       pessoaData_raw: newRaw,
       pessoaData_projections: newProjections,
       pessoaData_snapshots: newSnapshots,
-      pessoaData_sensitive: data.senhaGovInss === undefined
-        ? currentSensitive
-        : { ...currentSensitive, senhaGovInss: data.senhaGovInss },
+      pessoaData_sensitive:
+        data.senhaGovInss === undefined
+          ? currentSensitive
+          : { ...currentSensitive, senhaGovInss: data.senhaGovInss },
     };
-    
+
     await this.saveSettings(newSettings);
     return newSettings;
   }
@@ -210,7 +241,10 @@ export class StorageService {
     return result[key] || null;
   }
 
-  static async saveCredentials(tabId: number, creds: UserCredentials): Promise<void> {
+  static async saveCredentials(
+    tabId: number,
+    creds: UserCredentials,
+  ): Promise<void> {
     const key = `credenciais_${tabId}`;
     await this.set({ [key]: creds });
     await this.set({ sigess_last_esocial_credentials: creds });
@@ -219,6 +253,47 @@ export class StorageService {
   static async clearCredentials(tabId: number): Promise<void> {
     const key = `credenciais_${tabId}`;
     await this.remove(key);
+  }
+
+  static async saveClosedGovBatchStatus(
+    credentials: UserCredentials,
+    tabId: number,
+  ): Promise<void> {
+    if (credentials.portalType !== "esocial") return;
+
+    const current = await this.getClosedGovBatchStatuses();
+    const closedStatus: GovBatchClosedStatus = {
+      tabId,
+      runId: credentials.automationRunId,
+      cpf: normalizeCpf(credentials.cpf),
+      nome: credentials.nome,
+      status: "erro",
+      statusTitle: "Aba fechada/encerrada pelo usuário",
+      statusDescription: "Aba fechada/encerrada pelo usuário",
+      sessionClosedByUser: true,
+      progressFlow: credentials.progressFlow,
+      progressStage: credentials.progressStage,
+      loginConcluido: !!credentials.loginConcluido,
+      lastError: "Aba fechada/encerrada pelo usuário",
+      lastUpdatedAt: Date.now(),
+    };
+    const next = [
+      ...current.filter(
+        (item) =>
+          item.tabId !== tabId && normalizeCpf(item.cpf) !== closedStatus.cpf,
+      ),
+      closedStatus,
+    ].slice(-100);
+    await this.set({ [this.CLOSED_GOV_BATCH_STATUSES_KEY]: next });
+  }
+
+  static async getClosedGovBatchStatuses(): Promise<GovBatchClosedStatus[]> {
+    const result = await this.get<GovBatchClosedStatus[]>(
+      this.CLOSED_GOV_BATCH_STATUSES_KEY,
+    );
+    return Array.isArray(result[this.CLOSED_GOV_BATCH_STATUSES_KEY])
+      ? result[this.CLOSED_GOV_BATCH_STATUSES_KEY]
+      : [];
   }
 
   static async updateCredentials(
@@ -257,7 +332,8 @@ export class StorageService {
       // Status intermediários descrevem apenas a etapa corrente. Eles não
       // podem apagar a consulta nem o histórico sequencial já confirmado.
       consultas: extra?.consultas ?? current.consultas,
-      competenciasResultados: extra?.competenciasResultados ?? current.competenciasResultados,
+      competenciasResultados:
+        extra?.competenciasResultados ?? current.competenciasResultados,
       lastError: shouldKeepError ? extra?.lastError : undefined,
     });
   }
@@ -271,12 +347,21 @@ export class StorageService {
 
     const result = await this.get<CadastroSession>(this.CADASTRO_SESSION_KEY);
     const session = result[this.CADASTRO_SESSION_KEY];
-    if (!session || session.sessionState !== "active" || session.sessionId !== sessionId) return;
+    if (
+      !session ||
+      session.sessionState !== "active" ||
+      session.sessionId !== sessionId
+    )
+      return;
 
     if (interaction) {
       session.interactionRequired = interaction;
     } else {
-      if (clearingTabId !== undefined && session.interactionRequired?.tabId !== clearingTabId) return;
+      if (
+        clearingTabId !== undefined &&
+        session.interactionRequired?.tabId !== clearingTabId
+      )
+        return;
       delete session.interactionRequired;
     }
 
@@ -284,7 +369,9 @@ export class StorageService {
   }
 
   static async getLastEsocialCredentials(): Promise<UserCredentials | null> {
-    const result = await this.get<UserCredentials>("sigess_last_esocial_credentials");
+    const result = await this.get<UserCredentials>(
+      "sigess_last_esocial_credentials",
+    );
     return result.sigess_last_esocial_credentials || null;
   }
 
@@ -317,26 +404,30 @@ function hasValidElectoralNumber(value: unknown): boolean {
 /**
  * Atualiza o status das fontes no objeto consolidado.
  */
-function consolidateFontes(consolidated: PessoaData, fonte: string, data: Partial<PessoaData>): void {
+function consolidateFontes(
+  consolidated: PessoaData,
+  fonte: string,
+  data: Partial<PessoaData>,
+): void {
   if (!hasMeaningfulSourceData(data)) {
     delete consolidated.fontes![fonte];
     return;
   }
   consolidated.fontes![fonte] = {
     capturado: true,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   };
 
   // Se CadÚnico deu dados eleitorais, marca TSE como "virtualmente" capturado
   if (
-    fonte.startsWith('cadunico') &&
+    fonte.startsWith("cadunico") &&
     hasValidElectoralNumber(data.tituloEleitor) &&
     hasValidElectoralNumber(data.zonaEleitoral) &&
     hasValidElectoralNumber(data.secaoEleitoral)
   ) {
-    consolidated.fontes!['tse'] = { 
-      capturado: true, 
-      timestamp: Date.now() 
+    consolidated.fontes!["tse"] = {
+      capturado: true,
+      timestamp: Date.now(),
     };
   }
 }

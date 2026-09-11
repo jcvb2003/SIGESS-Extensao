@@ -82,6 +82,22 @@ export interface UserCredentials {
   lastUpdatedAt?: number;
 }
 
+export type GovBatchClosedStatus = {
+  tabId: number;
+  runId?: string;
+  cpf: string;
+  nome?: string;
+  status: "erro";
+  statusTitle: string;
+  statusDescription: string;
+  sessionClosedByUser: true;
+  progressFlow?: UserCredentials["progressFlow"];
+  progressStage?: UserCredentials["progressStage"];
+  loginConcluido: boolean;
+  lastError?: string;
+  lastUpdatedAt: number;
+};
+
 export type GovBatchItemStatus =
   | "enfileirado"
   | "abrindo_em_lote"
