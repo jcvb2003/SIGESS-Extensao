@@ -41,6 +41,9 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
       creds.status = status as any;
       creds.statusTitle = title;
       creds.statusDescription = description;
+      if (status === "fazendo_login" || status === "aguardando_2fa") {
+        creds.progressStage = "fazendo_login";
+      }
       creds.lastUpdatedAt = Date.now();
       await StorageService.saveCredentials(tabId, creds);
     }
@@ -53,6 +56,7 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
       creds.status = "acessando_esocial";
       creds.statusTitle = "Acessando o E-social";
       creds.statusDescription = "Conectando ao portal de serviços...";
+      creds.progressStage = creds.consultarGuias ? "fazendo_login" : "preparando_competencia";
       creds.lastUpdatedAt = Date.now();
       await StorageService.saveCredentials(tabId, creds);
       console.log(`[Auth] markLoginComplete executada para tabId=${tabId}`);

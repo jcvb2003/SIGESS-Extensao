@@ -46,8 +46,16 @@ export const UpdateGovBatchStatusRequestSchema = z.object({
   statusTitle: z.string(),
   statusDescription: z.string(),
   loginConcluido: z.boolean().optional(),
-  progressStep: z.number().optional(),
-  progressTotal: z.number().optional(),
+  progressFlow: z.enum(["consulta", "geracao"]).optional(),
+  progressStage: z.enum([
+    "aguardando_pagina",
+    "fazendo_login",
+    "abrindo_consulta",
+    "competencias_consultadas",
+    "preparando_competencia",
+    "carregando_comercializacao",
+    "baixando_pdf",
+  ]).optional(),
   lastError: z.string().optional(),
 });
 

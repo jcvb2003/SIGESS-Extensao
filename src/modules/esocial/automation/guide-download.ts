@@ -13,7 +13,7 @@ import {
 } from "../services/document-parser";
 import { buildEsocialFilename, formatCompetencia } from "../utils/file-naming";
 import { extractCompetenciaFromUrl, extractCompetenciaFromDom } from "../utils/esocial-extractors";
-import { reportBatchStatus } from "./overlay-ui";
+import { reportStatusMessage } from "./overlay-ui";
 import { esocialMessages } from "../utils/status-messages";
 
 export { baixarGuiaPdfDirecto };
@@ -90,7 +90,7 @@ export function observarBotaoEmitirGuia() {
           if (!targetUrl || !competencia) {
             const resolveMsg = esocialMessages.failedToResolveGuideUrl();
             logger.error("eSocial", resolveMsg.title);
-            reportBatchStatus(resolveMsg.status, resolveMsg.title, resolveMsg.description, {
+            reportStatusMessage(resolveMsg, {
               lastError: "URL de emissão não resolvida."
             });
             return;
@@ -101,7 +101,7 @@ export function observarBotaoEmitirGuia() {
           } catch (error) {
             const downloadMsg = esocialMessages.failedToDownloadGuide();
             logger.error("eSocial", downloadMsg.title, { error: error instanceof Error ? error.message : String(error) });
-            reportBatchStatus(downloadMsg.status, downloadMsg.title, downloadMsg.description, {
+            reportStatusMessage(downloadMsg, {
               lastError: error instanceof Error ? error.message : String(error)
             });
           } finally {
@@ -140,9 +140,7 @@ async function baixarGuiaPdf(
 ) {
   const downloadingMsg = esocialMessages.manualEmitGuideDetected();
   logger.info("eSocial", downloadingMsg.title);
-  reportBatchStatus(downloadingMsg.status, downloadingMsg.title, downloadingMsg.description, {
-    progressStep: 3,
-    progressTotal: 3,
+  reportStatusMessage(downloadingMsg, {
     overlayState: {
       step: 3,
       total: 3,
@@ -211,10 +209,8 @@ async function baixarGuiaPdf(
 
     const successMsg = esocialMessages.pdfDownloadedSuccessfully(filename);
     logger.info("eSocial", successMsg.title);
-    reportBatchStatus("boleto_salvo", successMsg.title, successMsg.description, {
+    reportStatusMessage(successMsg, {
       loginConcluido: true,
-      progressStep: 3,
-      progressTotal: 3,
       boletoGerado,
       boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), ...valores },
       overlayState: {

@@ -5,7 +5,7 @@ import { directConsultationNavigation, isEsocialHomePage, isListarPagamentosPage
 import {
   hydrateEsocialProgressOverlay,
   clearEsocialProgressOverlay,
-  reportBatchStatus,
+  reportStatusMessage,
 } from "./automation/overlay-ui";
 import { observarBotaoEmitirGuia } from "./automation/guide-download";
 import {
@@ -41,9 +41,10 @@ async function automatizarCompetencias(settings: AppSettings) {
   if (!select) return;
 
   const targetYear = /^\d{4}$/.test(yearStr) ? yearStr : select.value;
+  reportStatusMessage(esocialMessages.openingConsultation());
   if (targetYear && select.value !== targetYear) {
     const filterMsg = esocialMessages.applyingYearFilter(targetYear);
-    reportBatchStatus(filterMsg.status, filterMsg.title, filterMsg.description);
+    reportStatusMessage(filterMsg);
 
     select.value = targetYear;
     select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -56,23 +57,13 @@ async function automatizarCompetencias(settings: AppSettings) {
 
   try {
     const consultas = await consultarCompetenciasDaPagina(targetYear);
-    reportBatchStatus(
-      "concluido",
-      "Competências consultadas",
-      `${consultas.length} competência(s) retornada(s) para ${targetYear}.`,
-      {
-        consultas,
-        loginConcluido: true,
-      },
-    );
+    reportStatusMessage(esocialMessages.consultationCompleted(consultas.length, targetYear), {
+      consultas,
+      loginConcluido: true,
+    });
   } catch (error) {
     const lastError = error instanceof Error ? error.message : String(error);
-    reportBatchStatus(
-      "erro",
-      "Falha na consulta de competências",
-      "Não foi possível extrair os dados da tabela do eSocial.",
-      { lastError },
-    );
+    reportStatusMessage(esocialMessages.consultationFailed(), { lastError });
   }
 }
 
@@ -93,7 +84,7 @@ async function executarFluxoGpsSeNecessario(settings: AppSettings) {
   } catch (error) {
     const failMsg = esocialMessages.failedToGenerateGuide();
     logger.error("eSocial", failMsg.title, { error: error instanceof Error ? error.message : String(error) });
-    reportBatchStatus(failMsg.status, failMsg.title, failMsg.description, {
+    reportStatusMessage(failMsg, {
       lastError: error instanceof Error ? error.message : String(error),
       overlayState: null,
     });

@@ -59,8 +59,15 @@ export interface UserCredentials {
   competenciaIndice?: number;
   competenciasTotal?: number;
   competenciasResultados?: GovBatchCompetenciaResult[];
-  progressStep?: number;
-  progressTotal?: number;
+  progressFlow?: "consulta" | "geracao";
+  progressStage?:
+    | "aguardando_pagina"
+    | "fazendo_login"
+    | "abrindo_consulta"
+    | "competencias_consultadas"
+    | "preparando_competencia"
+    | "carregando_comercializacao"
+    | "baixando_pdf";
   loginConcluido?: boolean;
   govBrCpfSubmitted?: boolean;
   govBrPasswordSubmitted?: boolean;

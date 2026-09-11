@@ -149,6 +149,8 @@ export class TabManager {
           status: "abrindo_em_lote",
           statusTitle: "Abrindo em lote",
           statusDescription: "Abrindo aba para autenticacao...",
+          progressFlow: consultarGuias ? "consulta" : "geracao",
+          progressStage: "aguardando_pagina",
           lastUpdatedAt: Date.now(),
         });
         await browser.tabs.update(tab.id, { url });

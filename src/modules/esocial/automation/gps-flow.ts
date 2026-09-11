@@ -18,7 +18,7 @@ import {
 import { extractHtmlAlertMessage, parseHtml, resolveGuiaUrlFromDocument } from "../services/document-parser";
 import { postJson, buildEsocialUrl } from "../services/esocial-api";
 import { buildComercializacaoPayload } from "../services/comercializacao";
-import { clearEsocialProgressOverlay, reportBatchStatus, showSuccessModal } from "./overlay-ui";
+import { clearEsocialProgressOverlay, reportStatusMessage, showSuccessModal } from "./overlay-ui";
 import { baixarGuiaPdfDirecto } from "./guide-download";
 import { esocialMessages } from "../utils/status-messages";
 import { fetchBoletoData, fetchBoletosDoAno, fetchComercializacaoData } from "../services/esocial-data-fetcher";
@@ -274,7 +274,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
 
   const savingMsg = esocialMessages.savingCommercializationDraft();
   logger.info("eSocial", savingMsg.title);
-  reportBatchStatus(savingMsg.status, savingMsg.title, savingMsg.description);
+  reportStatusMessage(savingMsg);
 
   const enviarResp = await postJson(
     "/FolhaPagamento/SeguradoEspecial/EnviarEventosComercializacaoProducao",
@@ -284,7 +284,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
 
   const sendingMsg = esocialMessages.sendingCommercializationEvents();
   logger.info("eSocial", sendingMsg.title);
-  reportBatchStatus(sendingMsg.status, sendingMsg.title, sendingMsg.description);
+  reportStatusMessage(sendingMsg);
 
   const enviaRemuneracoesParams = buildEnviaRemuneracoesFormData(
     competencia,
@@ -307,7 +307,7 @@ async function executarFechamentoDireto(
 ): Promise<void> {
   const remuneracoesMsg = esocialMessages.loadingClosureScreen();
   logger.info("eSocial", remuneracoesMsg.title);
-  reportBatchStatus(remuneracoesMsg.status, remuneracoesMsg.title, remuneracoesMsg.description);
+  reportStatusMessage(remuneracoesMsg);
 
   const remuneracoesHtml = await postForm(
     `/FolhaPagamento/Listagem/EnviaRemuneracoes?competencia=${competencia}&considerarRegistrosExcluidos=true`,
@@ -331,7 +331,7 @@ async function executarFechamentoDireto(
   const fechamentoForm = buildFechamentoFormData(fechamentoDoc, competencia);
   const closingMsg = esocialMessages.closingPayroll();
   logger.info("eSocial", closingMsg.title);
-  reportBatchStatus(closingMsg.status, closingMsg.title, closingMsg.description);
+  reportStatusMessage(closingMsg);
 
   const fechamentoPostHtml = await postForm(
     `/FolhaPagamento/FechamentoFolha?competencia=${competencia}`,
@@ -389,7 +389,7 @@ async function carregarDadosComercializacao(competencia: string): Promise<{
 }> {
   const loadingMsg = esocialMessages.loadingCommercializationData();
   logger.info("eSocial", loadingMsg.title);
-  reportBatchStatus(loadingMsg.status, loadingMsg.title, loadingMsg.description);
+  reportStatusMessage(loadingMsg);
 
   const comercializacaoPromise = fetch(
     buildEsocialUrl(
@@ -647,7 +647,7 @@ function iniciarReaberturaDaCompetencia(
   state: GpsQueueState,
 ) {
   const reopenMsg = esocialMessages.reopeningCompetencia(competenciaLabel(competencia));
-  reportBatchStatus(reopenMsg.status, reopenMsg.title, reopenMsg.description, {
+  reportStatusMessage(reopenMsg, {
     ...queueStatusExtra(state, competencia),
     overlayState: {
       step: state.index + 1,
@@ -686,7 +686,7 @@ async function advanceGpsQueueAfterCompletion(
     clearGpsQueueState();
     releaseGpsFlowLock();
     const finalMsg = esocialMessages.allCompetenciasCompleted(state?.resultados.length || 1);
-    reportBatchStatus(finalMsg.status, finalMsg.title, finalMsg.description, {
+    reportStatusMessage(finalMsg, {
       boletoInfo: boletoInfo ? { detectado: true, competencia, ...boletoInfo } : undefined,
       competenciaAtual: competencia,
       competenciaIndice: state?.competencias.length || 1,
@@ -703,7 +703,7 @@ async function advanceGpsQueueAfterCompletion(
     state.index + 1,
     state.competencias.length,
   );
-  reportBatchStatus(completedMsg.status, completedMsg.title, completedMsg.description, {
+  reportStatusMessage(completedMsg, {
     ...queueStatusExtra(state, competencia),
     boletoInfo: boletoInfo ? { detectado: true, competencia, ...boletoInfo } : undefined,
     overlayState: {
@@ -732,7 +732,7 @@ async function advanceGpsQueueAfterCompletion(
     state.index + 1,
     state.competencias.length,
   );
-  reportBatchStatus(nextMsg.status, nextMsg.title, nextMsg.description, {
+  reportStatusMessage(nextMsg, {
     ...queueStatusExtra(state, nextCompetencia),
     boletoInfo: boletoInfo ? { detectado: true, competencia, ...boletoInfo } : undefined,
     overlayState: {
@@ -1029,7 +1029,7 @@ export async function resumePendingGpsFlow(settings?: AppSettings): Promise<bool
       clearGpsQueueState();
       releaseGpsFlowLock();
       logger.error("eSocial", statusMsg.title, { error: errorMessage });
-      reportBatchStatus(statusMsg.status, statusMsg.title, statusMsg.description, {
+      reportStatusMessage(statusMsg, {
         lastError: displayError,
         ...(queueAfterError ? queueStatusExtra(queueAfterError, pending.competencia) : {}),
         overlayState: null,
@@ -1111,7 +1111,7 @@ export async function resumePendingGpsFlow(settings?: AppSettings): Promise<bool
         fechamentoNavigationStartedAt: Date.now(),
         step: "awaiting_closure_page",
       });
-      reportBatchStatus(retryMsg.status, retryMsg.title, retryMsg.description, {
+      reportStatusMessage(retryMsg, {
         ...(queueForRetry ? queueStatusExtra(queueForRetry, pending.competencia) : {}),
         overlayState: {
           step: queueForRetry ? queueForRetry.index + 1 : 1,
@@ -1135,7 +1135,7 @@ export async function resumePendingGpsFlow(settings?: AppSettings): Promise<bool
 
     const statusMsg = esocialMessages.failedToGenerateGuide();
     logger.error("eSocial", statusMsg.title, { error: fechamentoHtmlError });
-    reportBatchStatus(statusMsg.status, statusMsg.title, statusMsg.description, {
+    reportStatusMessage(statusMsg, {
       lastError: fechamentoHtmlError,
       ...(queueAfterError ? queueStatusExtra(queueAfterError, pending.competencia) : {}),
       overlayState: null,
@@ -1284,7 +1284,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
   if (queue.index >= queue.competencias.length) {
     releaseGpsFlowLock();
     const finalMsg = esocialMessages.allCompetenciasCompleted(queue.resultados.length || queue.competencias.length);
-    reportBatchStatus(finalMsg.status, finalMsg.title, finalMsg.description, {
+    reportStatusMessage(finalMsg, {
       competenciaIndice: queue.competencias.length,
       competenciasTotal: queue.competencias.length,
       competenciasResultados: queue.resultados,
@@ -1313,7 +1313,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     activeQueue.index + 1,
     activeQueue.competencias.length,
   );
-  reportBatchStatus(queueStartMsg.status, queueStartMsg.title, queueStartMsg.description, {
+  reportStatusMessage(queueStartMsg, {
     ...queueStatusExtra(activeQueue, competencia),
     overlayState: {
       step: activeQueue.index + 1,
@@ -1327,7 +1327,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
   if (!window.location.href.includes("/FolhaPagamento/Listagem/ListarPagamentos")) {
     const contextMsg = esocialMessages.openingGenerationContext(competencia);
     logger.info("eSocial", contextMsg.title);
-    reportBatchStatus(contextMsg.status, contextMsg.title, contextMsg.description, {
+    reportStatusMessage(contextMsg, {
       ...queueStatusExtra(activeQueue, competencia),
       overlayState: {
         step: activeQueue.index + 1,
@@ -1359,9 +1359,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
 
   const checkMsg = esocialMessages.verifyingBoletoStatus();
   logger.info("eSocial", checkMsg.title);
-  reportBatchStatus(checkMsg.status, checkMsg.title, checkMsg.description, {
-    progressStep: 2,
-    progressTotal: 3,
+  reportStatusMessage(checkMsg, {
     ...queueStatusExtra(activeQueue, competencia),
     overlayState: {
       step: 2,
@@ -1398,7 +1396,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
 
     const issuedMsg = esocialMessages.guideAlreadyIssued(competencia);
     logger.info("eSocial", issuedMsg.title);
-    reportBatchStatus(issuedMsg.status, issuedMsg.title, issuedMsg.description, {
+    reportStatusMessage(issuedMsg, {
       ...queueStatusExtra(activeQueue, competencia),
       overlayState: null,
     });
@@ -1459,9 +1457,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
   try {
     const initMsg = esocialMessages.initializingGuideGeneration(competencia);
     logger.info("eSocial", initMsg.title);
-    reportBatchStatus(initMsg.status, initMsg.title, initMsg.description, {
-      progressStep: 2,
-      progressTotal: 3,
+    reportStatusMessage(initMsg, {
       overlayState: {
         step: 2,
         total: 3,
@@ -1480,7 +1476,7 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
     logger.error("eSocial", statusMsg.title, { error: errorMessage });
     const queueAfterError = markCurrentCompetenciaResult("erro", displayError);
     clearGpsQueueState();
-    reportBatchStatus(statusMsg.status, statusMsg.title, statusMsg.description, {
+    reportStatusMessage(statusMsg, {
       lastError: displayError,
       ...(queueAfterError ? queueStatusExtra(queueAfterError, competencia) : {}),
       overlayState: null,

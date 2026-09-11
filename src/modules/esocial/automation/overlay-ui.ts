@@ -3,6 +3,7 @@ import {
   ESOCIAL_PROGRESS_OVERLAY_STORAGE_KEY,
 } from "../utils/esocial-constants";
 import type { EsocialOverlayState } from "../types";
+import type { StatusMessage } from "../utils/status-messages";
 
 function escapeHtml(value: string): string {
   return value
@@ -145,6 +146,17 @@ export function reportBatchStatus(
   } else if (overlayState) {
     renderEsocialProgressOverlay(overlayState);
   }
+}
+
+export function reportStatusMessage(
+  message: StatusMessage,
+  extra?: Record<string, unknown>,
+) {
+  reportBatchStatus(message.status, message.title, message.description, {
+    progressFlow: message.progressFlow,
+    progressStage: message.progressStage,
+    ...(extra || {}),
+  });
 }
 
 export function showSuccessModal(title: string = "Boleto Gerado!", onClose?: () => void) {

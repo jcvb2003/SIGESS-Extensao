@@ -1,6 +1,7 @@
 import { logger } from "../shared/services/logger";
 import { StorageService } from "./services/storage";
 import { LicenseService } from "../shared/services/license";
+import { getLicenseErrorMessage } from "../shared/services/license-messages";
 import { RealtimeLicenseService } from "./services/realtime-license";
 import {
   CadastroSession,
@@ -320,7 +321,7 @@ async function handleStartBatchLogin(
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: getLicenseErrorMessage(license.reason),
     };
   }
   const { type, credentials } = message;
@@ -382,7 +383,7 @@ async function handleAbrirAbaContainer(
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: getLicenseErrorMessage(license.reason),
     };
   }
   const { url, cpf, senha, nome, valorComercializado } = message;
@@ -475,7 +476,7 @@ async function handleEnqueueGovBatchSessions(
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: getLicenseErrorMessage(license.reason),
     };
   }
 
@@ -608,8 +609,8 @@ async function handleGetGovBatchStatuses(message: MessageRequest) {
       status: credentials.status || (credentials.loginConcluido ? "concluido" : "aguardando_pagina"),
       statusTitle: credentials.statusTitle,
       statusDescription: credentials.statusDescription,
-      progressStep: credentials.progressStep,
-      progressTotal: credentials.progressTotal,
+      progressFlow: credentials.progressFlow,
+      progressStage: credentials.progressStage,
       loginConcluido: !!credentials.loginConcluido,
       boletoInfo: credentials.boletoInfo,
       consultas: credentials.consultas,
@@ -654,8 +655,8 @@ async function handleUpdateGovBatchStatus(
     statusDescription?: string;
     lastError?: string;
     loginConcluido?: boolean;
-    progressStep?: number;
-    progressTotal?: number;
+    progressFlow?: UserCredentials["progressFlow"];
+    progressStage?: UserCredentials["progressStage"];
     boletoInfo?: any;
     consultas?: EsocialConsultaCompetencia[];
     boletoGerado?: boolean;
@@ -671,8 +672,8 @@ async function handleUpdateGovBatchStatus(
     statusDescription,
     lastError,
     loginConcluido,
-    progressStep,
-    progressTotal,
+    progressFlow,
+    progressStage,
     boletoInfo,
     consultas,
     boletoGerado,
@@ -694,8 +695,8 @@ async function handleUpdateGovBatchStatus(
     {
       lastError,
       loginConcluido,
-      progressStep,
-      progressTotal,
+      progressFlow,
+      progressStage,
       boletoInfo,
       consultas,
       boletoGerado,
@@ -715,7 +716,7 @@ async function handleTurboFillReap(message: MessageRequest) {
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: getLicenseErrorMessage(license.reason),
     };
   }
 
@@ -797,7 +798,7 @@ async function handleStartGovBatchConsultation(message: MessageRequest) {
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: getLicenseErrorMessage(license.reason),
     };
   }
 
@@ -828,6 +829,8 @@ async function handleStartGovBatchConsultation(message: MessageRequest) {
       status: "consultando",
       statusTitle: "Consultando competências",
       statusDescription: `Consultando as competências de ${item.selectedYear}...`,
+      progressFlow: "consulta",
+      progressStage: "aguardando_pagina",
       lastError: undefined,
       lastUpdatedAt: Date.now(),
     });
@@ -855,7 +858,7 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
   if (!license.ok) {
     return {
       success: false,
-      error: `Licença inválida: ${license.reason}. Entre em contato: (91) 99319-3461`,
+      error: getLicenseErrorMessage(license.reason),
     };
   }
 
@@ -900,6 +903,8 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
         status: "concluido",
         statusTitle: "Geração concluída",
         statusDescription: `${item.competencias.length} competência(s) já processada(s).`,
+        progressFlow: "geracao",
+        progressStage: "baixando_pdf",
         boletoGerado: true,
         lastError: undefined,
         lastUpdatedAt: Date.now(),
@@ -927,6 +932,8 @@ async function handleStartGovBatchGeneration(message: MessageRequest) {
       status: "iniciando_geracao",
       statusTitle: "Preparando geração",
       statusDescription: `Abrindo o contexto de geração para ${competenciaInicialLabel}...`,
+      progressFlow: "geracao",
+      progressStage: "preparando_competencia",
       lastError: undefined,
       lastUpdatedAt: Date.now(),
     });

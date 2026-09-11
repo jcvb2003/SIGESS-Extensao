@@ -23,7 +23,15 @@ describe('StorageService', () => {
         await StorageService.saveSettings(settings);
 
         expect(browser.storage.local.set).toHaveBeenCalledWith(
-            { sigessSettings: settings }
+            {
+                sigessSettings: {
+                    consultarGuias: true,
+                    mpaMascDaysMin: '21',
+                    mpaMascDaysMax: '25',
+                    mpaFemDaysMin: '21',
+                    mpaFemDaysMax: '25'
+                }
+            }
         );
     });
 

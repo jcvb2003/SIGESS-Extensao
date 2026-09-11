@@ -1,5 +1,7 @@
 export function getLicenseErrorMessage(reason?: string): string {
   switch (reason) {
+    case "no_key":
+      return "Extensão não ativada. No Web, acesse Configurações > Extensão, copie a chave e ative a extensão.";
     case "expired":
       return "A validade desta licença terminou. Entre em contato para renovar.";
     case "device_limit":
