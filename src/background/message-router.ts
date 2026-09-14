@@ -52,6 +52,7 @@ const UPDATE_ALLOWED_ACTIONS = new Set([
   "getESocialAutomationSettings",
   "getAutoRegistrationSnapshot",
   "openExtensionUpdate",
+  "openReapMpaSettings",
 ]);
 
 function formatCpf(cpf: string): string {
@@ -174,6 +175,8 @@ export async function routeMessage(
         return { success: true };
       case "abrirDataInspector":
         return await openDataInspector();
+      case "openReapMpaSettings":
+        return await openReapMpaSettings();
       case "openExtensionUpdate":
         return await handleOpenExtensionUpdate();
       case "inssAuthenticated":
@@ -1155,6 +1158,19 @@ async function openDataInspector(): Promise<MessageResponse> {
     if (tab.windowId !== undefined)
       await browser.windows.update(tab.windowId, { focused: true });
     return { success: true, tabId: tab.id, reused: true };
+  }
+  const created = await browser.tabs.create({ url });
+  return { success: true, tabId: created.id, reused: false };
+}
+
+async function openReapMpaSettings(): Promise<MessageResponse> {
+  const url = browser.runtime.getURL("reap_mpa_settings.html");
+  const [existingTab] = await browser.tabs.query({ url });
+  if (existingTab?.id !== undefined) {
+    await browser.tabs.update(existingTab.id, { active: true });
+    if (existingTab.windowId !== undefined)
+      await browser.windows.update(existingTab.windowId, { focused: true });
+    return { success: true, tabId: existingTab.id, reused: true };
   }
   const created = await browser.tabs.create({ url });
   return { success: true, tabId: created.id, reused: false };

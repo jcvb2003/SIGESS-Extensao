@@ -27,14 +27,15 @@
         "assets/content_script.js",
         "assets/content_reap.js",
         "assets/content_reap_turbo.js",
-        "assets/content_esocial.js"
+        "assets/content_esocial.js",
+        "sigess-logo.png"
     ],
     "icons": {
-        "128": "icon.png"
+        "128": "sigess-logo.png"
     },
     "browser_action": {
         "default_title": "SIGESS",
-        "default_icon": "icon.png",
+        "default_icon": "sigess-logo.png",
         "default_popup": "popup.html"
     },
     "content_scripts": [

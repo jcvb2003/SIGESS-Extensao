@@ -17,8 +17,12 @@ export function validateReapSettings(settings: any, gender: string): string | nu
   }
 
   const filled = (settings.mpaSpecies || []).filter((s: any) => s?.id);
-  if (filled.length < 1) {
-    return "Por favor, preencha pelo menos 1 especie no painel de configuracoes do REAP MPA.";
+  const requestedSpeciesCount = Number(settings.mpaSpeciesCount);
+  if (!Number.isInteger(requestedSpeciesCount) || requestedSpeciesCount < 1) {
+    return "Selecione uma quantidade de especies maior que zero no painel de configuracoes do REAP MPA.";
+  }
+  if (requestedSpeciesCount > filled.length) {
+    return `Cadastre pelo menos ${requestedSpeciesCount} especies no painel de configuracoes do REAP MPA.`;
   }
 
   for (const s of filled) {

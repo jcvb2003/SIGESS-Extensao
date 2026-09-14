@@ -142,12 +142,36 @@ const injectButton = async () => {
 
   container = document.createElement("div");
   container.id = "sigess-reap-container";
-   container.style.cssText = `position: fixed; top: 120px; right: 20px; z-index: 100000; background: white; border: 2px solid #007bff; border-radius: 8px; box-shadow: none; display: flex; flex-direction: column; gap: 8px; padding: 12px; width: 330px; font-family: sans-serif; cursor: move;`;
+   container.style.cssText = `position: fixed; top: 120px; right: 20px; z-index: 100000; background: white; border: 2px solid #059668; border-radius: 8px; box-shadow: none; display: flex; flex-direction: column; gap: 8px; padding: 12px; width: 330px; font-family: sans-serif; cursor: move;`;
 
   const title = document.createElement("div");
-  title.innerText = "REAP";
-  title.style.cssText = "font-weight: bold; text-align: center; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 14px;";
+  title.style.cssText = "display: flex; align-items: center; justify-content: center; gap: 7px; font-weight: bold; color: #059668; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 14px;";
+  const brandLogo = document.createElement("img");
+  brandLogo.src = browser.runtime.getURL("sigess-logo.png");
+  brandLogo.alt = "";
+  brandLogo.style.cssText = "width: 20px; height: 20px; object-fit: contain;";
+  const brandName = document.createElement("span");
+  brandName.textContent = "SIGESS";
+  title.append(brandLogo, brandName);
   container.appendChild(title);
+
+  const configurePanel = document.createElement("div");
+  configurePanel.style.cssText = "display: none; width: 100%;";
+  const configureButton = document.createElement("button");
+  configureButton.type = "button";
+  configureButton.textContent = "Configurar";
+  configureButton.style.cssText = "width: 100%; padding: 9px 0; background: #059668; color: white; border: none; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; margin: 0;";
+  configureButton.onclick = async (e) => {
+    e.stopPropagation();
+    try {
+      const response = await browser.runtime.sendMessage({ action: "openReapMpaSettings" });
+      if (!response?.success) alert(response?.error || "Não foi possível abrir as configurações do REAP MPA.");
+    } catch (error: any) {
+      alert(error?.message || "Não foi possível abrir as configurações do REAP MPA.");
+    }
+  };
+  configurePanel.appendChild(configureButton);
+  container.appendChild(configurePanel);
 
   const columns = document.createElement("div");
    columns.style.cssText = "display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; align-items: start;";
@@ -169,8 +193,12 @@ const injectButton = async () => {
   let modeSeqUpdate = () => {};
   let modeParcialUpdate = () => {};
   let presetUpdate = () => {};
+  let settingsSnapshot: any = {};
 
   const refreshUI = () => {
+    const needsConfiguration = Boolean(validateReapSettings(settingsSnapshot, State.gender));
+    columns.style.display = needsConfiguration ? "none" : "grid";
+    configurePanel.style.display = needsConfiguration ? "block" : "none";
     updateGrid();
     male.update(); female.update();
     presetUpdate();
@@ -220,6 +248,7 @@ const injectButton = async () => {
 
   async function loadPresetControls() {
     const current = (await browser.storage.local.get("sigessSettings")).sigessSettings as any;
+    settingsSnapshot = current || {};
     const presets = (current?.reapMpaPresets || []) as ReapMpaPreset[];
     const nextPresetIds = presets.map((preset) => preset.id);
     const namesChanged = presets.some((preset, index) => preset.name !== presetSeg.children[index]?.textContent);
@@ -230,6 +259,7 @@ const injectButton = async () => {
     if (resetBtn) resetBtn.style.gridRow = presets.length > 1 ? "5" : "4";
     if (!shouldRebuild) {
       presetUpdate();
+      refreshUI();
       return;
     }
 
@@ -256,6 +286,7 @@ const injectButton = async () => {
       });
     };
     presetUpdate();
+    refreshUI();
   }
 
    browser.storage.onChanged.addListener((changes) => {

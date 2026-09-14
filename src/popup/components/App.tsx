@@ -55,7 +55,7 @@ export const UpdateBlockScreen: React.FC<UpdateBlockScreenProps> = ({
 }) => (
   <main className="update-block-screen">
     <header className="update-block-header">
-      <img src="../../icon.png" alt="" />
+      <img src="../../sigess-logo.png" alt="" />
       <span>SIGESS</span>
     </header>
 
@@ -236,7 +236,7 @@ const AppContent: React.FC = () => {
     <div className="container">
       <header className="header">
         <div className="header-content">
-          <img src="../../icon.png" alt="SIGESS" className="logo" />
+          <img src="../../sigess-logo.png" alt="SIGESS" className="logo" />
           <h1 className="title">SIGESS</h1>
         </div>
       </header>

@@ -1,6 +1,7 @@
 import "../shared/utils/browser-shim";
 import { initUI } from "../modules/reap-mpa/overlay";
 import { initAgroUI } from "../modules/reap-agro/form-automation";
+import { installMonthlyProductionSummaryObserver } from "../modules/reap-mpa/steps/step-monthly-production";
 
 const injectReapPageDiagnostics = () => {
   if ((globalThis as any).__sigessReapPageDiagnosticsInjected) return;
@@ -66,6 +67,7 @@ const init = async () => {
   
   injectReapPageDiagnostics();
   attachReapPageDiagnosticsLogger();
+  installMonthlyProductionSummaryObserver();
   initUI();
   initAgroUI();
   console.log("SIGESS: REAP Observers Initialized");

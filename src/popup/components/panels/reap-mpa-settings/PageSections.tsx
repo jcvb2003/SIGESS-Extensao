@@ -266,7 +266,6 @@ export function ReapPage2Section({
               mpaCommercializationStates: value === undefined ? [] : [value],
             })}
           />
-          <p className="reap-note">Selecione apenas um estado.</p>
         </div>
       </div>
     </section>

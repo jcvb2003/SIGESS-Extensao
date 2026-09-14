@@ -87,23 +87,26 @@ try {
     console.log("Moved reap_mpa_settings.html to root");
   }
 
-  const possibleIconSources = [
-    path.join(__dirname, "public", "icon.png"),
-    path.join(__dirname, "icon.png"),
-    path.join(__dirname, "../icon.png"),
-    path.join(__dirname, "dist", "icon.png"),
+  const logoFilename = "sigess-logo.png";
+  const possibleLogoSources = [
+    path.join(__dirname, "public", logoFilename),
+    path.join(__dirname, logoFilename),
+    path.join(__dirname, "..", logoFilename),
+    path.join(__dirname, "dist", logoFilename),
   ];
-  const iconSource = possibleIconSources.find((iconPath) =>
-    fs.existsSync(iconPath),
+  const logoSource = possibleLogoSources.find((logoPath) =>
+    fs.existsSync(logoPath),
   );
 
-  const iconDest = path.join(outputDir, "icon.png");
-  if (iconSource) {
-    fs.copyFileSync(iconSource, iconDest);
-    console.log("Copied icon.png from", iconSource);
+  const logoDest = path.join(outputDir, logoFilename);
+  if (logoSource) {
+    fs.copyFileSync(logoSource, logoDest);
+    console.log(`Copied ${logoFilename} from`, logoSource);
+    const staleIconPath = path.join(outputDir, "icon.png");
+    if (fs.existsSync(staleIconPath)) fs.rmSync(staleIconPath);
   } else {
     throw new Error(
-      `icon.png not found. Checked: ${possibleIconSources.join(", ")}`,
+      `${logoFilename} not found. Checked: ${possibleLogoSources.join(", ")}`,
     );
   }
 } catch (e) {

@@ -25,6 +25,92 @@ function getPortalSpeciesName(speciesId?: number) {
   return FULL_PORTAL_SPECIES.find((item) => item.id === speciesId)?.nome || "";
 }
 
+function parseProductionNumber(value: string) {
+  const cleaned = value.trim().replace(/[^0-9,.-]/g, "");
+  const normalized = cleaned.includes(",")
+    ? cleaned.replace(/\./g, "").replace(",", ".")
+    : cleaned;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function appendMonthlyProductionTotal(prodTable: HTMLElement) {
+  // No portal, .responsive-table fica dentro de .br-table.input-table.
+  // Mantenha o fallback para caso o elemento recebido já seja a tabela interna.
+  const responsiveTable =
+    prodTable.querySelector<HTMLElement>(".responsive-table") ??
+    prodTable.closest<HTMLElement>(".responsive-table");
+  const target = responsiveTable || prodTable;
+  let summary = target.querySelector<HTMLElement>("[data-sigess-monthly-production]");
+  if (!summary) {
+    summary = document.createElement("div");
+    summary.dataset.sigessMonthlyProduction = "true";
+    summary.style.cssText = "display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 4px; padding: 12px 16px; color: #059668; font-weight: 700; font-size: 18px;";
+    const logo = document.createElement("img");
+    logo.src = browser.runtime.getURL("sigess-logo.png");
+    logo.alt = "";
+    logo.style.cssText = "width: 24px; height: 24px; object-fit: contain;";
+    const label = document.createElement("span");
+    label.dataset.sigessMonthlyProductionLabel = "true";
+    summary.append(logo, label);
+    target.appendChild(summary);
+  }
+
+  const updateTotal = () => {
+    const total = Array.from(prodTable.querySelectorAll<HTMLElement>("tbody tr")).reduce((sum, row) => {
+      const quantity = row.querySelector<HTMLInputElement>("td:nth-child(3) input");
+      const price = row.querySelector<HTMLInputElement>("td:nth-child(4) input");
+      if (!quantity || !price) return sum;
+      return sum + parseProductionNumber(quantity.value) * parseProductionNumber(price.value);
+    }, 0);
+    const label = summary?.querySelector<HTMLElement>("[data-sigess-monthly-production-label]");
+    if (label) {
+      const text = `Produção mensal: ${total.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      })}`;
+      if (label.textContent !== text) label.textContent = text;
+    }
+  };
+
+  if (!prodTable.dataset.sigessMonthlyProductionBound) {
+    prodTable.dataset.sigessMonthlyProductionBound = "true";
+    prodTable.addEventListener("input", updateTotal);
+    prodTable.addEventListener("change", updateTotal);
+  }
+  updateTotal();
+}
+
+export function installMonthlyProductionSummaryObserver() {
+  const page = globalThis as typeof globalThis & {
+    __sigessMonthlyProductionObserver?: MutationObserver;
+    __sigessMonthlyProductionScanPending?: boolean;
+  };
+  if (page.__sigessMonthlyProductionObserver || !document.body) return;
+
+  const scan = () => {
+    page.__sigessMonthlyProductionScanPending = false;
+    document.querySelectorAll<HTMLElement>(".br-table").forEach((prodTable) => {
+      const title = prodTable.querySelector<HTMLElement>(".table-title")?.textContent ?? "";
+      if (title.includes("Resultado anual da operação de pesca")) {
+        appendMonthlyProductionTotal(prodTable);
+      }
+    });
+  };
+  const scheduleScan = () => {
+    if (page.__sigessMonthlyProductionScanPending) return;
+    page.__sigessMonthlyProductionScanPending = true;
+    requestAnimationFrame(scan);
+  };
+
+  page.__sigessMonthlyProductionObserver = new MutationObserver(scheduleScan);
+  page.__sigessMonthlyProductionObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+  scan();
+}
+
 export const Page3 = {
   isCurrentPage: () =>
     !!document.querySelector(".br-accordion") &&
@@ -233,6 +319,9 @@ export const Page3 = {
 
       await Page3.fillProductionRow(row, species[fishIdx]);
     }
+
+    await Utils.sleep(300);
+    appendMonthlyProductionTotal(prodTable);
   },
 
   ensureRowExists: async (prodTable: HTMLElement, fishIdx: number) => {

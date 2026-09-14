@@ -33,11 +33,11 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({ license, act
 
       <header style={{ padding: '28px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
         <div style={{ background: 'white', padding: 12, borderRadius: 16, boxShadow: '0 6px 16px rgba(15, 118, 110, 0.12)', display: 'flex' }}>
-          <img src="../../icon.png" alt="SIGESS" style={{ width: 38, height: 38, borderRadius: 8 }} />
+          <img src="../../sigess-logo.png" alt="SIGESS" style={{ width: 38, height: 38, borderRadius: 8 }} />
         </div>
         <div style={{ textAlign: 'center' }}>
           <h1 style={{ fontSize: 22, fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.5px', margin: 0 }}>SIGESS</h1>
-          <p style={{ fontSize: 10, color: 'var(--color-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.2px', marginTop: 3 }}>Enterprise Control</p>
+          <p style={{ fontSize: 10, color: 'var(--color-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.2px', marginTop: 3 }}>Automação e Inovação</p>
         </div>
       </header>
 
