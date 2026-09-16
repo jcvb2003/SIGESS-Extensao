@@ -45,6 +45,12 @@ import { enqueueCadastroSessionWork } from "./cadastro/cadastro-session-queue";
 import { XPI_INSTALL_URL } from "../shared/services/update-block";
 import { clearStaticCacheRuntime } from "./services/static-cache-runtime";
 import { clearStaticCache } from "./services/static-cache-policy";
+import {
+  runMpaConsultationBatch,
+  cancelMpaConsultationBatch,
+  type MpaConsultationItem,
+  type MpaBatchProgressPayload,
+} from "../modules/automation/pesqbrasil/public-consultation";
 
 const UPDATE_ALLOWED_ACTIONS = new Set([
   "checkLicense",
@@ -194,6 +200,33 @@ export async function routeMessage(
       }
       case "clearGovBatchHistory": {
         await StorageService.clearClosedGovBatchStatuses();
+        return { success: true };
+      }
+      case "startMpaConsultationBatch": {
+        const rawItems = Array.isArray((message as any).items)
+          ? ((message as any).items as MpaConsultationItem[])
+          : [];
+        const runId = String((message as any).runId || `mpa-${Date.now()}`);
+
+        const broadcastProgress = (payload: MpaBatchProgressPayload) => {
+          browser.tabs.query({}).then((tabs) => {
+            for (const tab of tabs) {
+              if (typeof tab.id === "number") {
+                browser.tabs.sendMessage(tab.id, {
+                  type: "SIGESS_EXTENSION_EVENT",
+                  eventName: "mpaConsultationProgress",
+                  data: payload,
+                }).catch(() => {});
+              }
+            }
+          }).catch(() => {});
+        };
+
+        const batchResult = await runMpaConsultationBatch(rawItems, runId, broadcastProgress);
+        return batchResult;
+      }
+      case "cancelMpaConsultationBatch": {
+        cancelMpaConsultationBatch();
         return { success: true };
       }
       case "inssAuthenticated":

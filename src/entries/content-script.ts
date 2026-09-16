@@ -19,6 +19,8 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   "abrirDataInspector",
   "openSidebar",
   "clearGovBatchHistory",
+  "startMpaConsultationBatch",
+  "cancelMpaConsultationBatch",
 ]);
 
 const UPDATE_ALLOWED_MESSAGE_TYPES = new Set([
@@ -182,6 +184,14 @@ if (browserAPI?.storage?.onChanged) {
         { type: EXTENSION_EVENT_TYPE, eventName: "pessoaDataAtualizada" },
         window.location.origin,
       );
+    }
+  });
+}
+
+if (browserAPI?.runtime?.onMessage) {
+  browserAPI.runtime.onMessage.addListener((msg: any) => {
+    if (msg?.type === EXTENSION_EVENT_TYPE) {
+      window.postMessage(msg, window.location.origin);
     }
   });
 }
