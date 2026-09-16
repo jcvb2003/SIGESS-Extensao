@@ -154,13 +154,19 @@ async function injectPesqBrasilOverlay(tabId: number): Promise<void> {
       const box = document.createElement("div");
       box.style.cssText = "background: #ffffff !important; padding: 32px 42px !important; border-radius: 20px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35) !important; border: 2px solid rgba(16, 185, 129, 0.4) !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 14px !important; max-width: 420px !important; text-align: center !important;";
 
-      const img = document.createElement("img");
-      img.src = ${JSON.stringify(logoUrl)};
-      img.style.cssText = "height: 42px !important; width: auto !important; object-fit: contain !important;";
-      img.alt = "SIGESS";
+      const loaderWrapper = document.createElement("div");
+      loaderWrapper.style.cssText = "position: relative !important; width: 76px !important; height: 76px !important; display: flex !important; align-items: center !important; justify-content: center !important; margin: 4px 0 !important;";
 
       const spinner = document.createElement("div");
-      spinner.style.cssText = "width: 38px !important; height: 38px !important; border: 4px solid rgba(16, 185, 129, 0.2) !important; border-top: 4px solid #059669 !important; border-radius: 50% !important; animation: sigess-spin 0.85s linear infinite !important; margin: 4px 0 !important;";
+      spinner.style.cssText = "position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; border: 3.5px solid rgba(16, 185, 129, 0.2) !important; border-top: 3.5px solid #059669 !important; border-radius: 50% !important; animation: sigess-spin 0.9s linear infinite !important; box-sizing: border-box !important;";
+
+      const img = document.createElement("img");
+      img.src = ${JSON.stringify(logoUrl)};
+      img.style.cssText = "position: relative !important; width: 44px !important; height: 44px !important; object-fit: contain !important; z-index: 1 !important;";
+      img.alt = "SIGESS";
+
+      loaderWrapper.appendChild(spinner);
+      loaderWrapper.appendChild(img);
 
       const title = document.createElement("h3");
       title.textContent = "Consultando PesqBrasil...";
@@ -177,8 +183,7 @@ async function injectPesqBrasilOverlay(tabId: number): Promise<void> {
       const style = document.createElement("style");
       style.textContent = "@keyframes sigess-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }";
 
-      box.appendChild(img);
-      box.appendChild(spinner);
+      box.appendChild(loaderWrapper);
       box.appendChild(title);
       box.appendChild(desc);
       box.appendChild(note);
