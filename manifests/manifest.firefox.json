@@ -75,8 +75,8 @@
   "commands": {
     "_execute_sidebar_action": {
       "suggested_key": {
-        "default": "Ctrl+Alt+Z",
-        "mac": "Command+Alt+Z"
+        "default": "Ctrl+Alt+S",
+        "mac": "Command+Alt+S"
       },
       "description": "Abrir ou fechar o painel lateral do SIGESS"
     }

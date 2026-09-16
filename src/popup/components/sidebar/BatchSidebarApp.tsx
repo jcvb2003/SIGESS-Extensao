@@ -424,7 +424,7 @@ export const BatchSidebarApp: React.FC = () => {
       </main>
 
       <footer className="sidebar-footer">
-        <span>Atalho: <strong>Ctrl+Alt+Z</strong></span>
+        <span>Atalho: <strong>Ctrl+Alt+S</strong></span>
         <span>{items.length} {items.length === 1 ? "registro" : "registros"}</span>
       </footer>
     </div>

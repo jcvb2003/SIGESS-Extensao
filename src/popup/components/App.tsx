@@ -257,7 +257,7 @@ const AppContent: React.FC = () => {
         <button
           type="button"
           onClick={handleOpenSidebar}
-          title="Abrir Painel Lateral de Acompanhamento (Ctrl+Alt+Z)"
+          title="Abrir Painel Lateral de Acompanhamento (Ctrl+Alt+S)"
           style={{
             position: "absolute",
             right: 16,
