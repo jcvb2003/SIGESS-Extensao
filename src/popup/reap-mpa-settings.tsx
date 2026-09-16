@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Download, Upload } from "lucide-react";
 import ReapMpaSettingsForm from "./components/panels/ReapMpaSettingsForm";
 import { StorageService } from "../background/services/storage";
 import { getDefesoMonthsNormalizationNotice, normalizeReapSettings } from "../modules/reap-mpa/reap-settings";
-import { copyReapPdfCache, removeReapPdfCacheForPreset } from "../modules/reap-mpa/pdf-cache";
+import { copyReapPdfCache, removeReapPdfCacheForPreset, REAP_PDF_CACHES_STORAGE_KEY } from "../modules/reap-mpa/pdf-cache";
 import { AppSettings, ReapMpaPreset } from "../shared/types";
 
 function getMpaSettings(settings: AppSettings): Partial<AppSettings> {
@@ -177,6 +178,107 @@ const ReapMpaSettingsPage: React.FC = () => {
     void removeReapPdfCacheForPreset(presetToRemove.id);
   };
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleExportSettings = async () => {
+    try {
+      const rawSettings = await StorageService.getSettings();
+      const pdfResult = await browser.storage.local.get(REAP_PDF_CACHES_STORAGE_KEY);
+      const pdfCaches = pdfResult[REAP_PDF_CACHES_STORAGE_KEY] || {};
+
+      const exportData = {
+        version: 1,
+        format: "sigess-reap-mpa-settings",
+        exportedAt: new Date().toISOString(),
+        settings: rawSettings,
+        pdfCaches,
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `configuracoes_reap_mpa_${dateStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setStatus("Configurações exportadas com sucesso!");
+      setTimeout(() => setStatus(""), 4000);
+    } catch (error: any) {
+      alert("Erro ao exportar configurações: " + (error?.message || String(error)));
+    }
+  };
+
+  const handleImportSettings = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      let imported: any;
+      try {
+        imported = JSON.parse(text);
+      } catch {
+        alert("O arquivo selecionado não é um arquivo JSON válido.");
+        return;
+      }
+
+      let nextSettings: AppSettings | null = null;
+      let nextPdfCaches: any = null;
+
+      if (imported && typeof imported === "object") {
+        if (imported.format === "sigess-reap-mpa-settings" && imported.settings) {
+          nextSettings = imported.settings;
+          nextPdfCaches = imported.pdfCaches;
+        } else if (imported.reapMpaPresets || Object.keys(imported).some((k) => k.startsWith("mpa"))) {
+          nextSettings = imported;
+          nextPdfCaches = imported.pdfCaches;
+        }
+      }
+
+      if (!nextSettings) {
+        alert("Arquivo inválido. Não foram encontradas configurações válidas do REAP MPA.");
+        return;
+      }
+
+      if (!window.confirm("Deseja substituir as configurações atuais pelas configurações deste arquivo?")) {
+        return;
+      }
+
+      const normalized = normalizeReapSettings(nextSettings);
+      const presets = getPresets(normalized);
+      const finalSettings = {
+        ...normalized,
+        reapMpaPresets: presets,
+        activeReapMpaPresetId: normalized.activeReapMpaPresetId ?? presets[0].id,
+      };
+
+      await browser.runtime.sendMessage({
+        action: "updateESocialSettings",
+        settings: finalSettings,
+      });
+
+      if (nextPdfCaches && typeof nextPdfCaches === "object") {
+        await browser.storage.local.set({
+          [REAP_PDF_CACHES_STORAGE_KEY]: nextPdfCaches,
+        });
+      }
+
+      setSettings(finalSettings);
+      setSelectedPresetId(finalSettings.activeReapMpaPresetId);
+      setStatus("Configurações importadas com sucesso!");
+      alert("Configurações importadas com sucesso!");
+    } catch (error: any) {
+      alert("Erro ao importar arquivo: " + (error?.message || "Falha na importação."));
+    } finally {
+      if (event.target) event.target.value = "";
+    }
+  };
+
   return (
     <div className="page-shell">
       <div className="page-header-wrap">
@@ -298,6 +400,67 @@ const ReapMpaSettingsPage: React.FC = () => {
               void browser.tabs.create({ url: url.toString() });
             }}
           />
+
+          {/* Seção Importar e Exportar Configurações */}
+          <section
+            className="section"
+            style={{
+              marginTop: "20px",
+              paddingTop: "24px",
+              paddingBottom: "24px",
+              borderTop: "1px solid var(--color-border)",
+              borderBottom: "none",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "16px",
+              }}
+            >
+              <div>
+                <h2 className="section-title">Importar e Exportar Configurações</h2>
+                <p className="section-description" style={{ marginTop: "4px" }}>
+                  Exporte suas configurações e presets em arquivo JSON para usar em outro computador ou criar um backup.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleExportSettings}
+                  style={{ gap: "8px", fontWeight: 600 }}
+                  title="Salva um arquivo .json com todos os presets e configurações"
+                >
+                  <Download size={15} />
+                  Exportar JSON
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-accent"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ gap: "8px", fontWeight: 600 }}
+                  title="Carrega um arquivo .json de configurações previamente exportado"
+                >
+                  <Upload size={15} />
+                  Importar JSON
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  style={{ display: "none" }}
+                  onChange={handleImportSettings}
+                />
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </div>
