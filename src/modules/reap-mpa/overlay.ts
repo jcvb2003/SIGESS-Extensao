@@ -10,6 +10,7 @@ import { activateReapMpaPreset } from './reap-settings';
 import { ReapMpaPreset } from '../../shared/types';
 import { LegacyWorkflowManager } from './legacy/workflow';
 import { getLicenseErrorMessage } from '../../shared/services/license-messages';
+import { showSigessOverlay, hideSigessOverlay } from '../../shared/ui/automation-overlay';
 
 const Draggable = {
   init(el: HTMLElement) {
@@ -383,19 +384,15 @@ const injectButton = async () => {
   // --- Botão Iniciar ---
   (globalThis as any).startTurboApi = executeTurboApi;
   (globalThis as any).showTurboOverlay = () => {
-    let overlay = document.getElementById("sigess-turbo-overlay");
-    if (!overlay) {
-      overlay = document.createElement("div");
-      overlay.id = "sigess-turbo-overlay";
-      overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px);";
-       overlay.innerHTML = `<div style="background: white; padding: 20px 40px; border-radius: 12px; font-weight: bold; font-family: sans-serif; box-shadow: none; color: #007bff; display: flex; flex-direction: column; align-items: center; gap: 10px;"><div style="width: 30px; height: 30px; border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite;"></div><span>Enviando...</span></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
-      document.body.appendChild(overlay);
-    }
-    overlay.style.display = "flex";
+    showSigessOverlay({
+      id: "sigess-turbo-overlay",
+      title: "Enviando",
+      animatedDots: true,
+      zIndex: 99999,
+    });
   };
   (globalThis as any).hideTurboOverlay = () => {
-    const overlay = document.getElementById("sigess-turbo-overlay");
-    if (overlay) overlay.style.display = "none";
+    hideSigessOverlay("sigess-turbo-overlay");
   };
 
   const btn = document.createElement("button");

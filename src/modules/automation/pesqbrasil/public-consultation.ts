@@ -1,4 +1,5 @@
 import { logger } from "../../../shared/services/logger";
+import { generateSigessOverlayInjectionScript } from "../../../shared/ui/automation-overlay";
 
 export interface MpaConsultationItem {
   cpf: string;
@@ -125,75 +126,15 @@ export function unmaskRgp(codigoRgp?: string, cpf?: string): string | undefined 
  */
 async function injectPesqBrasilOverlay(tabId: number): Promise<void> {
   const browserAPI = typeof browser !== "undefined" ? browser : (globalThis as any).chrome;
-  const logoUrl = browserAPI.runtime.getURL("sigess-logo.png");
-
-  const overlayScript = `
-    (() => {
-      try {
-        const pWin = window.wrappedJSObject || window;
-        pWin.__sigessConsultandoAtivo = true;
-        const beforeUnloadHandler = function(e) {
-          if (pWin.__sigessConsultandoAtivo) {
-            const msg = "Uma consulta pública do SIGESS está em andamento. Fechar esta aba irá interromper a consulta. Tem certeza de que deseja sair?";
-            e.preventDefault();
-            e.returnValue = msg;
-            return msg;
-          }
-        };
-        pWin.onbeforeunload = beforeUnloadHandler;
-        window.onbeforeunload = beforeUnloadHandler;
-        window.addEventListener("beforeunload", beforeUnloadHandler);
-      } catch (e) {}
-
-      if (document.getElementById("sigess-consultando-overlay")) return;
-
-      const overlay = document.createElement("div");
-      overlay.id = "sigess-consultando-overlay";
-      overlay.style.cssText = "position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(15, 23, 42, 0.75) !important; z-index: 2147483647 !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(4px) !important; pointer-events: auto !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;";
-
-      const box = document.createElement("div");
-      box.style.cssText = "background: #ffffff !important; padding: 32px 42px !important; border-radius: 20px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35) !important; border: 2px solid rgba(16, 185, 129, 0.4) !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 14px !important; max-width: 420px !important; text-align: center !important;";
-
-      const loaderWrapper = document.createElement("div");
-      loaderWrapper.style.cssText = "position: relative !important; width: 76px !important; height: 76px !important; display: flex !important; align-items: center !important; justify-content: center !important; margin: 4px 0 !important;";
-
-      const spinner = document.createElement("div");
-      spinner.style.cssText = "position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; border: 3.5px solid rgba(16, 185, 129, 0.2) !important; border-top: 3.5px solid #059669 !important; border-radius: 50% !important; animation: sigess-spin 0.9s linear infinite !important; box-sizing: border-box !important;";
-
-      const img = document.createElement("img");
-      img.src = ${JSON.stringify(logoUrl)};
-      img.style.cssText = "position: relative !important; width: 44px !important; height: 44px !important; object-fit: contain !important; z-index: 1 !important;";
-      img.alt = "SIGESS";
-
-      loaderWrapper.appendChild(spinner);
-      loaderWrapper.appendChild(img);
-
-      const title = document.createElement("h3");
-      title.textContent = "Consultando PesqBrasil...";
-      title.style.cssText = "margin: 0 !important; font-size: 16px !important; font-weight: 700 !important; color: #065f46 !important; letter-spacing: -0.01em !important;";
-
-      const desc = document.createElement("p");
-      desc.textContent = "Esta aba está sendo utilizada pela automação do SIGESS. Por favor, não feche esta janela.";
-      desc.style.cssText = "margin: 4px 0 0 !important; font-size: 12.5px !important; color: #4b5563 !important; line-height: 1.5 !important;";
-
-      const note = document.createElement("div");
-      note.textContent = "Para interromper o processo, utilize o botão Interromper no sistema SIGESS.";
-      note.style.cssText = "background: #f0fdf4 !important; border: 1px solid #bbf7d0 !important; border-radius: 8px !important; padding: 8px 14px !important; font-size: 11.5px !important; color: #166534 !important; line-height: 1.4 !important; margin-top: 4px !important;";
-
-      const style = document.createElement("style");
-      style.textContent = "@keyframes sigess-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }";
-
-      box.appendChild(loaderWrapper);
-      box.appendChild(title);
-      box.appendChild(desc);
-      box.appendChild(note);
-      overlay.appendChild(box);
-      overlay.appendChild(style);
-
-      // Anexa no documentElement para não ser afetado por re-renders do body do Next.js
-      (document.documentElement || document.body).appendChild(overlay);
-    })();
-  `;
+  const overlayScript = generateSigessOverlayInjectionScript({
+    id: "sigess-consultando-overlay",
+    title: "Consultando PesqBrasil",
+    animatedDots: true,
+    description: "Esta aba está sendo utilizada pela automação do SIGESS. Por favor, não feche esta janela.",
+    note: "Para interromper o processo, utilize o botão Interromper no sistema SIGESS.",
+    preventTabClose: true,
+    beforeUnloadMessage: "Uma consulta pública do SIGESS está em andamento. Fechar esta aba irá interromper a consulta. Tem certeza de que deseja sair?",
+  });
 
   try {
     if (browserAPI.tabs?.executeScript) {
