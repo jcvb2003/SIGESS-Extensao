@@ -44,6 +44,7 @@ const ReapMpaSettingsPage: React.FC = () => {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [presetNameDraft, setPresetNameDraft] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     StorageService.getSettings().then((current) => {
@@ -177,8 +178,6 @@ const ReapMpaSettingsPage: React.FC = () => {
     );
     void removeReapPdfCacheForPreset(presetToRemove.id);
   };
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleExportSettings = async () => {
     try {
