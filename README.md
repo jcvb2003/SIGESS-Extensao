@@ -78,3 +78,11 @@ Após publicar nova versão, atualizar `updates.json` para o sistema de auto-upd
 ```bash
 npm run update-manifest   # adiciona a versão atual ao updates.json
 ```
+
+O link mantido no `updates.json` do GitHub continua apontando diretamente para
+a Release, preservando o fluxo das instalações antigas durante a migração. O
+Worker em `downloads.sigess.com.br/updates.json` reescreve o link da versão
+mais recente para `downloads.sigess.com.br/sigess.xpi`; versões migradas passam
+a buscar as próximas atualizações pelo Cloudflare. Consulte
+[`Atualização.md`](Atualização.md) para configurar o secret somente leitura e
+seguir a janela de transição.

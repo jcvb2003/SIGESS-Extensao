@@ -14,7 +14,7 @@ import { getLicenseErrorMessage } from "../../shared/services/license-messages";
 import { ExpandIcon } from "./ui/icons";
 import { useLicense } from "../hooks/useLicense";
 import { useSettings } from "../hooks/useSettings";
-import { ShieldCheck, Info } from "lucide-react";
+import { ShieldCheck, Info, PanelRightOpen } from "lucide-react";
 import {
   UpdateAvailableInfo,
   XPI_INSTALL_URL,
@@ -198,6 +198,21 @@ const AppContent: React.FC = () => {
     window.close();
   };
 
+  const handleOpenSidebar = async () => {
+    try {
+      if (typeof browser !== "undefined" && (browser as any).sidebarAction?.open) {
+        await (browser as any).sidebarAction.open();
+        window.close();
+      } else if (typeof browser !== "undefined" && browser.runtime) {
+        await browser.runtime.sendMessage({ action: "openSidebar" });
+        window.close();
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("Não foi possível abrir o painel lateral", "error");
+    }
+  };
+
   if (updateInfo) {
     return (
       <UpdateBlockScreen
@@ -234,11 +249,33 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="container">
-      <header className="header">
-        <div className="header-content">
+      <header className="header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
+        <div className="header-content" style={{ margin: "0 auto" }}>
           <img src="../../sigess-logo.png" alt="SIGESS" className="logo" />
           <h1 className="title">SIGESS</h1>
         </div>
+        <button
+          type="button"
+          onClick={handleOpenSidebar}
+          title="Abrir Painel Lateral de Acompanhamento (Ctrl+Alt+Z)"
+          style={{
+            position: "absolute",
+            right: 16,
+            background: "rgba(255, 255, 255, 0.18)",
+            border: "1px solid rgba(255, 255, 255, 0.25)",
+            color: "white",
+            borderRadius: "6px",
+            width: 32,
+            height: 32,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <PanelRightOpen size={18} />
+        </button>
       </header>
 
       <main className="main-content">

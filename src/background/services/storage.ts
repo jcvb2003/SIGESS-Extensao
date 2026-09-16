@@ -261,20 +261,37 @@ export class StorageService {
   ): Promise<void> {
     if (credentials.portalType !== "esocial") return;
 
+    const isSuccess = credentials.status === "concluido" || Boolean(credentials.boletoGerado);
+    const isError = credentials.status === "erro";
+
     const current = await this.getClosedGovBatchStatuses();
     const closedStatus: GovBatchClosedStatus = {
       tabId,
       runId: credentials.automationRunId,
       cpf: normalizeCpf(credentials.cpf),
       nome: credentials.nome,
-      status: "erro",
-      statusTitle: "Aba fechada/encerrada pelo usuário",
-      statusDescription: "Aba fechada/encerrada pelo usuário",
+      status: isSuccess ? "concluido" : (isError ? "erro" : "erro"),
+      statusTitle: isSuccess
+        ? (credentials.statusTitle || "Concluído")
+        : (isError && credentials.statusTitle
+            ? credentials.statusTitle
+            : "Sessão perdida"),
+      statusDescription: isSuccess
+        ? (credentials.statusDescription || "Processamento concluído com sucesso")
+        : (isError && credentials.statusDescription
+            ? credentials.statusDescription
+            : "Aba fechada/encerrada pelo usuário"),
       sessionClosedByUser: true,
       progressFlow: credentials.progressFlow,
       progressStage: credentials.progressStage,
       loginConcluido: !!credentials.loginConcluido,
-      lastError: "Aba fechada/encerrada pelo usuário",
+      boletoInfo: credentials.boletoInfo,
+      consultas: credentials.consultas,
+      boletoGerado: credentials.boletoGerado,
+      competenciasResultados: credentials.competenciasResultados,
+      lastError: isSuccess
+        ? undefined
+        : ((isError && credentials.lastError) || "Aba fechada/encerrada pelo usuário"),
       lastUpdatedAt: Date.now(),
     };
     const next = [
@@ -294,6 +311,10 @@ export class StorageService {
     return Array.isArray(result[this.CLOSED_GOV_BATCH_STATUSES_KEY])
       ? result[this.CLOSED_GOV_BATCH_STATUSES_KEY]
       : [];
+  }
+
+  static async clearClosedGovBatchStatuses(): Promise<void> {
+    await this.set({ [this.CLOSED_GOV_BATCH_STATUSES_KEY]: [] });
   }
 
   static async updateCredentials(

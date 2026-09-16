@@ -17,6 +17,8 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   "dispensarCadunicoEEncerrar",
   "limparDadosCapturados",
   "abrirDataInspector",
+  "openSidebar",
+  "clearGovBatchHistory",
 ]);
 
 const UPDATE_ALLOWED_MESSAGE_TYPES = new Set([

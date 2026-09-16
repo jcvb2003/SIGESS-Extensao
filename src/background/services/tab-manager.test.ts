@@ -49,4 +49,35 @@ describe("TabManager sessão de lote GOV", () => {
 
     expect(credentialPayload?.credenciais_21?.automationRunId).toBe("run-21");
   });
+
+  it("persiste status de erro e lastError quando govbr_senha_invalida é lançado", async () => {
+    const updateBatchStatusSpy = vi.spyOn(StorageService, "updateBatchStatus").mockResolvedValue(null);
+    vi.spyOn(StorageService, "get").mockResolvedValue({});
+
+    const tabManager = new TabManager();
+    const mockStrategy = {
+      name: "eSocial",
+      urlTrigger: "esocial",
+      execute: vi.fn().mockRejectedValue(new Error("govbr_senha_invalida")),
+      updateStatus: vi.fn(),
+    };
+
+    await (tabManager as any).executeWithRetry(
+      21,
+      "https://sso.acesso.gov.br/login",
+      { cpf: "71060926229", senha: "senha_errada", portalType: "esocial" },
+      mockStrategy,
+    );
+
+    expect(updateBatchStatusSpy).toHaveBeenCalledWith(
+      21,
+      "erro",
+      "Senha Gov incorreta",
+      "Usuário e/ou senha inválidos no Gov.br.",
+      expect.objectContaining({
+        lastError: "Usuário e/ou senha inválidos no Gov.br.",
+        progressStage: "fazendo_login",
+      }),
+    );
+  });
 });

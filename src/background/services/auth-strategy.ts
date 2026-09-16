@@ -35,6 +35,7 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
     status: string,
     title: string,
     description: string,
+    extra?: Partial<UserCredentials>,
   ): Promise<void> {
     const creds = await StorageService.getCredentials(tabId);
     if (creds) {
@@ -43,6 +44,9 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
       creds.statusDescription = description;
       if (status === "fazendo_login" || status === "aguardando_2fa") {
         creds.progressStage = "fazendo_login";
+      }
+      if (status === "erro") {
+        creds.lastError = extra?.lastError || description;
       }
       creds.lastUpdatedAt = Date.now();
       await StorageService.saveCredentials(tabId, creds);
@@ -102,6 +106,7 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
       () => {
         const selectors = [
           ".br-message.warning",
+          ".br-message.danger",
           "#accountId",
           "#password",
           "#twoFactorForm input[name='otpInput']",
@@ -114,7 +119,9 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
       },
     );
     if (!activeScreen) return;
-    if (activeScreen === ".br-message.warning") throw new Error("govbr_senha_invalida");
+    if (activeScreen === ".br-message.warning" || activeScreen === ".br-message.danger") {
+      throw new Error("govbr_senha_invalida");
+    }
 
     const isTwoFactorScreen = activeScreen === "#twoFactorForm input[name='otpInput']" ||
       activeScreen === "#enter-offline-2fa-code";
@@ -137,8 +144,9 @@ export abstract class BaseAuthStrategy implements AuthStrategy {
           await this.updateStatus(
             tabId,
             "erro",
-            "Login interrompido",
-            "O Gov.br retornou para a tela de CPF. Verifique as credenciais antes de tentar novamente.",
+            "Senha Gov incorreta",
+            "O Gov.br retornou para a tela de CPF. Usuário e/ou senha inválidos no Gov.br.",
+            { lastError: "Usuário e/ou senha inválidos no Gov.br." },
           );
           return;
         }

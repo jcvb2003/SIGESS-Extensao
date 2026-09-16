@@ -32,7 +32,7 @@ function observeGovBrLoginDom(): void {
   let reportedHcaptcha = false;
 
   const inspect = () => {
-    const screen = document.querySelector(".br-message.warning") ? "password-error"
+    const screen = document.querySelector(".br-message.warning, .br-message.danger") ? "password-error"
       : document.querySelector("#accountId") ? "cpf"
       : document.querySelector("#password") ? "password"
       : document.querySelector("#twoFactorForm input[name='otpInput'], #enter-offline-2fa-code") ? "two-factor"

@@ -53,6 +53,8 @@ const UPDATE_ALLOWED_ACTIONS = new Set([
   "getAutoRegistrationSnapshot",
   "openExtensionUpdate",
   "openReapMpaSettings",
+  "openSidebar",
+  "clearGovBatchHistory",
 ]);
 
 function formatCpf(cpf: string): string {
@@ -179,6 +181,21 @@ export async function routeMessage(
         return await openReapMpaSettings();
       case "openExtensionUpdate":
         return await handleOpenExtensionUpdate();
+      case "openSidebar": {
+        try {
+          if (typeof (browser as any).sidebarAction?.open === "function") {
+            await (browser as any).sidebarAction.open();
+            return { success: true };
+          }
+          return { success: false, error: "sidebarAction.open não disponível" };
+        } catch (e: any) {
+          return { success: false, error: e?.message || "Erro ao abrir painel lateral" };
+        }
+      }
+      case "clearGovBatchHistory": {
+        await StorageService.clearClosedGovBatchStatuses();
+        return { success: true };
+      }
       case "inssAuthenticated":
         return await navigateAuthenticatedCadastroInss(sender);
       case "esocialAuthenticated":
@@ -533,6 +550,9 @@ async function handleEnqueueGovBatchSessions(
     };
   }
 
+  // Limpa histórico de lotes antigos encerrados para que o novo lote comece limpo
+  await StorageService.clearClosedGovBatchStatuses();
+
   const rawItems = Array.isArray((message as any).items)
     ? ((message as any).items as GovBatchQueueItem[])
     : [];
@@ -641,6 +661,16 @@ async function handleEnqueueGovBatchSessions(
     multiLoginQueue: remainingQueue,
   });
   BadgeManager.setQueueCount(remainingQueue.length);
+
+  try {
+    if (typeof (browser as any).sidebarAction?.open === "function") {
+      void (browser as any).sidebarAction.open().catch((err: any) => {
+        console.warn("[SIGESS] Abertura automática da barra lateral bloqueada pelo Firefox (requer user action nativo):", err?.message || err);
+      });
+    }
+  } catch (err: any) {
+    console.warn("[SIGESS] Falha ao invocar sidebarAction.open:", err?.message || err);
+  }
 
   return {
     success: true,

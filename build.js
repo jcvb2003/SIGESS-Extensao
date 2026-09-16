@@ -45,6 +45,8 @@ execSync("vite build", {
 try {
   const popupSource = path.join(outputDir, "src/popup/index.html");
   const popupDest = path.join(outputDir, "popup.html");
+  const sidebarSource = path.join(outputDir, "src/popup/sidebar.html");
+  const sidebarDest = path.join(outputDir, "sidebar.html");
   const inspectorSource = path.join(outputDir, "src/popup/data_inspector.html");
   const inspectorDest = path.join(outputDir, "data_inspector.html");
   const filePickerSource = path.join(outputDir, "src/popup/file-picker.html");
@@ -67,6 +69,12 @@ try {
     fs.copyFileSync(popupSource, popupDest);
     fixHtmlPaths(popupDest);
     console.log("Moved popup.html to root");
+  }
+
+  if (fs.existsSync(sidebarSource)) {
+    fs.copyFileSync(sidebarSource, sidebarDest);
+    fixHtmlPaths(sidebarDest);
+    console.log("Moved sidebar.html to root");
   }
 
   if (fs.existsSync(inspectorSource)) {

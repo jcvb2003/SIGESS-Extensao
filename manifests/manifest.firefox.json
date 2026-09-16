@@ -45,6 +45,7 @@
     "assets/inss_bridge.js",
     "data_inspector.html",
     "assets/data_inspector.js",
+    "sidebar.html",
     "sigess-logo.png"
   ],
   "icons": {
@@ -61,6 +62,24 @@
       "48": "sigess-logo.png"
     },
     "default_popup": "popup.html"
+  },
+  "sidebar_action": {
+    "default_title": "SIGESS - Acompanhamento de Lote",
+    "default_panel": "sidebar.html",
+    "default_icon": {
+      "16": "sigess-logo.png",
+      "32": "sigess-logo.png",
+      "48": "sigess-logo.png"
+    }
+  },
+  "commands": {
+    "_execute_sidebar_action": {
+      "suggested_key": {
+        "default": "Ctrl+Alt+Z",
+        "mac": "Command+Alt+Z"
+      },
+      "description": "Abrir ou fechar o painel lateral do SIGESS"
+    }
   },
   "content_scripts": [
     {
@@ -141,7 +160,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "{e9df396f-bdd8-4e79-bc7c-92017a928891}",
-      "update_url": "https://raw.githubusercontent.com/jcvb2003/SIGESS-Extensao/main/updates.json"
+      "update_url": "https://downloads.sigess.com.br/updates.json"
     }
   }
 }

@@ -1,16 +1,19 @@
-const UPSTREAM_XPI_URL =
-  "https://github.com/jcvb2003/SIGESS-Extensao/releases/latest/download/sigess.xpi";
-
+const GITHUB_API_BASE = "https://api.github.com/repos/jcvb2003/SIGESS-Extensao";
+const GITHUB_API_VERSION = "2026-03-10";
+const GITHUB_TOKEN_NAME = "GITHUB_READ_TOKEN";
+const FIREFOX_ADDON_ID = "{e9df396f-bdd8-4e79-bc7c-92017a928891}";
+const UPDATES_API_URL = `${GITHUB_API_BASE}/contents/updates.json?ref=main`;
+const LATEST_RELEASE_API_URL = `${GITHUB_API_BASE}/releases/latest`;
+const GITHUB_ASSET_HOST_SUFFIX = ".githubusercontent.com";
 const INSTALL_PATH = "/instalar";
 const DOWNLOAD_PATH = "/sigess.xpi";
+const UPDATES_PATH = "/updates.json";
 const CACHE_SECONDS = 300;
 const REDIRECT_DELAY_SECONDS = 3;
+const RELEASE_VERSION_PATTERN =
+  /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
-const FORWARDED_REQUEST_HEADERS = [
-  "if-modified-since",
-  "if-none-match",
-  "range",
-];
+const FORWARDED_REQUEST_HEADERS = ["range", "if-range"];
 
 const FORWARDED_RESPONSE_HEADERS = [
   "accept-ranges",
@@ -34,6 +37,296 @@ function jsonResponse(payload, status, extraHeaders = {}) {
 function methodNotAllowed() {
   return jsonResponse({ error: "method_not_allowed" }, 405, {
     Allow: "GET, HEAD",
+  });
+}
+
+function reportUpstreamError(event, status) {
+  console.error(JSON.stringify({ event, status }));
+}
+
+function unavailableResponse(
+  status = 502,
+  error = "source_temporarily_unavailable",
+) {
+  return jsonResponse({ error }, status);
+}
+
+function githubApiHeaders(token, accept) {
+  return new Headers({
+    Accept: accept,
+    Authorization: `Bearer ${token}`,
+    "User-Agent": "SIGESS-XPI-Proxy/2.0",
+    "X-GitHub-Api-Version": GITHUB_API_VERSION,
+  });
+}
+
+function assetEtag(asset) {
+  if (
+    typeof asset.digest === "string" &&
+    /^sha256:[a-f0-9]{64}$/i.test(asset.digest)
+  ) {
+    return `"${asset.digest.replace(":", "-")}"`;
+  }
+
+  return `"github-release-asset-${asset.id}"`;
+}
+
+function isNotModified(request, asset, etag) {
+  const ifNoneMatch = request.headers.get("if-none-match");
+  if (ifNoneMatch) {
+    return ifNoneMatch
+      .split(",")
+      .map((value) => value.trim().replace(/^W\//, ""))
+      .some((value) => value === "*" || value === etag);
+  }
+
+  const ifModifiedSince = Date.parse(
+    request.headers.get("if-modified-since") ?? "",
+  );
+  const updatedAt = Date.parse(asset.updated_at ?? "");
+  return (
+    Number.isFinite(ifModifiedSince) &&
+    Number.isFinite(updatedAt) &&
+    updatedAt <= ifModifiedSince + 999
+  );
+}
+
+function buildDownloadHeaders(upstreamHeaders, asset, includeLength = false) {
+  const headers = new Headers();
+
+  for (const name of FORWARDED_RESPONSE_HEADERS) {
+    const value = upstreamHeaders.get(name);
+    if (value) {
+      headers.set(name, value);
+    }
+  }
+
+  if (asset) {
+    headers.set("ETag", assetEtag(asset));
+    const lastModified = Date.parse(asset.updated_at ?? "");
+    if (Number.isFinite(lastModified)) {
+      headers.set("Last-Modified", new Date(lastModified).toUTCString());
+    }
+    if (includeLength && Number.isSafeInteger(asset.size) && asset.size >= 0) {
+      headers.set("Content-Length", String(asset.size));
+    }
+  }
+
+  headers.set("Content-Type", "application/x-xpinstall");
+  headers.set("Content-Disposition", 'inline; filename="sigess.xpi"');
+  headers.set(
+    "Cache-Control",
+    `public, max-age=${CACHE_SECONDS}, s-maxage=${CACHE_SECONDS}, stale-if-error=86400`,
+  );
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Referrer-Policy", "no-referrer");
+  return headers;
+}
+
+async function proxyUpdatesJson(request, env) {
+  const token = env?.[GITHUB_TOKEN_NAME];
+  if (!token) {
+    return unavailableResponse(503, "update_source_not_configured");
+  }
+
+  const upstreamResponse = await fetch(UPDATES_API_URL, {
+    method: "GET",
+    headers: githubApiHeaders(token, "application/vnd.github.raw+json"),
+    redirect: "manual",
+    cf: {
+      cacheEverything: true,
+      cacheTtl: CACHE_SECONDS,
+    },
+  });
+
+  if (!upstreamResponse.ok) {
+    reportUpstreamError(
+      "updates_manifest_upstream_error",
+      upstreamResponse.status,
+    );
+    return unavailableResponse();
+  }
+
+  let manifest;
+  try {
+    manifest = await upstreamResponse.json();
+  } catch {
+    reportUpstreamError(
+      "updates_manifest_invalid_json",
+      upstreamResponse.status,
+    );
+    return unavailableResponse();
+  }
+
+  const updates = manifest?.addons?.[FIREFOX_ADDON_ID]?.updates;
+  if (
+    !Array.isArray(updates) ||
+    updates.length === 0 ||
+    typeof updates[0] !== "object"
+  ) {
+    reportUpstreamError(
+      "updates_manifest_missing_addon",
+      upstreamResponse.status,
+    );
+    return unavailableResponse();
+  }
+
+  const latestVersion = updates[0].version;
+  if (
+    typeof latestVersion !== "string" ||
+    !RELEASE_VERSION_PATTERN.test(latestVersion)
+  ) {
+    reportUpstreamError(
+      "updates_manifest_invalid_latest_version",
+      upstreamResponse.status,
+    );
+    return unavailableResponse();
+  }
+
+  // Keep the repository's raw updates.json pointed at GitHub Releases for
+  // existing installs. Only the Worker response switches clients to Cloudflare.
+  const xpiUrl = new URL(DOWNLOAD_PATH, request.url);
+  xpiUrl.searchParams.set("version", latestVersion);
+  updates[0].update_link = xpiUrl.toString();
+
+  const body = JSON.stringify(manifest);
+  return new Response(request.method === "HEAD" ? null : body, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": `public, max-age=${CACHE_SECONDS}, s-maxage=${CACHE_SECONDS}`,
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
+    },
+  });
+}
+
+async function getLatestXpiAsset(token, version) {
+  const releaseApiUrl = version
+    ? `${GITHUB_API_BASE}/releases/tags/v${encodeURIComponent(version)}`
+    : LATEST_RELEASE_API_URL;
+  const response = await fetch(releaseApiUrl, {
+    method: "GET",
+    headers: githubApiHeaders(token, "application/vnd.github+json"),
+    // Do not let the Worker runtime forward the private-repository token if
+    // GitHub ever redirects this authenticated metadata request.
+    redirect: "manual",
+    cf: {
+      cacheEverything: true,
+      cacheTtl: CACHE_SECONDS,
+    },
+  });
+
+  if (!response.ok) {
+    reportUpstreamError("xpi_release_upstream_error", response.status);
+    return null;
+  }
+
+  let release;
+  try {
+    release = await response.json();
+  } catch {
+    reportUpstreamError("xpi_release_invalid_json", response.status);
+    return null;
+  }
+
+  const asset = release?.assets?.find(
+    (candidate) =>
+      candidate.name === "sigess.xpi" && candidate.state === "uploaded",
+  );
+  if (
+    !asset ||
+    !Number.isSafeInteger(asset.id) ||
+    !Number.isSafeInteger(asset.size)
+  ) {
+    reportUpstreamError("xpi_release_asset_missing", response.status);
+    return null;
+  }
+
+  return asset;
+}
+
+function buildAssetRequestHeaders(request, token) {
+  const headers = githubApiHeaders(token, "application/octet-stream");
+  for (const name of FORWARDED_REQUEST_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) {
+      headers.set(name, value);
+    }
+  }
+  return headers;
+}
+
+async function fetchAssetBody(request, asset, token) {
+  const assetApiUrl = `${GITHUB_API_BASE}/releases/assets/${asset.id}`;
+  const assetApiResponse = await fetch(assetApiUrl, {
+    method: "GET",
+    headers: buildAssetRequestHeaders(request, token),
+    // GitHub returns a short-lived signed URL for private release assets.
+    // Handle it explicitly so Authorization is never sent to that URL.
+    redirect: "manual",
+  });
+
+  if (
+    (assetApiResponse.status >= 200 && assetApiResponse.status < 300) ||
+    assetApiResponse.status === 416
+  ) {
+    return assetApiResponse;
+  }
+
+  if (assetApiResponse.status < 300 || assetApiResponse.status >= 400) {
+    reportUpstreamError("xpi_asset_upstream_error", assetApiResponse.status);
+    return null;
+  }
+
+  const location = assetApiResponse.headers.get("Location");
+  if (!location) {
+    reportUpstreamError(
+      "xpi_asset_redirect_missing_location",
+      assetApiResponse.status,
+    );
+    return null;
+  }
+
+  let signedUrl;
+  try {
+    signedUrl = new URL(location);
+  } catch {
+    reportUpstreamError("xpi_asset_redirect_invalid", assetApiResponse.status);
+    return null;
+  }
+
+  if (
+    signedUrl.protocol !== "https:" ||
+    signedUrl.username !== "" ||
+    signedUrl.password !== "" ||
+    signedUrl.port !== "" ||
+    (signedUrl.hostname !== "githubusercontent.com" &&
+      !signedUrl.hostname.endsWith(GITHUB_ASSET_HOST_SUFFIX))
+  ) {
+    reportUpstreamError(
+      "xpi_asset_redirect_untrusted_host",
+      assetApiResponse.status,
+    );
+    return null;
+  }
+
+  const cdnHeaders = new Headers();
+  for (const name of FORWARDED_REQUEST_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) {
+      cdnHeaders.set(name, value);
+    }
+  }
+
+  return fetch(signedUrl, {
+    method: "GET",
+    headers: cdnHeaders,
+    redirect: "follow",
+    cf: {
+      cacheEverything: true,
+      cacheTtl: CACHE_SECONDS,
+    },
   });
 }
 
@@ -96,74 +389,61 @@ function installPageResponse(request) {
   });
 }
 
-function buildDownloadHeaders(upstreamHeaders) {
-  const headers = new Headers();
-
-  for (const name of FORWARDED_RESPONSE_HEADERS) {
-    const value = upstreamHeaders.get(name);
-    if (value) {
-      headers.set(name, value);
-    }
+async function proxyXpi(request, env) {
+  const token = env?.[GITHUB_TOKEN_NAME];
+  if (!token) {
+    return unavailableResponse(503, "download_source_not_configured");
   }
 
-  headers.set("Content-Type", "application/x-xpinstall");
-  headers.set("Content-Disposition", 'inline; filename="sigess.xpi"');
-  headers.set(
-    "Cache-Control",
-    `public, max-age=${CACHE_SECONDS}, s-maxage=${CACHE_SECONDS}, stale-if-error=86400`,
-  );
-  headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Referrer-Policy", "no-referrer");
-
-  return headers;
-}
-
-async function proxyXpi(request) {
-  const upstreamHeaders = new Headers({
-    Accept:
-      "application/x-xpinstall, application/octet-stream;q=0.9, */*;q=0.8",
-    "User-Agent": "SIGESS-XPI-Proxy/1.0",
-  });
-
-  for (const name of FORWARDED_REQUEST_HEADERS) {
-    const value = request.headers.get(name);
-    if (value) {
-      upstreamHeaders.set(name, value);
-    }
+  const version = new URL(request.url).searchParams.get("version");
+  if (version !== null && !RELEASE_VERSION_PATTERN.test(version)) {
+    return jsonResponse({ error: "invalid_version" }, 400);
   }
 
-  const upstreamResponse = await fetch(UPSTREAM_XPI_URL, {
-    method: request.method,
-    headers: upstreamHeaders,
-    redirect: "follow",
-    cf: {
-      cacheEverything: true,
-      cacheTtl: CACHE_SECONDS,
-    },
-  });
+  const asset = await getLatestXpiAsset(token, version);
+  if (!asset) {
+    return unavailableResponse(502, "download_temporarily_unavailable");
+  }
 
-  if (!upstreamResponse.ok && upstreamResponse.status !== 304) {
-    console.error(
-      JSON.stringify({
-        event: "xpi_upstream_error",
-        status: upstreamResponse.status,
-      }),
-    );
+  const etag = assetEtag(asset);
+  const headers = buildDownloadHeaders(new Headers(), asset, true);
 
-    return jsonResponse({ error: "download_temporarily_unavailable" }, 502);
+  if (isNotModified(request, asset, etag)) {
+    headers.delete("Content-Length");
+    return new Response(null, { status: 304, headers });
+  }
+
+  if (request.method === "HEAD") {
+    return new Response(null, { status: 200, headers });
+  }
+
+  const upstreamResponse = await fetchAssetBody(request, asset, token);
+  if (
+    !upstreamResponse ||
+    (!upstreamResponse.ok &&
+      upstreamResponse.status !== 304 &&
+      upstreamResponse.status !== 416)
+  ) {
+    return unavailableResponse(502, "download_temporarily_unavailable");
   }
 
   return new Response(
-    request.method === "HEAD" ? null : upstreamResponse.body,
+    upstreamResponse.status === 304 || upstreamResponse.status === 416
+      ? null
+      : upstreamResponse.body,
     {
       status: upstreamResponse.status,
-      headers: buildDownloadHeaders(upstreamResponse.headers),
+      headers: buildDownloadHeaders(
+        upstreamResponse.headers,
+        asset,
+        upstreamResponse.status === 200 && !request.headers.has("range"),
+      ),
     },
   );
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
@@ -171,7 +451,16 @@ export default {
         return methodNotAllowed();
       }
 
-      return jsonResponse({ status: "ok" }, 200);
+      return new Response(
+        request.method === "HEAD" ? null : JSON.stringify({ status: "ok" }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "no-store",
+          },
+        },
+      );
     }
 
     if (url.pathname === "/") {
@@ -190,6 +479,24 @@ export default {
       return installPageResponse(request);
     }
 
+    if (url.pathname === UPDATES_PATH) {
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        return methodNotAllowed();
+      }
+
+      try {
+        return await proxyUpdatesJson(request, env);
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "updates_manifest_proxy_exception",
+            name: error instanceof Error ? error.name : "Error",
+          }),
+        );
+        return unavailableResponse();
+      }
+    }
+
     if (url.pathname !== DOWNLOAD_PATH) {
       return jsonResponse({ error: "not_found" }, 404);
     }
@@ -199,16 +506,16 @@ export default {
     }
 
     try {
-      return await proxyXpi(request);
+      return await proxyXpi(request, env);
     } catch (error) {
       console.error(
         JSON.stringify({
           event: "xpi_proxy_exception",
-          message: error instanceof Error ? error.message : "unknown_error",
+          name: error instanceof Error ? error.name : "Error",
         }),
       );
 
-      return jsonResponse({ error: "download_temporarily_unavailable" }, 502);
+      return unavailableResponse(502, "download_temporarily_unavailable");
     }
   },
 };

@@ -444,12 +444,30 @@ export class TabManager {
           return;
         } catch (error: any) {
           if (error?.message === "govbr_senha_invalida") {
-            await this.abortActiveCadastroSession("Usuário e/ou senha inválidos no Gov.br.");
+            const errorMessage = "Usuário e/ou senha inválidos no Gov.br.";
+            await this.abortActiveCadastroSession(errorMessage);
+            await StorageService.updateBatchStatus(
+              tabId,
+              "erro",
+              "Senha Gov incorreta",
+              errorMessage,
+              {
+                lastError: errorMessage,
+                progressStage: "fazendo_login",
+              },
+            );
             return;
           }
           if (attempt === maxRetries) {
             console.error(`[TabManager] Falha na execucao apos ${maxRetries} tentativas:`, error);
-            await strategy.updateStatus(tabId, "erro", "Erro no Login", String(error));
+            const errString = String(error?.message || error);
+            await StorageService.updateBatchStatus(
+              tabId,
+              "erro",
+              "Erro no Login",
+              errString,
+              { lastError: errString },
+            );
             return;
           }
           const delayMs = 1000 * attempt;

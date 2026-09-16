@@ -4,6 +4,9 @@
   "main": "src/index.js",
   "compatibility_date": "2026-07-28",
   "compatibility_flags": ["nodejs_compat"],
+  "secrets": {
+    "required": ["GITHUB_READ_TOKEN"],
+  },
   "workers_dev": false,
   "observability": {
     "enabled": true,
