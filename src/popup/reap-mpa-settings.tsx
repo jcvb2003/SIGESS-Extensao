@@ -423,7 +423,7 @@ const ReapMpaSettingsPage: React.FC = () => {
               <div>
                 <h2 className="section-title">Importar e Exportar Configurações</h2>
                 <p className="section-description" style={{ marginTop: "4px" }}>
-                  Exporte suas configurações e presets em arquivo JSON para usar em outro computador ou criar um backup.
+                  Exporte suas configurações e presets para usar em outro computador ou criar um backup.
                 </p>
               </div>
 
@@ -436,7 +436,7 @@ const ReapMpaSettingsPage: React.FC = () => {
                   title="Salva um arquivo .json com todos os presets e configurações"
                 >
                   <Download size={15} />
-                  Exportar JSON
+                  Exportar
                 </button>
 
                 <button
@@ -447,7 +447,7 @@ const ReapMpaSettingsPage: React.FC = () => {
                   title="Carrega um arquivo .json de configurações previamente exportado"
                 >
                   <Upload size={15} />
-                  Importar JSON
+                  Importar
                 </button>
 
                 <input
