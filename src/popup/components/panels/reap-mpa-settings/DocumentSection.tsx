@@ -33,21 +33,22 @@ export function ReapDocumentSection({
     const handleStorageChange = (changes: Record<string, any>) => {
       if (REAP_PDF_CACHES_STORAGE_KEY in changes || "sigessReapPdfCache" in changes) void loadCache();
     };
-    browser.storage.onChanged.addListener(handleStorageChange);
+    const storageApi = typeof browser !== "undefined" && browser?.storage ? browser.storage : (globalThis as any).chrome?.storage;
+    if (storageApi?.onChanged) {
+      storageApi.onChanged.addListener(handleStorageChange);
+    }
     return () => {
       disposed = true;
-      browser.storage.onChanged.removeListener(handleStorageChange);
+      if (storageApi?.onChanged) {
+        storageApi.onChanged.removeListener(handleStorageChange);
+      }
     };
   }, [presetId]);
 
   const mode = settings.mpaDocumentoMode || "manual";
 
   const removePdf = async () => {
-    if (presetId) {
-      await removeReapPdfCacheForPreset(presetId);
-    } else {
-      await browser.storage.local.remove("sigessReapPdfCache");
-    }
+    await removeReapPdfCacheForPreset(presetId);
     setCachedPdfFilename(null);
   };
 

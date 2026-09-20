@@ -39,6 +39,16 @@ describe("finalização da sessão de cadastro", () => {
     expect(getCadastroFinalizationPhase(session)).toBe("ready_to_finalize");
   });
 
+  it("finaliza normalmente quando o CadÚnico conclui a coleta mesmo se antes exigia confirmação de contato", () => {
+    const session = createCompletedSession();
+    session.cadunicoDismissalRequired = true;
+    session.portais.cadunico.status = "concluido";
+
+    expect(isCadastroCollectionComplete(session)).toBe(true);
+    expect(getCadastroFinalizationPhase(session)).toBe("ready_to_finalize");
+    expect(isCadastroSessionReadyToFinalize(session)).toBe(true);
+  });
+
   it("distingue sessão em coleta de sessão já concluída", () => {
     const collecting = createCompletedSession();
     collecting.portais.esocial.status = "coletando";

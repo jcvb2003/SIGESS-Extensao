@@ -3,10 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Configurações — REAP MPA</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <title>REAP — Configurações</title>
   <style>
     :root {
       --color-page:          #f4f6f8;
@@ -23,8 +20,8 @@
       --color-success:       #0f766e;
       --color-warning:       #92400e;
       --color-danger:        #b42318;
-      --mono: 'IBM Plex Mono', 'Courier New', monospace;
-      --sans: 'Segoe UI', system-ui, sans-serif;
+      --mono: 'Courier New', Courier, monospace;
+      --sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
     }
 
     *, *::before, *::after { box-sizing: border-box; }
@@ -65,21 +62,16 @@
     .page-header-left {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
     }
 
-    .page-eyebrow {
-      font-family: var(--mono);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.7);
-      padding: 3px 7px;
-      border: 1px solid rgba(255,255,255,0.25);
-      border-radius: 2px;
-      display: inline-block;
-      margin-bottom: 0;
+    .page-header-logo {
+      height: 26px;
+      width: 26px;
+      border-radius: 5px;
+      object-fit: contain;
+      display: block;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
     }
 
     .page-header-title {
@@ -139,27 +131,56 @@
     .status-dot.saving { background: #fbbf24; }
     .status-dot.saved  { background: #86efac; }
 
-    /* ── Close button ──────────────────────────────── */
+    /* ── Header Status Message ────────────────────── */
 
-    .back-link {
-      font-family: var(--mono);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.7);
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.2);
+    .status-message {
+      font-family: var(--sans);
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    /* ── Close button & Header Badges ──────────────── */
+
+    .back-link,
+    .readiness-badge {
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      color: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 4px;
       padding: 5px 12px;
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s;
       display: inline-flex;
       align-items: center;
+      user-select: none;
+      line-height: 1.4;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .readiness-badge {
+      cursor: default;
+      text-transform: none;
+    }
+
+    .readiness-badge.ready {
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .readiness-badge.pending {
+      color: #fef3c7;
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+
+    .back-link {
+      cursor: pointer;
+      text-transform: none;
     }
 
     .back-link:hover {
-      background: rgba(255,255,255,0.2);
+      background: rgba(255, 255, 255, 0.2);
       color: #ffffff;
     }
 
@@ -444,6 +465,251 @@
     }
 
     .btn-full { width: 100%; }
+
+    /* ── Month Grid (Defeso) ───────────────────────── */
+
+    .month-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 5px;
+    }
+
+    .month-grid-btn {
+      border: 1px solid var(--color-border);
+      background: var(--color-surface-alt);
+      color: var(--color-text);
+      border-radius: 6px;
+      padding: 9px 4px;
+      font-size: 11px;
+      font-family: var(--sans);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .month-grid-btn:hover {
+      border-color: var(--color-border-strong);
+      background: #e6edf1;
+    }
+
+    .month-grid-btn.selected {
+      border-color: var(--color-accent-strong);
+      background: var(--color-accent);
+      color: #ffffff;
+    }
+
+    .month-grid-btn.selected:hover {
+      background: var(--color-accent-strong);
+    }
+
+    /* ── Help Button & Modal ───────────────────────── */
+
+    .reap-help-btn-red {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #dc2626;
+      color: #ffffff;
+      font-family: var(--sans);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(220, 38, 38, 0.35);
+      transition: background-color 0.15s, transform 0.15s, box-shadow 0.15s;
+      vertical-align: middle;
+      padding: 0;
+      margin-left: 4px;
+    }
+
+    .reap-help-btn-red:hover {
+      background: #b91c1c;
+      transform: scale(1.12);
+      box-shadow: 0 2px 5px rgba(220, 38, 38, 0.45);
+    }
+
+    .reap-help-btn-red:focus-visible {
+      outline: 2px solid #ef4444;
+      outline-offset: 2px;
+    }
+
+    .help-modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(3px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      animation: helpFadeIn 0.15s ease-out;
+    }
+
+    .help-modal-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      max-width: 640px;
+      width: 100%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      animation: helpSlideUp 0.15s ease-out;
+      overflow: hidden;
+    }
+
+    .help-modal-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface-alt);
+    }
+
+    .help-modal-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--color-text-strong);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .help-modal-close {
+      background: transparent;
+      border: none;
+      color: var(--color-muted);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 4px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s, background-color 0.15s;
+    }
+
+    .help-modal-close:hover {
+      color: var(--color-text-strong);
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    .help-modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--color-text);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .help-modal-body p {
+      margin: 0;
+      text-align: justify;
+    }
+
+    .help-modal-calc-card {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-left: 4px solid var(--color-accent);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--color-text-strong);
+      margin-top: 4px;
+    }
+
+    .help-calc-input {
+      display: inline-block;
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-strong);
+      background: #ffffff;
+      border: 1px solid var(--color-border-strong);
+      border-radius: 4px;
+      padding: 2px 6px;
+      width: 90px;
+      text-align: right;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      vertical-align: middle;
+      margin: 0 3px;
+    }
+
+    .help-calc-input:focus {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 2px var(--color-accent-soft);
+    }
+
+    .help-calc-input-months {
+      display: inline-block;
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-strong);
+      background: #ffffff;
+      border: 1px solid var(--color-border-strong);
+      border-radius: 4px;
+      padding: 2px 6px;
+      width: 44px;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      vertical-align: middle;
+      margin: 0 3px;
+    }
+
+    .help-calc-input-months:focus {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 2px var(--color-accent-soft);
+    }
+
+    .help-calc-output {
+      display: inline-block;
+      font-weight: 700;
+      color: var(--color-accent);
+      background: rgba(15, 118, 110, 0.08);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(15, 118, 110, 0.2);
+      margin-left: 2px;
+      white-space: nowrap;
+    }
+
+    .help-modal-footer {
+      padding: 12px 20px;
+      display: flex;
+      justify-content: flex-end;
+      border-top: 1px solid var(--color-border);
+      background: var(--color-surface-alt);
+    }
+
+    @keyframes helpFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes helpSlideUp {
+      from { transform: translateY(10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
 
     /* ── Scrollbar ─────────────────────────────────── */
 

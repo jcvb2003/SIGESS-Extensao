@@ -172,7 +172,7 @@ export const SpeciesSearch: React.FC<SpeciesSearchProps> = ({
                 fontSize: "11px",
                 color: "var(--color-muted)",
                 textAlign: "center",
-                fontFamily: "var(--mono)",
+                fontFamily: "var(--sans)",
               }}
             >
               Nenhum resultado

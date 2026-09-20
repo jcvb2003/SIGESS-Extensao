@@ -13,7 +13,7 @@
 export interface SigessOverlayConfig {
   /** ID do elemento DOM (padrão: "sigess-automation-overlay") */
   id?: string;
-  /** Título principal (ex: "Enviando" ou "Consultando PesqBrasil") */
+  /** Título principal (ex: "Enviando" ou "Preenchido!") */
   title: string;
   /** Se deve exibir animação de 3 pontos dinâmicos (. .. ...) após o título (padrão: true) */
   animatedDots?: boolean;
@@ -29,6 +29,15 @@ export interface SigessOverlayConfig {
   beforeUnloadMessage?: string;
   /** z-index do overlay (padrão: 2147483647) */
   zIndex?: number;
+  /** Se deve ocultar o spinner (ex: estado de sucesso/conclusão) */
+  hideSpinner?: boolean;
+  /** Se o overlay representa um estado de sucesso */
+  isSuccess?: boolean;
+  /** Botão de ação (ex: { label: "OK", onClick: () => ... }) */
+  actionButton?: {
+    label: string;
+    onClick: () => void | Promise<void>;
+  };
 }
 
 export const SIGESS_OVERLAY_STYLE_ID = "sigess-automation-overlay-style";
@@ -47,7 +56,101 @@ export function getSigessOverlayKeyframeStyles(): string {
       50% { opacity: 1; transform: translateY(-1.5px); }
       80%, 100% { opacity: 0; transform: translateY(0); }
     }
+    @keyframes sigess-pop-in {
+      0% { opacity: 0; transform: scale(0.85); }
+      70% { transform: scale(1.05); }
+      100% { opacity: 1; transform: scale(1); }
+    }
   `;
+}
+
+function stripTrailingDots(str: string): string {
+  let end = str.length;
+  while (end > 0 && str[end - 1] === '.') {
+    end--;
+  }
+  return str.slice(0, end);
+}
+
+function createOverlayLoader(config: SigessOverlayConfig): HTMLElement {
+  const loaderWrapper = document.createElement("div");
+  loaderWrapper.style.cssText = "position: relative !important; width: 76px !important; height: 76px !important; display: flex !important; align-items: center !important; justify-content: center !important; margin: 4px 0 !important;";
+
+  const ring = document.createElement("div");
+  if (config.hideSpinner || config.isSuccess) {
+    ring.style.cssText = "position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; border: 3.5px solid #10b981 !important; border-radius: 50% !important; box-shadow: 0 0 16px rgba(16, 185, 129, 0.35) !important; animation: sigess-pop-in 0.35s ease-out !important; box-sizing: border-box !important;";
+  } else {
+    ring.style.cssText = "position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; border: 3.5px solid rgba(16, 185, 129, 0.2) !important; border-top: 3.5px solid #059669 !important; border-radius: 50% !important; animation: sigess-spin 0.9s linear infinite !important; box-sizing: border-box !important;";
+  }
+
+  const img = document.createElement("img");
+  const browserAPI = typeof browser !== "undefined" ? browser : (globalThis as any).chrome;
+  img.src = config.logoUrl || (browserAPI?.runtime?.getURL ? browserAPI.runtime.getURL("sigess-logo.png") : "sigess-logo.png");
+  img.style.cssText = "position: relative !important; width: 44px !important; height: 44px !important; object-fit: contain !important; z-index: 1 !important;";
+  img.alt = "SIGESS";
+
+  loaderWrapper.appendChild(ring);
+  loaderWrapper.appendChild(img);
+  return loaderWrapper;
+}
+
+function createOverlayTitle(config: SigessOverlayConfig): HTMLElement {
+  const title = document.createElement("h3");
+  title.style.cssText = "margin: 0 !important; font-size: 17px !important; font-weight: 700 !important; color: #065f46 !important; letter-spacing: -0.01em !important; display: inline-flex !important; align-items: center !important; justify-content: center !important;";
+
+  const cleanTitle = config.animatedDots !== false ? stripTrailingDots(config.title) : config.title;
+  const titleText = document.createElement("span");
+  titleText.textContent = cleanTitle;
+  title.appendChild(titleText);
+
+  if (config.animatedDots !== false) {
+    const dotsContainer = document.createElement("span");
+    dotsContainer.style.cssText = "display: inline-flex !important; width: 18px !important; text-align: left !important; margin-left: 2px !important;";
+
+    for (let i = 0; i < 3; i++) {
+      const dot = document.createElement("span");
+      dot.textContent = ".";
+      dot.style.cssText = `display: inline-block !important; animation: sigess-dot-fade 1.4s infinite !important; animation-delay: ${i * 0.2}s !important;`;
+      dotsContainer.appendChild(dot);
+    }
+    title.appendChild(dotsContainer);
+  }
+  return title;
+}
+
+function createOverlayActionButton(btnConfig: NonNullable<SigessOverlayConfig["actionButton"]>): HTMLElement {
+  const actionBtn = document.createElement("button");
+  actionBtn.textContent = btnConfig.label;
+  actionBtn.style.cssText = "margin-top: 8px !important; padding: 9px 38px !important; background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important; color: #ffffff !important; border: none !important; border-radius: 10px !important; font-size: 13.5px !important; font-weight: 700 !important; cursor: pointer !important; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4) !important; transition: all 0.2s ease !important; outline: none !important; font-family: inherit !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; letter-spacing: 0.02em !important;";
+  actionBtn.onmouseenter = () => {
+    actionBtn.style.transform = "translateY(-1.5px) scale(1.02)";
+    actionBtn.style.boxShadow = "0 6px 20px rgba(16, 185, 129, 0.55)";
+  };
+  actionBtn.onmouseleave = () => {
+    actionBtn.style.transform = "translateY(0) scale(1)";
+    actionBtn.style.boxShadow = "0 4px 14px rgba(16, 185, 129, 0.4)";
+  };
+  actionBtn.onclick = (e) => {
+    e.stopPropagation();
+    void btnConfig.onClick();
+  };
+  return actionBtn;
+}
+
+function attachBeforeUnloadProtection(config: SigessOverlayConfig): void {
+  if (!config.preventTabClose || config.isSuccess) return;
+  try {
+    const pWin = (window as any).wrappedJSObject || window;
+    pWin.__sigessAutomationActive = true;
+    const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+      if (pWin.__sigessAutomationActive) {
+        e.preventDefault();
+      }
+    };
+    pWin.onbeforeunload = beforeUnloadHandler;
+    window.onbeforeunload = beforeUnloadHandler;
+    window.addEventListener("beforeunload", beforeUnloadHandler);
+  } catch {}
 }
 
 /**
@@ -76,45 +179,8 @@ export function createSigessOverlayElement(config: SigessOverlayConfig): HTMLEle
   const box = document.createElement("div");
   box.style.cssText = "background: #ffffff !important; padding: 30px 40px !important; border-radius: 20px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35) !important; border: 2px solid rgba(16, 185, 129, 0.4) !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 14px !important; min-width: 300px !important; max-width: 420px !important; text-align: center !important; box-sizing: border-box !important;";
 
-  // Container do Spinner com a Logo dentro
-  const loaderWrapper = document.createElement("div");
-  loaderWrapper.style.cssText = "position: relative !important; width: 76px !important; height: 76px !important; display: flex !important; align-items: center !important; justify-content: center !important; margin: 4px 0 !important;";
-
-  const spinner = document.createElement("div");
-  spinner.style.cssText = "position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; border: 3.5px solid rgba(16, 185, 129, 0.2) !important; border-top: 3.5px solid #059669 !important; border-radius: 50% !important; animation: sigess-spin 0.9s linear infinite !important; box-sizing: border-box !important;";
-
-  const img = document.createElement("img");
-  const browserAPI = typeof browser !== "undefined" ? browser : (globalThis as any).chrome;
-  img.src = config.logoUrl || (browserAPI?.runtime?.getURL ? browserAPI.runtime.getURL("sigess-logo.png") : "sigess-logo.png");
-  img.style.cssText = "position: relative !important; width: 44px !important; height: 44px !important; object-fit: contain !important; z-index: 1 !important;";
-  img.alt = "SIGESS";
-
-  loaderWrapper.appendChild(spinner);
-  loaderWrapper.appendChild(img);
-  box.appendChild(loaderWrapper);
-
-  // Título com suporte a pontos dinâmicos animados (. .. ...)
-  const title = document.createElement("h3");
-  title.style.cssText = "margin: 0 !important; font-size: 16px !important; font-weight: 700 !important; color: #065f46 !important; letter-spacing: -0.01em !important; display: inline-flex !important; align-items: center !important; justify-content: center !important;";
-
-  const cleanTitle = config.animatedDots !== false ? config.title.replace(/\.+$/, "") : config.title;
-  const titleText = document.createElement("span");
-  titleText.textContent = cleanTitle;
-  title.appendChild(titleText);
-
-  if (config.animatedDots !== false) {
-    const dotsContainer = document.createElement("span");
-    dotsContainer.style.cssText = "display: inline-flex !important; width: 18px !important; text-align: left !important; margin-left: 2px !important;";
-
-    for (let i = 0; i < 3; i++) {
-      const dot = document.createElement("span");
-      dot.textContent = ".";
-      dot.style.cssText = `display: inline-block !important; animation: sigess-dot-fade 1.4s infinite !important; animation-delay: ${i * 0.2}s !important;`;
-      dotsContainer.appendChild(dot);
-    }
-    title.appendChild(dotsContainer);
-  }
-  box.appendChild(title);
+  box.appendChild(createOverlayLoader(config));
+  box.appendChild(createOverlayTitle(config));
 
   // Descrição opcional
   if (config.description) {
@@ -132,57 +198,51 @@ export function createSigessOverlayElement(config: SigessOverlayConfig): HTMLEle
     box.appendChild(note);
   }
 
+  // Botão de ação opcional (ex: "OK")
+  if (config.actionButton) {
+    box.appendChild(createOverlayActionButton(config.actionButton));
+  }
+
   overlay.appendChild(box);
 
   // Proteção opcional contra fechamento de aba
-  if (config.preventTabClose) {
-    try {
-      const pWin = (window as any).wrappedJSObject || window;
-      pWin.__sigessAutomationActive = true;
-      const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
-        if (pWin.__sigessAutomationActive) {
-          const msg = config.beforeUnloadMessage || "Uma automação do SIGESS está em andamento nesta aba. Fechar esta janela interromperá o processo.";
-          e.preventDefault();
-          e.returnValue = msg as any;
-          return msg;
-        }
-      };
-      pWin.onbeforeunload = beforeUnloadHandler;
-      window.onbeforeunload = beforeUnloadHandler;
-      window.addEventListener("beforeunload", beforeUnloadHandler);
-    } catch {}
-  }
+  attachBeforeUnloadProtection(config);
 
   return overlay;
 }
 
 /**
  * Exibe o overlay padronizado do SIGESS na página atual.
+ * Se já existir um overlay ativo, substitui para atualizar o estado de forma reativa.
  */
 export function showSigessOverlay(config: SigessOverlayConfig): HTMLElement {
   const overlayId = config.id || "sigess-automation-overlay";
-  let overlay = document.getElementById(overlayId);
-
-  if (!overlay) {
-    overlay = createSigessOverlayElement(config);
-    const target = document.documentElement || document.body;
-    target?.appendChild(overlay);
-  } else {
-    overlay.style.display = "flex";
+  const existing = document.getElementById(overlayId);
+  if (existing) {
+    existing.remove();
   }
+
+  const overlay = createSigessOverlayElement(config);
+  const target = document.documentElement || document.body;
+  target?.appendChild(overlay);
 
   return overlay;
 }
 
 /**
- * Oculta o overlay padronizado do SIGESS na página atual.
+ * Oculta e remove o overlay padronizado do SIGESS na página atual.
  */
-export function hideSigessOverlay(id?: string): void {
-  const overlayId = id || "sigess-automation-overlay";
-  const overlay = document.getElementById(overlayId);
+export function hideSigessOverlay(id = "sigess-automation-overlay"): void {
+  const overlay = document.getElementById(id);
   if (overlay) {
-    overlay.style.display = "none";
+    overlay.remove();
   }
+  try {
+    const pWin = (window as any).wrappedJSObject || window;
+    pWin.__sigessAutomationActive = false;
+    window.onbeforeunload = null;
+    pWin.onbeforeunload = null;
+  } catch {}
 }
 
 /**
@@ -193,7 +253,7 @@ export function generateSigessOverlayInjectionScript(config: SigessOverlayConfig
   const browserAPI = typeof browser !== "undefined" ? browser : (globalThis as any).chrome;
   const logoUrl = config.logoUrl || (browserAPI?.runtime?.getURL ? browserAPI.runtime.getURL("sigess-logo.png") : "sigess-logo.png");
   const overlayId = config.id || "sigess-automation-overlay";
-  const cleanTitle = config.animatedDots !== false ? config.title.replace(/\.+$/, "") : config.title;
+  const cleanTitle = config.animatedDots !== false ? stripTrailingDots(config.title) : config.title;
   const animatedDots = config.animatedDots !== false;
   const zIndex = config.zIndex ?? 2147483647;
   const preventTabClose = Boolean(config.preventTabClose);
@@ -209,7 +269,6 @@ export function generateSigessOverlayInjectionScript(config: SigessOverlayConfig
           if (pWin.__sigessAutomationActive) {
             const msg = ${JSON.stringify(beforeUnloadMsg)};
             e.preventDefault();
-            e.returnValue = msg;
             return msg;
           }
         };

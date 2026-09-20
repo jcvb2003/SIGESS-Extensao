@@ -20,6 +20,14 @@ export type CadastroFinalizationPhase =
   | "complete"
   | "error";
 
+function resolveOutcomeStatus(
+  outcome: CadastroReportedOutcome,
+): "nao_encontrado" | "indisponivel" | "erro" {
+  if (outcome === "not_found") return "nao_encontrado";
+  if (outcome === "unavailable") return "indisponivel";
+  return "erro";
+}
+
 export function applyCadastroPortalOutcome(
   session: CadastroSession,
   portalId: CadastroPortalId,
@@ -29,11 +37,7 @@ export function applyCadastroPortalOutcome(
   const portal = session.portais[portalId];
   if (!portal) return false;
 
-  portal.status = outcome === "not_found"
-    ? "nao_encontrado"
-    : outcome === "unavailable"
-      ? "indisponivel"
-      : "erro";
+  portal.status = resolveOutcomeStatus(outcome);
   portal.evidence = evidence;
   portal.statusMessage = PORTAL_STATUS_MESSAGES[evidence];
   portal.updatedAt = Date.now();
@@ -68,6 +72,8 @@ export function getCadastroFinalizationPhase(session: CadastroSession): Cadastro
   if (session.sessionState === "error") return "error";
   if (session.sessionState === "complete") return "complete";
   if (!isCadastroCollectionComplete(session)) return "collecting";
-  if (session.cadunicoDismissalRequired) return "awaiting_cadunico_dismissal";
+  if (session.cadunicoDismissalRequired && session.portais.cadunico.status !== "concluido") {
+    return "awaiting_cadunico_dismissal";
+  }
   return "ready_to_finalize";
 }

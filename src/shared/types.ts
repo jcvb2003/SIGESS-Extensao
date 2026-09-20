@@ -91,13 +91,13 @@ export type GovBatchClosedStatus = {
   statusTitle: string;
   statusDescription: string;
   sessionClosedByUser: boolean;
-  progressFlow?: UserCredentials["progressFlow"];
-  progressStage?: UserCredentials["progressStage"];
+  progressFlow?: NonNullable<UserCredentials["progressFlow"]>;
+  progressStage?: NonNullable<UserCredentials["progressStage"]>;
   loginConcluido: boolean;
   boletoInfo?: any;
-  consultas?: UserCredentials["consultas"];
+  consultas?: NonNullable<UserCredentials["consultas"]>;
   boletoGerado?: boolean;
-  competenciasResultados?: UserCredentials["competenciasResultados"];
+  competenciasResultados?: NonNullable<UserCredentials["competenciasResultados"]>;
   lastError?: string;
   lastUpdatedAt: number;
 };
@@ -216,9 +216,10 @@ export interface AppSettings {
   mpaWorkRelation?: string;
   mpaCommercializationStates?: number[];
   mpaDefesoMonths?: number[];
-mpaMunicipio?: number;
+  mpaMunicipio?: number;
   mpaUF?: number;
   mpaLocalPesca?: number;
+  mpaNomeLocalPesca?: string;
   mpaMetodoPesca?: number;
   mpaPetrecho?: number; // legado: usar mpaMetodoPesca como campo canonico
   mpaAmbiente?: number;
@@ -387,6 +388,7 @@ export interface TurboAreaConfig {
   localPesca: number;
   uf: number;
   municipio: number;
+  nome?: string;
   petrechosPesca: number[];
   ambientePesca: number;
 }

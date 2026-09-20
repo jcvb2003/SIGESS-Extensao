@@ -26,14 +26,14 @@ function SearchableSelect({
   placeholder,
   disabled,
   onChange,
-}: {
+}: Readonly<{
   id: string;
   value?: number;
   options: SearchableOption[];
   placeholder: string;
   disabled?: boolean;
   onChange: (value?: number) => void;
-}) {
+}>) {
   const selected = options.find((option) => option.value === value);
   const [query, setQuery] = useState(selected?.label ?? "");
   const [open, setOpen] = useState(false);
@@ -118,12 +118,12 @@ function SearchableSelect({
 function MonthGrid({
   selectedMonths,
   onToggle,
-}: {
+}: Readonly<{
   selectedMonths: number[];
   onToggle: (month: number) => void;
-}) {
+}>) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "5px" }}>
+    <div className="month-grid">
       {MONTH_LABELS.map((label, index) => {
         const month = index + 1;
         const isSelected = selectedMonths.includes(month);
@@ -132,19 +132,7 @@ function MonthGrid({
             key={month}
             type="button"
             onClick={() => onToggle(month)}
-            style={{
-              border: isSelected ? "1px solid var(--color-accent-strong)" : "1px solid var(--color-border)",
-              background: isSelected ? "var(--color-accent)" : "var(--color-surface-alt)",
-              color: isSelected ? "#ffffff" : "var(--color-text)",
-              borderRadius: "6px",
-              padding: "9px 4px",
-              fontSize: "10px",
-              fontFamily: "var(--mono)",
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              cursor: "pointer",
-              transition: "all 0.12s",
-            }}
+            className={`month-grid-btn ${isSelected ? "selected" : ""}`}
           >
             {label.slice(0, 3).toUpperCase()}
           </button>
@@ -157,10 +145,10 @@ function MonthGrid({
 export function ReapPage1Section({
   settings,
   onUpdate,
-}: {
+}: Readonly<{
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void | Promise<void>;
-}) {
+}>) {
   const residenceUf = settings.mpaResidenceUF;
   const residenceMunicipios = getMunicipiosByUf(residenceUf);
 
@@ -223,10 +211,10 @@ export function ReapPage1Section({
 export function ReapPage2Section({
   settings,
   onUpdate,
-}: {
+}: Readonly<{
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void | Promise<void>;
-}) {
+}>) {
   const commercializationState = settings.mpaCommercializationStates?.[0];
 
   return (
@@ -256,7 +244,7 @@ export function ReapPage2Section({
         </div>
 
         <div className="form-group">
-          <label className="reap-label">Estados de comercialização</label>
+          <label className="reap-label" htmlFor="mpaCommercializationState">Estados de comercialização</label>
           <SearchableSelect
             id="mpaCommercializationState"
             value={commercializationState}
@@ -275,10 +263,10 @@ export function ReapPage2Section({
 export function ReapPage3Section({
   settings,
   onUpdate,
-}: {
+}: Readonly<{
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void | Promise<void>;
-}) {
+}>) {
   const fishingUf = settings.mpaUF;
   const fishingMunicipios = getMunicipiosByUf(fishingUf);
   const defesoMonths = settings.mpaDefesoMonths ?? [];
@@ -302,7 +290,7 @@ export function ReapPage3Section({
 
       <div className="stack" style={{ gap: "14px" }}>
         <div className="form-group">
-          <label className="reap-label">Meses de defeso</label>
+          <span className="reap-label">Meses de defeso</span>
           <MonthGrid selectedMonths={defesoMonths} onToggle={toggleDefesoMonth} />
           {defesoMonths.length === 0 && (
             <p className="reap-note">Selecione ao menos um mês.</p>
@@ -352,6 +340,18 @@ export function ReapPage3Section({
               placeholder={fishingUf ? "Pesquisar município" : "Selecione o estado primeiro"}
               disabled={!fishingUf}
               onChange={(value) => onUpdate({ mpaMunicipio: value })}
+            />
+          </div>
+
+          <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+            <label className="reap-label" htmlFor="mpaNomeLocalPesca">Nome do local (caso tenha)</label>
+            <input
+              id="mpaNomeLocalPesca"
+              type="text"
+              className="gps-input"
+              placeholder="Não informado"
+              value={settings.mpaNomeLocalPesca || ""}
+              onChange={(e) => onUpdate({ mpaNomeLocalPesca: e.target.value })}
             />
           </div>
         </div>

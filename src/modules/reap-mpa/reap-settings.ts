@@ -75,8 +75,8 @@ export function getReapFishingMethodLabel(methodCode?: number) {
   return REAP_FISHING_METHOD_LABELS[methodCode] || "";
 }
 
-export function getEffectiveFishingMethod(settings: Partial<AppSettings>) {
-  return settings.mpaMetodoPesca ?? settings.mpaPetrecho ?? 4;
+export function getEffectiveFishingMethod(settings: Partial<AppSettings>): number | undefined {
+  return settings.mpaMetodoPesca ?? settings.mpaPetrecho;
 }
 
 export function getDefesoMonthsNormalizationNotice(months?: number[]) {
@@ -104,10 +104,10 @@ function normalizeDaysPerMonth(value?: string) {
 export function normalizeReapSettings(settings: AppSettings): AppSettings {
   const residenceUF = settings.mpaResidenceUF ?? settings.mpaUF;
   const residenceMunicipio = settings.mpaResidenceMunicipio ?? settings.mpaMunicipio;
-  const commercializationStates =
-    settings.mpaCommercializationStates && settings.mpaCommercializationStates.length > 0
-      ? settings.mpaCommercializationStates
-      : residenceUF === undefined ? undefined : [residenceUF];
+  let commercializationStates = settings.mpaCommercializationStates;
+  if (!commercializationStates || commercializationStates.length === 0) {
+    commercializationStates = residenceUF !== undefined ? [residenceUF] : undefined;
+  }
   const defesoMonths = Array.isArray(settings.mpaDefesoMonths)
     ? getConfiguredDefesoMonths(settings)
     : undefined;

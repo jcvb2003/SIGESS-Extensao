@@ -157,6 +157,9 @@
       "run_at": "document_end"
     }
   ],
+  "web_accessible_resources": [
+    "sigess-logo.png"
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "{e9df396f-bdd8-4e79-bc7c-92017a928891}",

@@ -28,7 +28,7 @@ function getPortalSpeciesName(speciesId?: number) {
 function parseProductionNumber(value: string) {
   const cleaned = value.trim().replace(/[^0-9,.-]/g, "");
   const normalized = cleaned.includes(",")
-    ? cleaned.replace(/\./g, "").replace(",", ".")
+    ? cleaned.replaceAll(".", "").replace(",", ".")
     : cleaned;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -282,9 +282,9 @@ export const Page3 = {
       .find(el => el.textContent?.includes("Área"))?.closest(".br-table") as HTMLElement;
     if (!areaTable) return;
 
-    const localPescaLabel = getReapFishingLocationLabel(settings.mpaLocalPesca || 6) || "Rio";
-    const estadoLabel = getReapStateLabel(settings.mpaUF || 5) || "PARA";
-    const metodoLabel = getReapFishingMethodLabel(getEffectiveFishingMethod(settings)) || "Emalhe";
+    const localPescaLabel = getReapFishingLocationLabel(settings.mpaLocalPesca);
+    const estadoLabel = getReapStateLabel(settings.mpaUF);
+    const metodoLabel = getReapFishingMethodLabel(getEffectiveFishingMethod(settings));
 
     await Utils.selectOption(areaTable.querySelector("td:nth-child(1) .br-select") as HTMLElement, localPescaLabel);
     await Utils.selectOption(areaTable.querySelector("td:nth-child(2) .br-select") as HTMLElement, estadoLabel);
@@ -300,6 +300,10 @@ export const Page3 = {
         await Utils.sleep(500);
         attempts++;
       }
+    }
+    const nomeLocalInput = areaTable.querySelector("td:nth-child(4) input") as HTMLInputElement;
+    if (nomeLocalInput) {
+      Utils.setReactInput(nomeLocalInput, settings.mpaNomeLocalPesca?.trim() || "");
     }
     await Utils.selectOption(areaTable.querySelector("td:nth-child(5) .br-select") as HTMLElement, metodoLabel);
     await Utils.selectOption(areaTable.querySelector("td:nth-child(6) .br-select") as HTMLElement, "Água Doce");

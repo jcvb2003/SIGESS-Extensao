@@ -4,7 +4,8 @@ import { Download, Upload } from "lucide-react";
 import ReapMpaSettingsForm from "./components/panels/ReapMpaSettingsForm";
 import { StorageService } from "../background/services/storage";
 import { getDefesoMonthsNormalizationNotice, normalizeReapSettings } from "../modules/reap-mpa/reap-settings";
-import { copyReapPdfCache, removeReapPdfCacheForPreset, REAP_PDF_CACHES_STORAGE_KEY } from "../modules/reap-mpa/pdf-cache";
+import { copyReapPdfCache, getReapPdfCacheForPreset, removeReapPdfCacheForPreset, REAP_PDF_CACHES_STORAGE_KEY } from "../modules/reap-mpa/pdf-cache";
+import { checkPresetReadiness } from "../modules/reap-mpa/turbo-config";
 import { AppSettings, ReapMpaPreset } from "../shared/types";
 
 function getMpaSettings(settings: AppSettings): Partial<AppSettings> {
@@ -44,6 +45,7 @@ const ReapMpaSettingsPage: React.FC = () => {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [presetNameDraft, setPresetNameDraft] = useState("");
+  const [hasPdf, setHasPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -61,11 +63,30 @@ const ReapMpaSettingsPage: React.FC = () => {
     });
   }, []);
 
+  useEffect(() => {
+    let disposed = false;
+    const checkPdf = async () => {
+      const activeId = selectedPresetId ?? settings?.activeReapMpaPresetId;
+      const cache = await getReapPdfCacheForPreset(activeId);
+      if (!disposed) setHasPdf(Boolean(cache?.b64));
+    };
+    void checkPdf();
+    const handleStorage = (changes: Record<string, any>) => {
+      if (REAP_PDF_CACHES_STORAGE_KEY in changes || "sigessReapPdfCache" in changes) void checkPdf();
+    };
+    const storageApi = typeof browser !== "undefined" && browser?.storage ? browser.storage : (globalThis as any).chrome?.storage;
+    storageApi?.onChanged?.addListener(handleStorage);
+    return () => {
+      disposed = true;
+      storageApi?.onChanged?.removeListener(handleStorage);
+    };
+  }, [selectedPresetId, settings?.activeReapMpaPresetId]);
+
   const updateSettings = useCallback(
     async (patch: Partial<AppSettings>) => {
       if (!settings) return;
       const defesoNotice =
-        Object.prototype.hasOwnProperty.call(patch, "mpaDefesoMonths")
+        Object.hasOwn(patch, "mpaDefesoMonths")
           ? getDefesoMonthsNormalizationNotice(patch.mpaDefesoMonths)
           : null;
       const presets = getPresets(settings);
@@ -107,9 +128,11 @@ const ReapMpaSettingsPage: React.FC = () => {
   const updatePresets = useCallback(
     async (presets: ReapMpaPreset[], activePresetId: string, activePresetSettings?: Partial<AppSettings>) => {
       if (!settings) return;
+      const baseSettings = activePresetSettings
+        ? { ...withoutMpaSettings(settings), ...activePresetSettings }
+        : settings;
       const next = normalizeReapSettings({
-        ...(activePresetSettings ? withoutMpaSettings(settings) : settings),
-        ...(activePresetSettings ?? {}),
+        ...baseSettings,
         reapMpaPresets: presets,
         activeReapMpaPresetId: activePresetId,
       });
@@ -203,7 +226,7 @@ const ReapMpaSettingsPage: React.FC = () => {
       link.download = `configuracoes_reap_mpa_${dateStr}.json`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       URL.revokeObjectURL(url);
       setStatus("Configurações exportadas com sucesso!");
       setTimeout(() => setStatus(""), 4000);
@@ -278,18 +301,39 @@ const ReapMpaSettingsPage: React.FC = () => {
     }
   };
 
+  const readiness = checkPresetReadiness(displayedSettings, "MASCULINO", {
+    hasPdf,
+    strictBothGenders: true,
+  });
+
   return (
     <div className="page-shell">
       <div className="page-header-wrap">
         <header className="page-header">
           <div className="page-header-left">
-            <span className="page-eyebrow">SIGESS</span>
-            <span className="page-header-title">REAP MPA — Configurações</span>
+            <img
+              src={browser.runtime?.getURL ? browser.runtime.getURL("sigess-logo.png") : "sigess-logo.png"}
+              alt="SIGESS"
+              className="page-header-logo"
+            />
+            <span className="page-header-title">REAP — Configurações</span>
           </div>
           <div className="page-header-right">
             {status && !["Salvo", "Salvando...", "Presets salvos", "Salvando presets..."].includes(status) && (
-              <span style={{ fontSize: "11px", color: "#ffffff" }}>{status}</span>
+              <span className="status-message">{status}</span>
             )}
+            <div
+              className={`readiness-badge ${readiness.isReady ? "ready" : "pending"}`}
+              title={
+                readiness.isReady
+                  ? `Preset "${selectedPreset.name}" totalmente configurado e pronto para uso.`
+                  : `Pendências no preset "${selectedPreset.name}":\n• ${readiness.pendingFields.join("\n• ")}`
+              }
+            >
+              {readiness.isReady
+                ? "Configuração pronta"
+                : `Incompleto (${readiness.pendingCount})`}
+            </div>
             <button type="button" className="back-link" onClick={() => window.close()}>
               Fechar
             </button>
@@ -323,7 +367,7 @@ const ReapMpaSettingsPage: React.FC = () => {
                         className="gps-input"
                         value={presetNameDraft}
                         maxLength={40}
-                        autoFocus
+                        ref={(el) => { el?.focus(); }}
                         aria-label="Renomear preset"
                         onChange={(event) => setPresetNameDraft(event.target.value)}
                         onKeyDown={(event) => {

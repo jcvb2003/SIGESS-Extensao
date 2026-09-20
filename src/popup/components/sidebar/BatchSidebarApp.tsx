@@ -10,6 +10,8 @@ import {
   X,
   Layers,
   Clock,
+  FileText,
+  Paperclip,
 } from "lucide-react";
 
 export interface BatchItem {
@@ -60,6 +62,28 @@ export const BatchSidebarApp: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const [sdpaData, setSdpaData] = useState<{
+    nome?: string;
+    cpf?: string;
+    dataPrimeiroRegistro?: string;
+    rgp?: string;
+    endereco?: string;
+    numero?: string;
+    bairro?: string;
+    cidade?: string;
+    uf?: string;
+    telefone?: string;
+    email?: string;
+    auditStats?: {
+      ok: number;
+      warning: number;
+      missing: number;
+      total: number;
+    };
+  } | null>(null);
+  const [sdpaTabId, setSdpaTabId] = useState<number | null>(null);
+  const [sdpaFilling, setSdpaFilling] = useState(false);
+
   const fetchStatuses = useCallback(async () => {
     try {
       // 1. Verifica abas reais abertas no navegador
@@ -67,10 +91,39 @@ export const BatchSidebarApp: React.FC = () => {
         try {
           const openTabs = await browser.tabs.query({});
           const ids = new Set<number>();
+          let foundMteTab: any = null;
           for (const tab of openTabs) {
             if (typeof tab.id === "number") ids.add(tab.id);
+            if (tab.url?.includes("/solicitacao-pescador")) {
+              foundMteTab = tab;
+            }
           }
           setAliveTabIds(ids);
+
+          if (foundMteTab?.id) {
+            // Consulta ativa à aba MTE para checar estritamente se está em /solicitacao-pescador/etapas
+            try {
+              const resp = await browser.tabs.sendMessage(foundMteTab.id, { action: "GET_SDPA_STATUS" });
+              if (resp?.success && resp.isEtapasRoute && resp.data) {
+                setSdpaTabId(foundMteTab.id);
+                setSdpaData(resp.data);
+              } else {
+                // Fora da rota de etapas (ex: tela inicial), oculta o card SDPA
+                setSdpaTabId(null);
+                setSdpaData(null);
+              }
+            } catch {
+              if (foundMteTab.url?.includes("/solicitacao-pescador/etapas")) {
+                setSdpaTabId(foundMteTab.id);
+              } else {
+                setSdpaTabId(null);
+                setSdpaData(null);
+              }
+            }
+          } else {
+            setSdpaTabId(null);
+            setSdpaData(null);
+          }
         } catch {
           // silencioso
         }
@@ -122,6 +175,28 @@ export const BatchSidebarApp: React.FC = () => {
       browser.tabs.onRemoved.addListener(tabRemovedListener);
     }
 
+    // Escuta mensagens de broadcast (dados do pescador e auditoria de campos)
+    const messageListener = (msg: any, sender: any) => {
+      if (
+        (msg?.action === "SDPA_DATA_BROADCAST" || msg?.action === "UPDATE_SDPA_STATUS") &&
+        msg.data
+      ) {
+        if (msg.data.isEtapasRoute === false) {
+          setSdpaTabId(null);
+          setSdpaData(null);
+        } else {
+          setSdpaData(msg.data);
+          if (sender?.tab?.id) {
+            setSdpaTabId(sender.tab.id);
+          }
+        }
+      }
+    };
+
+    if (browserAPI?.runtime?.onMessage) {
+      browserAPI.runtime.onMessage.addListener(messageListener);
+    }
+
     // Polling leve a cada 1.5 segundos
     const interval = setInterval(fetchStatuses, 1500);
 
@@ -132,9 +207,59 @@ export const BatchSidebarApp: React.FC = () => {
       if (typeof browser !== "undefined" && browser.tabs?.onRemoved) {
         browser.tabs.onRemoved.removeListener(tabRemovedListener);
       }
+      if (browserAPI?.runtime?.onMessage) {
+        browserAPI.runtime.onMessage.removeListener(messageListener);
+      }
       clearInterval(interval);
     };
   }, [fetchStatuses]);
+
+  const isSdpaActive = Boolean(sdpaTabId && sdpaData);
+
+  // Evita duplicar o card do sócio: se já estiver em destaque no SDPA, remove o card de lote repetido
+  const displayedItems = useMemo(() => {
+    return items.filter((item) => {
+      if (!isSdpaActive) return true;
+      if (sdpaTabId && item.tabId === sdpaTabId) return false;
+      if (
+        sdpaData?.cpf &&
+        item.cpf &&
+        item.cpf.replace(/\D/g, "") === sdpaData.cpf.replace(/\D/g, "")
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [items, isSdpaActive, sdpaTabId, sdpaData]);
+
+  const handleTriggerSdpa = async () => {
+    if (!sdpaTabId) return;
+    setSdpaFilling(true);
+    try {
+      const browserAPI =
+        typeof browser !== "undefined" ? browser : (window as any).chrome;
+      if (browserAPI?.tabs?.sendMessage) {
+        await browserAPI.tabs.sendMessage(sdpaTabId, { action: "TRIGGER_SDPA_FILL" });
+      }
+    } catch (err) {
+      console.error("[Sidebar] Erro ao disparar preenchimento SDPA:", err);
+    } finally {
+      setTimeout(() => setSdpaFilling(false), 2000);
+    }
+  };
+
+  const handleHighlightAttachments = async () => {
+    if (!sdpaTabId) return;
+    try {
+      const browserAPI =
+        typeof browser !== "undefined" ? browser : (window as any).chrome;
+      if (browserAPI?.tabs?.sendMessage) {
+        await browserAPI.tabs.sendMessage(sdpaTabId, { action: "HIGHLIGHT_SDPA_ATTACHMENTS" });
+      }
+    } catch (err) {
+      console.error("[Sidebar] Erro ao destacar anexos na aba:", err);
+    }
+  };
 
   const handleManualRefresh = () => {
     setIsRefreshing(true);
@@ -287,6 +412,119 @@ export const BatchSidebarApp: React.FC = () => {
       </section>
 
       <main className="sidebar-content">
+        {sdpaTabId && sdpaData && (
+          <section className="sidebar-sdpa-card">
+            <div className="sidebar-sdpa-header">
+              <div className="sidebar-sdpa-title-wrap">
+                <span className="sidebar-sdpa-badge">SDPA / MTE</span>
+                <h4 className="sidebar-sdpa-title" title={sdpaData.nome || "Pescador(a)"}>
+                  {sdpaData.nome || "Pescador(a)"}
+                </h4>
+                <span className="sidebar-sdpa-cpf">CPF: {formatCpf(sdpaData.cpf || "")}</span>
+              </div>
+              <div className="sidebar-sdpa-actions">
+                <button
+                  type="button"
+                  className="sidebar-btn-sdpa-secondary"
+                  onClick={handleHighlightAttachments}
+                  title="Localizar e destacar área de upload de anexos"
+                >
+                  <Paperclip size={12} />
+                  Anexos
+                </button>
+                <button
+                  type="button"
+                  className="sidebar-btn-sdpa"
+                  onClick={handleTriggerSdpa}
+                  disabled={sdpaFilling}
+                  title="Preencher formulário no portal MTE"
+                >
+                  {sdpaFilling ? (
+                    <Loader2 size={13} className="sidebar-spin" />
+                  ) : (
+                    <FileText size={13} />
+                  )}
+                  {sdpaFilling ? "Preenchendo..." : "Preencher"}
+                </button>
+                {sdpaTabId && (
+                  <button
+                    type="button"
+                    className="sidebar-btn-sdpa-close"
+                    onClick={() => handleCloseTab(sdpaTabId)}
+                    title="Fechar aba da solicitação"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Resumo da Auditoria de Campos com semântica e cores originais do projeto */}
+            {sdpaData.auditStats && sdpaData.auditStats.total > 0 && (
+              <div className="sidebar-sdpa-audit-summary">
+                <span className="sdpa-audit-pill is-ok" title="Campos preenchidos e validados">
+                  {sdpaData.auditStats.ok} OK
+                </span>
+                {sdpaData.auditStats.warning > 0 && (
+                  <span className="sdpa-audit-pill is-warning" title="Campos com divergência ou a revisar">
+                    {sdpaData.auditStats.warning} A revisar
+                  </span>
+                )}
+                {sdpaData.auditStats.missing > 0 && (
+                  <span className="sdpa-audit-pill is-missing" title="Campos pendentes ou não preenchidos">
+                    {sdpaData.auditStats.missing} Pendentes
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div className="sidebar-sdpa-body">
+              {sdpaData.rgp && (
+                <div className="sidebar-sdpa-row">
+                  <span className="label">RGP:</span>
+                  <span className="value">{sdpaData.rgp}</span>
+                </div>
+              )}
+              {sdpaData.dataPrimeiroRegistro && (
+                <div className="sidebar-sdpa-row">
+                  <span className="label">1º Registro:</span>
+                  <span className="value">{sdpaData.dataPrimeiroRegistro}</span>
+                </div>
+              )}
+              {(sdpaData.cidade || sdpaData.uf) && (
+                <div className="sidebar-sdpa-row">
+                  <span className="label">Município:</span>
+                  <span className="value">
+                    {[sdpaData.cidade, sdpaData.uf].filter(Boolean).join(" - ")}
+                  </span>
+                </div>
+              )}
+              {(sdpaData.endereco || sdpaData.numero || sdpaData.bairro) && (
+                <div className="sidebar-sdpa-row">
+                  <span className="label">Endereço:</span>
+                  <span className="value">
+                    {[
+                      sdpaData.endereco,
+                      sdpaData.numero ? `nº ${sdpaData.numero}` : "",
+                      sdpaData.bairro,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </span>
+                </div>
+              )}
+              {(sdpaData.telefone || sdpaData.email) && (
+                <div className="sidebar-sdpa-row">
+                  <span className="label">Contato:</span>
+                  <span className="value">
+                    {[sdpaData.telefone, sdpaData.email].filter(Boolean).join(" | ")}
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         {loading && items.length === 0 ? (
           <div className="sidebar-empty">
             <Loader2 size={36} className="sidebar-empty-icon sidebar-spin" />
@@ -295,7 +533,7 @@ export const BatchSidebarApp: React.FC = () => {
               Obtendo dados das abas de automação em execução.
             </div>
           </div>
-        ) : items.length === 0 ? (
+        ) : displayedItems.length === 0 && !isSdpaActive ? (
           <div className="sidebar-empty">
             <Layers size={40} className="sidebar-empty-icon" />
             <div className="sidebar-empty-title">Nenhum lote ativo</div>
@@ -305,7 +543,7 @@ export const BatchSidebarApp: React.FC = () => {
             </div>
           </div>
         ) : (
-          items.map((item) => {
+          displayedItems.map((item) => {
             const hasPassError = isPasswordError(item);
             const isCompleted =
               item.status === "concluido" ||

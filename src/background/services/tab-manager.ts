@@ -292,10 +292,22 @@ export class TabManager {
       return;
     }
 
-    // Hook de pós-login para tabs de cadastro automático
-    if (credentials.loginConcluido && credentials.isCadastroAutomatico) {
-      if (changeInfo.status === "complete") {
-        await this.handleCadastroPostLoginNav(tabId, tab.url, credentials);
+    // Hook de pós-login para portais externos (manual / avulso)
+    if (
+      credentials.loginConcluido &&
+      !credentials.gerarGps &&
+      !credentials.consultarGuias &&
+      !credentials.isCadastroAutomatico &&
+      credentials.status === "redirecionando"
+    ) {
+      if (tab.url && !tab.url.includes("sso.acesso.gov.br") && changeInfo.status === "complete") {
+        await StorageService.updateBatchStatus(
+          tabId,
+          "concluido",
+          "Sessão iniciada",
+          "Portal acessado com sucesso",
+          { progressStage: undefined, lastUpdatedAt: Date.now() },
+        );
       }
       return;
     }

@@ -1,22 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 import { AppSettings } from "../../../../shared/types";
 import { SpeciesSearch } from "./SharedFields";
+import { ReapHelpModal } from "./ReapHelpModal";
 
 function parsePositiveNumber(value?: string) {
   const parsed = Number(String(value ?? "").replace(",", "."));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function nonNegativeInputValue(value: string) {
-  const parsed = Number(value);
-  return value === "" || !Number.isFinite(parsed) || parsed >= 0 ? value : "0";
+function cleanSpeciesNumericInput(value: string, allowDecimal = true): string {
+  if (!value) return "";
+  let cleaned = value.replace(/[^0-9.,]/g, "").replace(",", ".");
+  if (allowDecimal) {
+    const parts = cleaned.split(".");
+    if (parts.length > 2) {
+      cleaned = parts[0] + "." + parts.slice(1).join("");
+    }
+  } else {
+    cleaned = cleaned.replaceAll(".", "");
+  }
+  return cleaned;
 }
 
-function daysInputValue(value: string) {
-  if (value === "") return "";
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return "";
-  return String(Math.min(30, Math.max(1, Math.trunc(parsed))));
+function cleanDaysInput(value: string): string {
+  const digitsOnly = value.replace(/\D/g, "");
+  if (!digitsOnly) return "";
+  const num = Number.parseInt(digitsOnly, 10);
+  if (Number.isNaN(num)) return "";
+  return String(Math.min(30, Math.max(1, num)));
 }
 
 function formatCurrency(value: number) {
@@ -40,59 +51,57 @@ function calculateProductionSlice(settings: AppSettings) {
       const kgMax = parsePositiveNumber(item.kgMax);
       const priceMin = parsePositiveNumber(item.priceMin);
       const priceMax = parsePositiveNumber(item.priceMax);
-
-      if (!item.id || kgMin == null || kgMax == null || priceMin == null || priceMax == null) return null;
+      if (kgMin == null || kgMax == null || priceMin == null || priceMax == null) return null;
       if (kgMin > kgMax || priceMin > priceMax) return null;
-
       return {
-        min: kgMin * priceMin * productiveMonths,
-        max: kgMax * priceMax * productiveMonths,
+        annualMin: kgMin * priceMin * productiveMonths,
+        annualMax: kgMax * priceMax * productiveMonths,
       };
     })
-    .filter((item): item is { min: number; max: number } => item !== null);
+    .filter((item): item is { annualMin: number; annualMax: number } => item !== null);
 
-  const requestedCount = Math.min(settings.mpaSpeciesCount ?? 0, 10);
-  const usableCount = Math.min(requestedCount, species.length);
-  const min = [...species]
-    .sort((a, b) => a.min - b.min)
-    .slice(0, usableCount)
-    .reduce((total, item) => total + item.min, 0);
-  const max = [...species]
-    .sort((a, b) => b.max - a.max)
-    .slice(0, usableCount)
-    .reduce((total, item) => total + item.max, 0);
+  const usableCount = species.length;
+  const min = species.reduce((acc, item) => acc + item.annualMin, 0);
+  const max = species.reduce((acc, item) => acc + item.annualMax, 0);
 
   return {
-    min,
-    max,
+    min: Math.round(min),
+    max: Math.round(max),
     usableCount,
     productiveMonths,
     isReady: productiveMonths > 0 && usableCount > 0,
   };
 }
 
-function AnnualRangeSlider({
-  absMin,
-  absMax,
-  value,
-  onChange,
-}: {
-  absMin: number;
-  absMax: number;
-  value: [number, number];
-  onChange: (v: [number, number]) => void;
-}) {
+function getSliderHandleStyle(pct: number): React.CSSProperties {
+  return {
+    position: "absolute",
+    top: "50%",
+    left: `${pct}%`,
+    transform: "translate(-50%, -50%)",
+    width: "12px",
+    height: "12px",
+    borderRadius: "50%",
+    background: "var(--color-accent)",
+    border: "2px solid var(--color-page)",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
+    cursor: "grab",
+    pointerEvents: "none",
+  };
+}
+
+interface DualRangeSliderProps {
+  readonly absMin: number;
+  readonly absMax: number;
+  readonly value: [number, number];
+  readonly onChange: (v: [number, number]) => void;
+  readonly formatValue: (v: number) => string;
+}
+
+function DualRangeSlider({ absMin, absMax, value, onChange, formatValue }: DualRangeSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<"lo" | "hi" | null>(null);
   const [lo, hi] = value;
-
-  if (absMin >= absMax) {
-    return (
-      <div style={{ fontSize: "10px", color: "var(--color-muted)", marginTop: "4px", textAlign: "center" }}>
-        Total/ano: {absMin} dias
-      </div>
-    );
-  }
 
   const valueFromPointer = (e: React.PointerEvent) => {
     const rect = trackRef.current!.getBoundingClientRect();
@@ -115,30 +124,17 @@ function AnnualRangeSlider({
     else onChange([lo, Math.max(v, lo)]);
   };
 
-  const onPointerUp = () => { draggingRef.current = null; };
+  const onPointerUp = () => {
+    draggingRef.current = null;
+  };
 
   const pctLo = ((lo - absMin) / (absMax - absMin)) * 100;
   const pctHi = ((hi - absMin) / (absMax - absMin)) * 100;
 
-  const handle = (pct: number): React.CSSProperties => ({
-    position: "absolute",
-    top: "50%",
-    left: `${pct}%`,
-    transform: "translate(-50%, -50%)",
-    width: "12px",
-    height: "12px",
-    borderRadius: "50%",
-    background: "var(--color-accent)",
-    border: "2px solid var(--color-page)",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
-    cursor: "grab",
-    pointerEvents: "none",
-  });
-
   return (
     <div style={{ marginTop: "6px" }}>
       <div style={{ fontSize: "10px", color: "var(--color-muted)", textAlign: "center", marginBottom: "4px" }}>
-        Total/ano: <strong style={{ color: "var(--color-accent)" }}>{lo}–{hi}</strong> dias
+        Total/ano: <strong style={{ color: "var(--color-accent)" }}>{formatValue(lo)}–{formatValue(hi)}</strong>
       </div>
       <div
         ref={trackRef}
@@ -150,31 +146,44 @@ function AnnualRangeSlider({
       >
         <div style={{ position: "absolute", top: "7px", left: 0, right: 0, height: "3px", background: "var(--color-border)", borderRadius: "2px" }} />
         <div style={{ position: "absolute", top: "7px", left: `${pctLo}%`, width: `${pctHi - pctLo}%`, height: "3px", background: "var(--color-accent)", borderRadius: "2px" }} />
-        <div style={handle(pctLo)} />
-        <div style={handle(pctHi)} />
+        <div style={getSliderHandleStyle(pctLo)} />
+        <div style={getSliderHandleStyle(pctHi)} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--color-muted)", marginTop: "1px" }}>
-        <span>{absMin}</span><span>{absMax}</span>
+        <span>{formatValue(absMin)}</span><span>{formatValue(absMax)}</span>
       </div>
     </div>
   );
 }
 
-function ProductionRangeSlice({
-  absMin,
-  absMax,
-  value,
-  onChange,
-}: {
-  absMin: number;
-  absMax: number;
-  value: [number, number];
-  onChange: (v: [number, number]) => void;
-}) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef<"lo" | "hi" | null>(null);
-  const [lo, hi] = value;
+interface RangeSliderProps {
+  readonly absMin: number;
+  readonly absMax: number;
+  readonly value: [number, number];
+  readonly onChange: (v: [number, number]) => void;
+}
 
+function AnnualRangeSlider({ absMin, absMax, value, onChange }: RangeSliderProps) {
+  if (absMin >= absMax) {
+    return (
+      <div style={{ fontSize: "10px", color: "var(--color-muted)", marginTop: "4px", textAlign: "center" }}>
+        Total/ano: {absMin} dias
+      </div>
+    );
+  }
+
+  return (
+    <DualRangeSlider
+      absMin={absMin}
+      absMax={absMax}
+      value={value}
+      onChange={onChange}
+      formatValue={(v) => `${v} dias`}
+    />
+  );
+}
+
+function ProductionRangeSlice({ absMin, absMax, value, onChange }: RangeSliderProps) {
   if (absMin <= 0 || absMax <= 0) {
     return (
       <div style={{ fontSize: "10px", color: "var(--color-muted)", marginTop: "4px", textAlign: "center" }}>
@@ -191,85 +200,33 @@ function ProductionRangeSlice({
     );
   }
 
-  const valueFromPointer = (e: React.PointerEvent) => {
-    const rect = trackRef.current!.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    return Math.round(absMin + pct * (absMax - absMin));
-  };
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    const v = valueFromPointer(e);
-    draggingRef.current = Math.abs(v - lo) <= Math.abs(v - hi) ? "lo" : "hi";
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    if (draggingRef.current === "lo") onChange([Math.min(v, hi), hi]);
-    else onChange([lo, Math.max(v, lo)]);
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!draggingRef.current) return;
-    const v = valueFromPointer(e);
-    if (draggingRef.current === "lo") onChange([Math.min(v, hi), hi]);
-    else onChange([lo, Math.max(v, lo)]);
-  };
-
-  const onPointerUp = () => { draggingRef.current = null; };
-
-  const pctLo = ((lo - absMin) / (absMax - absMin)) * 100;
-  const pctHi = ((hi - absMin) / (absMax - absMin)) * 100;
-
-  const handle = (pct: number): React.CSSProperties => ({
-    position: "absolute",
-    top: "50%",
-    left: `${pct}%`,
-    transform: "translate(-50%, -50%)",
-    width: "12px",
-    height: "12px",
-    borderRadius: "50%",
-    background: "var(--color-accent)",
-    border: "2px solid var(--color-page)",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
-    cursor: "grab",
-    pointerEvents: "none",
-  });
-
   return (
-    <div style={{ marginTop: "6px" }}>
-      <div style={{ fontSize: "10px", color: "var(--color-muted)", textAlign: "center", marginBottom: "4px" }}>
-        Total/ano: <strong style={{ color: "var(--color-accent)" }}>{formatCurrency(lo)}–{formatCurrency(hi)}</strong>
-      </div>
-      <div
-        ref={trackRef}
-        style={{ position: "relative", height: "18px", cursor: "pointer", userSelect: "none" }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
-        <div style={{ position: "absolute", top: "7px", left: 0, right: 0, height: "3px", background: "var(--color-border)", borderRadius: "2px" }} />
-        <div style={{ position: "absolute", top: "7px", left: `${pctLo}%`, width: `${pctHi - pctLo}%`, height: "3px", background: "var(--color-accent)", borderRadius: "2px" }} />
-        <div style={handle(pctLo)} />
-        <div style={handle(pctHi)} />
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--color-muted)", marginTop: "1px" }}>
-        <span>{formatCurrency(absMin)}</span><span>{formatCurrency(absMax)}</span>
-      </div>
-    </div>
+    <DualRangeSlider
+      absMin={absMin}
+      absMax={absMax}
+      value={value}
+      onChange={onChange}
+      formatValue={formatCurrency}
+    />
   );
+}
+
+interface ReapSpeciesSectionProps {
+  readonly settings: AppSettings;
+  readonly onUpdate: (data: Partial<AppSettings>) => void | Promise<void>;
 }
 
 export function ReapSpeciesSection({
   settings,
   onUpdate,
-}: {
-  settings: AppSettings;
-  onUpdate: (data: Partial<AppSettings>) => void | Promise<void>;
-}) {
+}: ReapSpeciesSectionProps) {
   const selectedSpeciesIds =
     settings.mpaSpecies?.map((s) => s.id).filter((id): id is number => id !== undefined) || [];
   const filled = settings.mpaSpecies?.filter((s) => s?.id).length ?? 0;
   const requestedSpeciesCount = settings.mpaSpeciesCount ?? 0;
   const speciesCountExceedsRegistered = requestedSpeciesCount > filled;
   const [revealedOptionalCount, setRevealedOptionalCount] = useState(0);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const lastFilledSpeciesIndex = (settings.mpaSpecies || []).reduce(
     (lastIndex, species, index) => (species?.id ? index : lastIndex),
     -1,
@@ -346,6 +303,19 @@ export function ReapSpeciesSection({
     onUpdate({ mpaSpecies: next });
   };
 
+  let speciesCountFeedback: React.ReactNode = null;
+  if (speciesCountExceedsRegistered) {
+    speciesCountFeedback = (
+      <p className="reap-note reap-error-note">
+        Cadastre pelo menos {requestedSpeciesCount} espécies para usar esta quantidade no REAP.
+      </p>
+    );
+  } else if (filled === 0) {
+    speciesCountFeedback = (
+      <p className="reap-note">Cadastre uma espécie para definir a quantidade no REAP.</p>
+    );
+  }
+
   return (
     <section className="section">
       <div className="section-header">
@@ -373,13 +343,7 @@ export function ReapSpeciesSection({
               <option key={n} value={n} disabled={n > filled}>{n} espécies</option>
             ))}
           </select>
-          {speciesCountExceedsRegistered ? (
-            <p className="reap-note reap-error-note">
-              Cadastre pelo menos {requestedSpeciesCount} espécies para usar esta quantidade no REAP.
-            </p>
-          ) : filled === 0 ? (
-            <p className="reap-note">Cadastre uma espécie para definir a quantidade no REAP.</p>
-          ) : null}
+          {speciesCountFeedback}
         </div>
 
         <div className="stack" style={{ gap: "8px" }}>
@@ -431,24 +395,28 @@ export function ReapSpeciesSection({
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px" }}>
                   {[
-                    { key: "kgMin", label: "KG MÍN/MÊS" },
-                    { key: "kgMax", label: "KG MÁX/MÊS" },
-                    { key: "priceMin", label: "R$ MÍN" },
-                    { key: "priceMax", label: "R$ MÁX" },
-                  ].map(({ key, label }) => (
+                    { key: "kgMin", label: "KG MÍN/MÊS", allowDecimal: false },
+                    { key: "kgMax", label: "KG MÁX/MÊS", allowDecimal: false },
+                    { key: "priceMin", label: "R$ MÍN", allowDecimal: true },
+                    { key: "priceMax", label: "R$ MÁX", allowDecimal: true },
+                  ].map(({ key, label, allowDecimal }) => (
                     <div key={key} className="stack" style={{ gap: "3px" }}>
                       <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-muted)", textAlign: "center" }}>
                         {label}
                       </span>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode={allowDecimal ? "decimal" : "numeric"}
                         className="gps-input"
                         style={{ textAlign: "center", fontSize: "12px", padding: "6px 4px" }}
                         value={(data as any)[key] || ""}
-                        onChange={(e) => updateSpecie(idx, { [key]: nonNegativeInputValue(e.target.value) })}
+                        onKeyDown={(e) => {
+                          if (["e", "E", "+", "-"].includes(e.key)) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onChange={(e) => updateSpecie(idx, { [key]: cleanSpeciesNumericInput(e.target.value, allowDecimal) })}
                         placeholder="0"
-                        min={0}
-                        step={key.startsWith("price") ? "0.05" : "1"}
                       />
                     </div>
                   ))}
@@ -592,9 +560,20 @@ export function ReapSpeciesSection({
                   </div>
                   <div className="stack" style={{ ...panelBody, gap: "10px" }}>
                     <div>
-                      <label htmlFor={`${panel.daysMinId}-prod`} className="reap-label" style={{ marginBottom: "4px" }}>
-                        Produção (R$)
-                      </label>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                        <label htmlFor={`${panel.daysMinId}-prod`} className="reap-label" style={{ marginBottom: 0 }}>
+                          Produção (R$)
+                        </label>
+                        <button
+                          type="button"
+                          className="reap-help-btn-red"
+                          onClick={() => setIsHelpModalOpen(true)}
+                          title="O que é o REAP e como se relaciona com o eSocial?"
+                          aria-label="Ajuda sobre Produção (R$) e o REAP"
+                        >
+                          ?
+                        </button>
+                      </div>
                       <ProductionRangeSlice
                         absMin={panel.prodAbsMin}
                         absMax={panel.prodAbsMax}
@@ -609,27 +588,33 @@ export function ReapSpeciesSection({
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
                         <input
                           id={panel.daysMinId}
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           className="gps-input"
                           style={{ fontSize: "12px" }}
                           placeholder="Mín"
-                          min={1}
-                          max={30}
-                          step={1}
                           value={panel.daysMinVal}
-                          onChange={(e) => panel.onDaysMinChange(daysInputValue(e.target.value))}
+                          onKeyDown={(e) => {
+                            if (["e", "E", "+", "-", ".", ","].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onChange={(e) => panel.onDaysMinChange(cleanDaysInput(e.target.value))}
                         />
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           className="gps-input"
                           style={{ fontSize: "12px" }}
                           aria-label={panel.daysMaxLabel}
                           placeholder="Máx"
-                          min={1}
-                          max={30}
-                          step={1}
                           value={panel.daysMaxVal}
-                          onChange={(e) => panel.onDaysMaxChange(daysInputValue(e.target.value))}
+                          onKeyDown={(e) => {
+                            if (["e", "E", "+", "-", ".", ","].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onChange={(e) => panel.onDaysMaxChange(cleanDaysInput(e.target.value))}
                         />
                       </div>
                       {panel.has ? (
@@ -650,6 +635,10 @@ export function ReapSpeciesSection({
           );
         })()}
       </div>
+      <ReapHelpModal
+        isOpen={isHelpModalOpen}
+        onClose={() => setIsHelpModalOpen(false)}
+      />
     </section>
   );
 }

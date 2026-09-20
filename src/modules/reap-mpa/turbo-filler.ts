@@ -21,21 +21,7 @@ class ReapTurbo {
         return state?.informesMensais?.find((mes: any) => mes.mes === monthNum) ?? null;
     }
 
-    private buildMonthDiagnostics(monthState: any): any {
-        if (!monthState) return null;
-        return {
-            mes: monthState.mes,
-            houvePesca: monthState.houvePesca,
-            diasTrabalhados: monthState.diasTrabalhados ?? null,
-            justificativasNaoDeclaracao: monthState.justificativasNaoDeclaracao ?? [],
-            areasRealizacaoPesca: monthState.areasRealizacaoPesca ?? [],
-            resultadosOperacaoPesca: monthState.resultadosOperacaoPesca ?? [],
-            preenchido: monthState.preenchido,
-            enviado: monthState.enviado,
-            invalido: monthState.invalido,
-            observacao: monthState.observacao ?? ""
-        };
-    }
+
 
     private extractActionHashCandidates(html: string): string[] {
         const candidates = new Set<string>();
@@ -80,7 +66,7 @@ class ReapTurbo {
         const freshHashes = this.extractActionHashCandidates(html);
         this.debugLogger.diag("Hashes encontrados na página:", freshHashes);
         if (freshHashes.length > 0) {
-            this.lastActionHash = freshHashes[freshHashes.length - 1];
+            this.lastActionHash = freshHashes.at(-1) || "";
             const otherHash = freshHashes.find(h => h !== this.lastActionHash);
             if (otherHash) {
                 this.uploadActionHash = otherHash;
@@ -153,30 +139,47 @@ class ReapTurbo {
         return encodeURIComponent(JSON.stringify(tree));
     }
 
-    private updateStateWithMonth(state: any, mesNumber: number, userConfig: TurboReapConfig): any {
+    private updateStateWithAllMonths(
+        state: any,
+        userConfig: TurboReapConfig,
+        startMonth: number
+    ): { updatedState: any; targetMonths: number[]; skippedMonths: number[] } {
         const newState = structuredClone(state);
-        const mesConfig = userConfig.meses.find(m => m.mes === mesNumber);
-
-        // Localiza um documento de justificativa já existente em qualquer mês (para reutilizar em meses sem documento)
         const existingDoc = newState.informesMensais.find(
             (mes: any) => mes.documentoJustificativaNaoDeclaracao
         )?.documentoJustificativaNaoDeclaracao ?? null;
 
+        const mesesFiltro: number[] | undefined = userConfig.mesesFiltro;
+        const targetMonths: number[] = [];
+        const skippedMonths: number[] = [];
+
         newState.informesMensais = newState.informesMensais.map((oldMes: any) => {
-            if (oldMes.mes !== mesNumber) {
-                // Propaga documento existente para outros meses sem pesca que ainda não têm doc.
-                // O servidor valida o estado completo e rejeita se qualquer mês sem pesca estiver sem doc.
-                if (!oldMes.houvePesca && !oldMes.documentoJustificativaNaoDeclaracao && existingDoc) {
-                    return { ...oldMes, documentoJustificativaNaoDeclaracao: existingDoc };
-                }
+            const mesNum = oldMes.mes;
+
+            // 1. Respeita filtro parcial de meses (se ativo)
+            if (mesesFiltro && !mesesFiltro.includes(mesNum)) {
+                skippedMonths.push(mesNum);
                 return { ...oldMes };
             }
 
+            // 2. Respeita startMonth (modo sequência)
+            if (mesNum < startMonth) {
+                skippedMonths.push(mesNum);
+                return { ...oldMes };
+            }
+
+            // 3. Respeita meses indisponíveis/inválidos na vigência do pescador (invalido: true ou diasAtivo: "0")
+            const isInvalidOnServer = Boolean(oldMes.invalido) || oldMes.configuracoes?.diasAtivo === "0";
+            if (isInvalidOnServer) {
+                this.debugLogger.log(`Mês ${mesNum} indisponível/fora de vigência no servidor. Preservado.`);
+                skippedMonths.push(mesNum);
+                return { ...oldMes };
+            }
+
+            const mesConfig = userConfig.meses.find(m => m.mes === mesNum);
             const m = { ...oldMes };
             m.observacao = m.observacao || "";
-
             const houvePesca = Boolean(mesConfig?.houvePesca);
-
             m.houvePesca = houvePesca;
             m.preenchido = true;
             m.invalido = false;
@@ -192,21 +195,25 @@ class ReapTurbo {
                 const existingRows = Array.isArray(oldMes.resultadosOperacaoPesca)
                     ? oldMes.resultadosOperacaoPesca
                     : [];
-                // A quantidade de linhas já renderizadas no portal não define
-                // quantas espécies devem ser enviadas. O portal pode retornar
-                // apenas uma parte das linhas de um mês previamente preenchido;
-                // nesse caso, cortar o plano aqui fazia o Turbo perder espécies.
                 const speciesToSend = (mesConfig?.especies || []).filter(Boolean);
                 this.debugLogger.diag(
-                    `Mês ${mesNumber}: espécies configuradas=${speciesToSend.length}, linhas existentes=${existingRows.length}`,
+                    `Mês ${mesNum}: espécies configuradas=${speciesToSend.length}, linhas existentes=${existingRows.length}`,
                 );
-                m.resultadosOperacaoPesca = speciesToSend.map((esp: any, i: number) => {
-                    const existingRow = existingRows[i];
-                    const preserveId = existingRow?.id && existingRow?.especiePescado === esp.especiePescado;
-                    return {
-                        ...esp,
-                        ...(preserveId ? { id: existingRow.id } : {})
-                    };
+                const usedExistingIds = new Set<number>();
+                m.resultadosOperacaoPesca = speciesToSend.map((esp: any) => {
+                    const matchBySpecies = existingRows.find(
+                        (r: any) => r.id && !usedExistingIds.has(r.id) && r.especiePescado === esp.especiePescado
+                    );
+                    if (matchBySpecies) {
+                        usedExistingIds.add(matchBySpecies.id);
+                        return { ...esp, id: matchBySpecies.id };
+                    }
+                    const unusedExisting = existingRows.find((r: any) => r.id && !usedExistingIds.has(r.id));
+                    if (unusedExisting) {
+                        usedExistingIds.add(unusedExisting.id);
+                        return { ...esp, id: unusedExisting.id };
+                    }
+                    return { ...esp };
                 });
             } else {
                 m.houvePesca = false;
@@ -214,11 +221,12 @@ class ReapTurbo {
                 m.justificativasNaoDeclaracao = [Number(mesConfig?.justificativa ?? 1)];
                 m.areasRealizacaoPesca = [];
                 m.resultadosOperacaoPesca = [];
-                // Reutiliza documento de justificativa de outro mês se este não tiver um
                 if (!m.documentoJustificativaNaoDeclaracao && existingDoc) {
                     m.documentoJustificativaNaoDeclaracao = existingDoc;
                 }
             }
+
+            targetMonths.push(mesNum);
             return m;
         });
 
@@ -226,13 +234,18 @@ class ReapTurbo {
         delete newState.errosValidacao;
         if (newState.configuracoes) newState.configuracoes.podeEnviar = "true";
 
-        const docSummary = newState.informesMensais.map((m: any) => `m${m.mes}:${m.houvePesca ? 'pesca' : m.documentoJustificativaNaoDeclaracao ? '✅doc' : '❌sem-doc'}`).join(' ');
-        this.debugLogger.diag(`Payload docs ao salvar mês ${mesNumber}: ${docSummary}`);
+        const formatInformeDocStatus = (m: any) => {
+            if (m.houvePesca) return "pesca";
+            if (m.documentoJustificativaNaoDeclaracao) return "✅doc";
+            return "❌sem-doc";
+        };
+        const docSummary = newState.informesMensais.map((m: any) => `m${m.mes}:${formatInformeDocStatus(m)}`).join(' ');
+        this.debugLogger.diag(`Payload consolidado: docs=[${docSummary}], target=[${targetMonths.join(",")}], skipped=[${skippedMonths.join(",")}]`);
 
-        return newState;
+        return { updatedState: newState, targetMonths, skippedMonths };
     }
 
-    private async uploadDocument(pdfB64: string, filename: string, mesNumber?: number, informeMensalId?: number): Promise<any | null> {
+    private async uploadDocument(pdfB64: string, filename: string, mesNumber?: number, informeMensalId?: number): Promise<any> {
         this.debugLogger.diag(`Upload: b64.length=${pdfB64?.length ?? 0}, filename=${filename}, mes=${mesNumber ?? '?'}, informeMensalId=${informeMensalId ?? '?'}`);
         if (!pdfB64 || pdfB64.length < 100) {
             this.debugLogger.diag("Upload cancelado: pdfB64 vazio ou inválido.");
@@ -241,7 +254,7 @@ class ReapTurbo {
 
         const hash = this.uploadActionHash;
 
-        return new Promise<any | null>((resolve) => {
+        return new Promise<any>((resolve) => {
             const eid = `__sigessUpload_${Date.now()}`;
             const tree = this.getNextRouterStateTree();
 
@@ -328,42 +341,65 @@ class ReapTurbo {
         for (const mesNum of nonFishingMonths) {
             if (State.stopRequested) break;
 
-            const informeMensalId = currentState.informesMensais?.find((m: any) => m.mes === mesNum)?.id;
-            const docObj = await this.uploadDocument(pdfB64, filename, mesNum, informeMensalId);
-            if (!docObj?.id) {
-                this.debugLogger.log(`Upload do documento falhou para o mês ${mesNum}.`, "error");
-                continue;
+            const nextState = await this.processSingleNonFishingMonth(mesNum, currentState, config, pdfB64, filename);
+            if (nextState) {
+                currentState = nextState;
             }
-
-            currentState = this.updateStateWithMonth(currentState, mesNum, config);
-            // Injeta o documento no mês alvo dentro do estado
-            const mesRef = currentState.informesMensais.find((m: any) => m.mes === mesNum);
-            if (mesRef) mesRef.documentoJustificativaNaoDeclaracao = docObj;
-
-            const payload = [String(currentState.id), { informesMensais: currentState.informesMensais, concordaComDeclaracaoResponsabilidade: true }, 3];
-            const updatedState = await this.submitMonth(mesNum, payload);
-            if (!updatedState) {
-                this.debugLogger.log(`Falha ao re-salvar mês ${mesNum} com documento.`, "error");
-                continue;
-            }
-
-            const persisted = this.getMonthState(updatedState, mesNum);
-            if (persisted?.preenchido) {
-                this.debugLogger.log(`✅ Mês ${mesNum} concluído com documento.`, "success");
-                State.monthlyProgress[mesNum - 1] = "done";
-            } else {
-                this.debugLogger.log(`Mês ${mesNum}: documento não persistiu após upload individual.`, "error");
-            }
-
-            currentState = updatedState;
             if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
         }
     }
 
-    private async submitMonth(monthNum: number, payload: any): Promise<any | null> {
-        this.debugLogger.log(`Enviando Mês ${monthNum}...`);
+    private async processSingleNonFishingMonth(
+        mesNum: number,
+        currentState: any,
+        config: any,
+        pdfB64: string,
+        filename: string,
+    ): Promise<any> {
+        const informeMensalId = currentState.informesMensais?.find((m: any) => m.mes === mesNum)?.id;
+        const docObj = await this.uploadDocument(pdfB64, filename, mesNum, informeMensalId);
+        if (!docObj?.id) {
+            this.debugLogger.log(`Upload do documento falhou para o mês ${mesNum}.`, "error");
+            return null;
+        }
 
-        this.debugLogger.diag(`Payload mês ${monthNum}:`, this.buildMonthDiagnostics(payload?.[1]?.informesMensais?.find((mes: any) => mes.mes === monthNum)));
+        const updated = structuredClone(currentState);
+        const mesRef = updated.informesMensais?.find((m: any) => m.mes === mesNum);
+        if (mesRef) {
+            const mesConfig = config.meses?.find((m: any) => m.mes === mesNum);
+            mesRef.houvePesca = false;
+            delete mesRef.diasTrabalhados;
+            mesRef.justificativasNaoDeclaracao = [Number(mesConfig?.justificativa ?? 1)];
+            mesRef.areasRealizacaoPesca = [];
+            mesRef.resultadosOperacaoPesca = [];
+            mesRef.documentoJustificativaNaoDeclaracao = docObj;
+            mesRef.preenchido = true;
+            mesRef.invalido = false;
+        }
+        updated.concordaComDeclaracaoResponsabilidade = true;
+        delete updated.errosValidacao;
+        if (updated.configuracoes) updated.configuracoes.podeEnviar = "true";
+
+        const payload = [String(updated.id), { informesMensais: updated.informesMensais, concordaComDeclaracaoResponsabilidade: true }, 3];
+        const updatedState = await this.submitConsolidated(payload);
+        if (!updatedState) {
+            this.debugLogger.log(`Falha ao re-salvar mês ${mesNum} com documento.`, "error");
+            return null;
+        }
+
+        const persisted = this.getMonthState(updatedState, mesNum);
+        if (persisted?.preenchido) {
+            this.debugLogger.log(`✅ Mês ${mesNum} concluído com documento.`, "success");
+            State.monthlyProgress[mesNum - 1] = "done";
+        } else {
+            this.debugLogger.log(`Mês ${mesNum}: documento não persistiu após upload individual.`, "error");
+        }
+
+        return updatedState;
+    }
+
+    private async submitConsolidated(payload: any): Promise<any> {
+        this.debugLogger.log(`Enviando declaração consolidada (todos os meses)...`);
         try {
             const resp = await fetch(globalThis.location.href, {
                 method: 'POST',
@@ -381,70 +417,90 @@ class ReapTurbo {
                 throw new Error(`HTTP ${resp.status}. Body: ${responseText}`);
             }
 
-            this.debugLogger.diag(`Resposta raw mês ${monthNum}: ${responseText.substring(0, 500)}`);
-            this.debugLogger.log(`Mês ${monthNum} enviado com sucesso.`, 'success');
+            this.debugLogger.diag(`Resposta raw consolidada: ${responseText.substring(0, 500)}`);
+            this.debugLogger.log(`Declaração enviada com sucesso ao servidor.`, 'success');
             const refreshedState = await this.getReapState();
-            this.debugLogger.diag(`Retorno mês ${monthNum}:`, this.buildMonthDiagnostics(this.getMonthState(refreshedState, monthNum)));
             return refreshedState;
         } catch (e: any) {
-            this.debugLogger.log(`Erro Mês ${monthNum}: ${e.message}`, 'error');
+            this.debugLogger.log(`Erro no envio consolidado: ${e.message}`, 'error');
             return null;
         }
     }
 
-    private async processMonths(startMonth: number, config: any, initialState: any): Promise<boolean> {
-        let currentState = structuredClone(initialState);
-        const mesesFiltro: number[] | undefined = config.mesesFiltro;
-        if (mesesFiltro?.length) {
-            this.debugLogger.log(`Filtro de meses ativo: [${mesesFiltro.join(", ")}]`);
+    private async animateCascadeSuccess(
+        targetMonths: number[],
+        skippedMonths: number[],
+        refreshedState: any
+    ): Promise<void> {
+        // Marca meses pulados ou fora de vigência
+        for (const m of skippedMonths) {
+            State.monthlyProgress[m - 1] = "skipped";
         }
+        if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
 
-        for (let m = startMonth; m <= 12; m++) {
-            if (State.stopRequested) {
-                this.debugLogger.log("Interrupção solicitada pelo usuário.", "warn");
-                return false;
-            }
-
-            if (mesesFiltro && !mesesFiltro.includes(m)) continue;
-
-            // Pula meses que o servidor não retornou (não disponíveis para preenchimento)
-            const exists = currentState.informesMensais.some((mesObj: any) => mesObj.mes === m);
-            if (!exists) {
-                this.debugLogger.log(`Mês ${m} indisponível no servidor. Pulando...`, 'warn');
-                State.monthlyProgress[m - 1] = "skipped";
-                if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
-                continue;
-            }
-
-            this.debugLogger.log(`--- MÊS ${m} ---`, 'success');
-            
-            // 1. Atualizar o estado CUMULATIVO local (passando o número do mês, não o índice)
-            currentState = this.updateStateWithMonth(currentState, m, config);
-
-            // Salvaguarda: garantir invalido=false para o mês atual (o servidor ignora dados de meses invalido:true)
-            const curMesRef = currentState.informesMensais.find((mes: any) => mes.mes === m);
-            if (curMesRef) curMesRef.invalido = false;
-
-            // 2. Construir payload final com o estado completo
-            const payload = [String(currentState.id), { informesMensais: currentState.informesMensais, concordaComDeclaracaoResponsabilidade: true }, 3];
-
-            // 3. Enviar
-            const updatedState = await this.submitMonth(m, payload);
-            if (!updatedState) return false;
-            const persistedMonth = this.getMonthState(updatedState, m);
-            if (!persistedMonth?.preenchido) {
-                this.debugLogger.diag(`Mês ${m} voltou do servidor sem persistir como preenchido.`, this.buildMonthDiagnostics(persistedMonth));
-                State.monthlyProgress[m-1] = "skipped";
+        // Efeito cascata para os meses processados (35ms por mês)
+        for (const m of targetMonths) {
+            const serverMonth = this.getMonthState(refreshedState, m);
+            if (serverMonth?.preenchido || serverMonth?.houvePesca !== undefined) {
+                State.monthlyProgress[m - 1] = "done";
             } else {
-                State.monthlyProgress[m-1] = "done";
+                State.monthlyProgress[m - 1] = "skipped";
             }
-            currentState = updatedState;
-
-            if (m < 12) State.currentMonthIndex = m;
             if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+            await new Promise((resolve) => setTimeout(resolve, 35));
         }
+    }
+
+    private async processConsolidatedRun(startMonth: number, config: any, initialState: any): Promise<boolean> {
+        const { updatedState, targetMonths, skippedMonths } = this.updateStateWithAllMonths(
+            initialState,
+            config,
+            startMonth
+        );
+
+        if (targetMonths.length === 0) {
+            this.debugLogger.log("Nenhum mês para processar com os filtros atuais.", "warn");
+            return true;
+        }
+
+        this.debugLogger.log(`Processando ${targetMonths.length} meses: [${targetMonths.join(", ")}]...`);
+        const payload = [
+            String(updatedState.id),
+            {
+                informesMensais: updatedState.informesMensais,
+                concordaComDeclaracaoResponsabilidade: true
+            },
+            3
+        ];
+
+        const refreshedState = await this.submitConsolidated(payload);
+        if (!refreshedState) return false;
+
+        // Efeito cascata visual de confirmação na grade do overlay
+        await this.animateCascadeSuccess(targetMonths, skippedMonths, refreshedState);
 
         return true;
+    }
+
+    private async handleRunSuccess(config: any): Promise<void> {
+        if (config.documentoMode !== "manual") {
+            if (config.documentoPdfB64) {
+                this.debugLogger.log("Aplicando documentos comprobatórios...");
+                await this.applyDocumentToNonFishingMonths(config, config.documentoPdfB64, config.documentoPdfFilename || "documento.pdf");
+            } else {
+                this.debugLogger.log(`Modo documento '${config.documentoMode}' ativo mas documentoPdfB64 está vazio — segundo pass pulado.`, "warn");
+            }
+        }
+        if ((globalThis as any).showTurboSuccessOverlay) {
+            await new Promise<void>((resolve) => {
+                (globalThis as any).showTurboSuccessOverlay(() => {
+                    resolve();
+                });
+            });
+        } else {
+            alert("Preenchido!");
+        }
+        globalThis.location.reload();
     }
 
     public async run(config: any) {
@@ -456,7 +512,7 @@ class ReapTurbo {
         if ((globalThis as any).showTurboOverlay) (globalThis as any).showTurboOverlay();
         
         const startMonth = config.startMonth || 1;
-        this.debugLogger.log(`REAP TURBO ULTRA-FAST (Início: Mês ${startMonth})`);
+        this.debugLogger.log(`REAP TURBO CONSOLIDATED ULTRA-FAST (Início: Mês ${startMonth})`);
 
         try {
             this.debugLogger.log("Obtendo estado inicial...");
@@ -467,21 +523,12 @@ class ReapTurbo {
                 this.debugLogger.diag("Estrutura do primeiro mês:", initialState.informesMensais[0]);
             }
 
-            const completed = await this.processMonths(startMonth, config, initialState);
+            const completed = await this.processConsolidatedRun(startMonth, config, initialState);
 
             if (!State.stopRequested && completed) {
-                if (config.documentoMode !== "manual") {
-                    if (config.documentoPdfB64) {
-                        this.debugLogger.log("Aplicando documentos comprobatórios...");
-                        await this.applyDocumentToNonFishingMonths(config, config.documentoPdfB64, config.documentoPdfFilename || "documento.pdf");
-                    } else {
-                        this.debugLogger.log(`Modo documento '${config.documentoMode}' ativo mas documentoPdfB64 está vazio — segundo pass pulado.`, "warn");
-                    }
-                }
-                alert("Turbo Fill Concluído!");
-                globalThis.location.reload();
+                await this.handleRunSuccess(config);
             } else if (!State.stopRequested && !completed) {
-                throw new Error("O preenchimento Turbo falhou durante o envio.");
+                throw new Error("O preenchimento Turbo falhou durante o envio consolidado.");
             }
         } finally { 
             (globalThis as any).__sigessTurboRunning = false;
@@ -489,6 +536,13 @@ class ReapTurbo {
             if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
         }
     }
+}
+
+function extractFetchUrl(input: unknown): string {
+    if (typeof input === 'string') return input;
+    if (input instanceof URL) return input.toString();
+    if (typeof Request !== 'undefined' && input instanceof Request) return input.url;
+    return "";
 }
 
 if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded) {
@@ -503,7 +557,7 @@ if (globalThis.window !== undefined && !(globalThis as any).__sigessTurboLoaded)
         const origFetch = globalThis.fetch;
         globalThis.fetch = async function(...args) {
             const [url, options] = args;
-            const urlText = typeof url === 'string' ? url : url instanceof URL ? url.toString() : String(url);
+            const urlText = extractFetchUrl(url);
             if ((globalThis as any).__SIGESS_DIAGNOSTICS && options?.method === 'POST' && urlText.includes('informe-mensal')) {
                 const headersList: any = {};
                 const headers = options.headers;

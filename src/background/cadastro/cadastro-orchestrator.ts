@@ -5,8 +5,7 @@ import { StorageService } from "../services/storage";
 import { closeCadastroContainerTabs, sanitizeCadastroContainer } from "./cadastro-container";
 import { isCadastroPortalTerminal } from "../../modules/automation/cadastro/session-status";
 import { createCadastroPortalTab, getCadastroLaunchCredentials } from "./cadastro-portal-launcher";
-import { saveCadastroSession } from "./cadastro-session-store";
-import { getActiveCadastroSession } from "./cadastro-session-store";
+import { getActiveCadastroSession, saveCadastroSession } from "./cadastro-session-store";
 import {
   applyCadastroPortalOutcome,
   getCadastroPortalForDataSource,
@@ -107,6 +106,14 @@ export async function finalizeCadastroSession(session: CadastroSession): Promise
 }
 
 export async function finalizeCadastroSessionIfReady(session: CadastroSession): Promise<void> {
+  if (session.portais.cadunico.status === "concluido") {
+    session.cadunicoDismissalRequired = false;
+    session.cadunicoDismissalReady = false;
+    if (session.interactionRequired?.type === "govbr_contact_confirmation") {
+      delete session.interactionRequired;
+    }
+  }
+
   const phase = getCadastroFinalizationPhase(session);
   if (phase === "collecting" || phase === "complete" || phase === "error") return;
 
@@ -130,6 +137,50 @@ export async function finalizeCadastroSessionIfReady(session: CadastroSession): 
   if (phase === "ready_to_finalize") await finalizeCadastroSession(session);
 }
 
+function applyDataArrivalStatus(
+  session: CadastroSession,
+  portalId: CadastroPortalId,
+  source: string,
+): void {
+  const portal = session.portais[portalId];
+  if (!portal) return;
+
+  if (source === "cadunico") {
+    if (portal.status === "abrindo" || portal.status === "aguardando") {
+      portal.status = "coletando";
+    }
+    return;
+  }
+
+  portal.status = "concluido";
+  if (portalId === "cadunico") {
+    session.cadunicoDismissalRequired = false;
+    session.cadunicoDismissalReady = false;
+    if (session.interactionRequired?.type === "govbr_contact_confirmation") {
+      delete session.interactionRequired;
+    }
+  }
+}
+
+async function tryCloseCapturedTab(
+  session: CadastroSession,
+  portalId: CadastroPortalId,
+  sourceTabId?: number,
+): Promise<void> {
+  const portal = session.portais[portalId];
+  if (portal?.status !== "concluido") return;
+
+  const cadDependenciesOpened =
+    typeof session.portais.pesqbrasil.tabId === "number" &&
+    typeof session.portais.esocial.tabId === "number";
+  const canClose = portalId !== "cadunico" || (cadDependenciesOpened && Boolean(session.portais.tse));
+  const tabId = sourceTabId ?? portal.tabId;
+
+  if (canClose && typeof tabId === "number") {
+    await closeCadastroPortalTab(tabId, portalId);
+  }
+}
+
 export async function processCadastroDataArrival(
   source: string,
   getTabManager?: () => any,
@@ -137,28 +188,14 @@ export async function processCadastroDataArrival(
   sessionId?: string,
 ): Promise<void> {
   const session = await getActiveCadastroSession();
-  if (!session || session.sessionState !== "active" || (sessionId && session.sessionId !== sessionId)) return;
+  if (session?.sessionState !== "active" || (sessionId && session.sessionId !== sessionId)) return;
   const portalId = getCadastroPortalForDataSource(session, source);
-  const portal = portalId ? session.portais[portalId] : null;
-  if (!portalId || !portal) return;
+  if (!portalId || !session.portais[portalId]) return;
 
-  if (source === "cadunico") {
-    if (portal.status === "abrindo" || portal.status === "aguardando") portal.status = "coletando";
-  } else {
-    portal.status = "concluido";
-  }
+  applyDataArrivalStatus(session, portalId, source);
   await saveCadastroSession(session);
   await evaluateTseRequirement(session, getTabManager);
-
-  const cadunicoDependenciesOpened =
-    typeof session.portais.pesqbrasil.tabId === "number" &&
-    typeof session.portais.esocial.tabId === "number";
-  const canCloseCapturedTab = portalId !== "cadunico" ||
-    (cadunicoDependenciesOpened && Boolean(session.portais.tse));
-  const capturedTabId = sourceTabId ?? portal.tabId;
-  if (portal.status === "concluido" && canCloseCapturedTab && typeof capturedTabId === "number") {
-    await closeCadastroPortalTab(capturedTabId, portalId);
-  }
+  await tryCloseCapturedTab(session, portalId, sourceTabId);
   await finalizeCadastroSessionIfReady(session);
 }
 

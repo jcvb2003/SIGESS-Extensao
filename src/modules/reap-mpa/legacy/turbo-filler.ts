@@ -181,6 +181,21 @@ export class ReapTurboLegacy {
         }
     }
 
+    private async processLegacyMonthIteration(m: number, currentState: any, config: any): Promise<any | null> {
+        this.debugLogger.log(`--- MÊS ${m} ---`, 'success');
+        const updated = this.updateStateWithMonth(currentState, m, config);
+
+        // v1 payload: estado completo (diferença intencional em relação ao v2)
+        const payload = [String(updated.id), updated, 3];
+
+        if (!(await this.submitMonth(m, payload))) return null;
+
+        State.monthlyProgress[m - 1] = "done";
+        if (m < 12) State.currentMonthIndex = m;
+        if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+        return updated;
+    }
+
     private async processMonths(startMonth: number, config: any, initialState: any) {
         let currentState = structuredClone(initialState);
 
@@ -201,17 +216,9 @@ export class ReapTurboLegacy {
                 continue;
             }
 
-            this.debugLogger.log(`--- MÊS ${m} ---`, 'success');
-            currentState = this.updateStateWithMonth(currentState, m, config);
-
-            // v1 payload: estado completo (diferença intencional em relação ao v2)
-            const payload = [String(currentState.id), currentState, 3];
-
-            if (!(await this.submitMonth(m, payload))) break;
-
-            State.monthlyProgress[m - 1] = "done";
-            if (m < 12) State.currentMonthIndex = m;
-            if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
+            const nextState = await this.processLegacyMonthIteration(m, currentState, config);
+            if (!nextState) break;
+            currentState = nextState;
         }
     }
 
@@ -234,7 +241,15 @@ export class ReapTurboLegacy {
             await this.processMonths(startMonth, config, initialState);
 
             if (!State.stopRequested) {
-                alert("Turbo Fill Concluído!");
+                if ((globalThis as any).showTurboSuccessOverlay) {
+                    await new Promise<void>((resolve) => {
+                        (globalThis as any).showTurboSuccessOverlay(() => {
+                            resolve();
+                        });
+                    });
+                } else {
+                    alert("Preenchido!");
+                }
                 globalThis.location.reload();
             }
         } finally {

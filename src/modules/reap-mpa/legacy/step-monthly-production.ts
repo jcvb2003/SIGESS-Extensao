@@ -165,9 +165,9 @@ export const Page3 = {
       .find(el => el.textContent?.includes("Área"))?.closest(".br-table") as HTMLElement;
     if (!areaTable) return;
 
-    const localPescaLabel = getReapFishingLocationLabel(settings.mpaLocalPesca) || "Rio";
-    const ufLabel = getReapStateLabel(settings.mpaUF) || "PARA";
-    const metodoPescaLabel = getReapFishingMethodLabel(getEffectiveFishingMethod(settings)) || "Emalhe";
+    const localPescaLabel = getReapFishingLocationLabel(settings.mpaLocalPesca);
+    const ufLabel = getReapStateLabel(settings.mpaUF);
+    const metodoPescaLabel = getReapFishingMethodLabel(getEffectiveFishingMethod(settings));
 
     await Utils.selectOption(areaTable.querySelector("td:nth-child(1) .br-select") as HTMLElement, localPescaLabel);
     await Utils.selectOption(areaTable.querySelector("td:nth-child(2) .br-select") as HTMLElement, ufLabel);
@@ -182,6 +182,11 @@ export const Page3 = {
         await Utils.sleep(500);
         attempts++;
       }
+    }
+
+    const nomeLocalInput = areaTable.querySelector("td:nth-child(4) input") as HTMLInputElement;
+    if (nomeLocalInput) {
+      Utils.setReactInput(nomeLocalInput, settings.mpaNomeLocalPesca?.trim() || "");
     }
 
     await Utils.selectOption(areaTable.querySelector("td:nth-child(5) .br-select") as HTMLElement, metodoPescaLabel);

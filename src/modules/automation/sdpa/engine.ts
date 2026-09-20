@@ -6,6 +6,8 @@ class SDPAEngine {
   private settings: AppSettings | null = null;
   private auditData: PessoaData | null = null;
   private auditIntervalId: any = null;
+  private isRunning = false;
+  private auditStats = { ok: 0, warning: 0, missing: 0, total: 0 };
 
   private constructor() {
     // Privado para forçar uso do static initialize
@@ -15,43 +17,117 @@ class SDPAEngine {
     if (!SDPAEngine.instance) {
       SDPAEngine.instance = new SDPAEngine();
 
-      // Listeners para navegação SPA do Portal MTE
+      const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+      browserAPI?.runtime?.onMessage?.addListener((msg: any, _sender: any, sendResponse: (resp: any) => void) => {
+        if (msg?.action === "TRIGGER_SDPA_FILL") {
+          SDPAEngine.instance?.runFiller()
+            .then(() => sendResponse({ success: true }))
+            .catch((err) => sendResponse({ success: false, error: err?.message }));
+          return true;
+        }
+        if (msg?.action === "GET_SDPA_STATUS") {
+          const isEtapas = SDPAEngine.instance?.isEtapasRoute() || false;
+          sendResponse({
+            success: true,
+            isEtapasRoute: isEtapas,
+            data: {
+              isEtapasRoute: isEtapas,
+              nome: SDPAEngine.instance?.auditData?.nome || "",
+              cpf: SDPAEngine.instance?.auditData?.cpf || "",
+              dataPrimeiroRegistro: SDPAEngine.instance?.formatDateBR(SDPAEngine.instance?.auditData?.dataPrimeiroRegistro || ""),
+              rgp: (SDPAEngine.instance?.auditData as any)?.rgp || "",
+              endereco: SDPAEngine.instance?.auditData?.endereco || "",
+              numero: SDPAEngine.instance?.auditData?.numero || "",
+              bairro: SDPAEngine.instance?.auditData?.bairro || "",
+              cidade: SDPAEngine.instance?.auditData?.cidade || "",
+              uf: SDPAEngine.instance?.auditData?.uf || "",
+              telefone: SDPAEngine.instance?.auditData?.telefone || "",
+              email: SDPAEngine.instance?.settings?.sdpaDefaultEmail || (SDPAEngine.instance?.auditData as any)?.email || "",
+              auditStats: SDPAEngine.instance?.auditStats || { ok: 0, warning: 0, missing: 0, total: 0 }
+            },
+          });
+          return true;
+        }
+        if (msg?.action === "HIGHLIGHT_SDPA_ATTACHMENTS") {
+          SDPAEngine.instance?.highlightAttachments();
+          sendResponse({ success: true });
+          return true;
+        }
+      });
+
+      // Listeners para navegação SPA do Portal MTE (sem necessidade de F5)
       window.addEventListener('hashchange', () => SDPAEngine.instance?.handleRouteChange());
       window.addEventListener('popstate', () => SDPAEngine.instance?.handleRouteChange());
       window.addEventListener('load', () => SDPAEngine.instance?.handleRouteChange());
+
+      // Observador em polling para garantir transições internas do Angular
+      setInterval(() => {
+        SDPAEngine.instance?.handleRouteChange();
+      }, 600);
     }
     await SDPAEngine.instance.handleRouteChange();
   }
 
+  private isEtapasRoute(): boolean {
+    const url = window.location.href || "";
+    const hash = window.location.hash || "";
+    return url.includes('/solicitacao-pescador/etapas') || hash.includes('/solicitacao-pescador/etapas');
+  }
+
   private async handleRouteChange() {
     this.settings = await StorageService.getSettings();
-    if (!this.settings?.sdpaEnabled) {
-      this.stop();
+    if (this.settings && this.settings.sdpaEnabled === false) {
+      if (this.isRunning) {
+        this.stop();
+      }
       return;
     }
 
-    const isStepRoute = window.location.hash.includes('/solicitacao-pescador/etapas');
+    const isStepRoute = this.isEtapasRoute();
 
     if (isStepRoute) {
-      this.auditData = this.settings.pessoaData || null;
+      this.auditData = this.settings?.pessoaData || this.auditData || null;
       this.injectStyles();
       this.injectUI();
-      this.startAuditor();
+
+      if (!this.isRunning) {
+        this.isRunning = true;
+        this.startAuditor();
+      }
     } else {
-      this.stop();
+      if (this.isRunning) {
+        this.stop();
+      }
     }
   }
 
   private stop() {
+    this.isRunning = false;
     if (this.auditIntervalId) {
       clearInterval(this.auditIntervalId);
       this.auditIntervalId = null;
     }
+    document.getElementById('sigess-sdpa-pill')?.remove();
     document.getElementById('sigess-sdpa-panel')?.remove();
+    document.querySelectorAll('.sigess-suggest-box').forEach(el => el.remove());
+    document.querySelectorAll('.sigess-audit-green, .sigess-audit-red, .sigess-audit-orange')
+      .forEach(el => el.classList.remove('sigess-audit-green', 'sigess-audit-red', 'sigess-audit-orange'));
+
+    // Notifica a sidebar que saiu da rota de etapas
+    try {
+      const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+      browserAPI?.runtime?.sendMessage?.({
+        action: "SDPA_DATA_BROADCAST",
+        data: { isEtapasRoute: false }
+      }).catch(() => {});
+    } catch {}
   }
 
   private injectStyles() {
+    if (document.getElementById('sigess-sdpa-styles')) return;
+
     const style = document.createElement('style');
+    style.id = 'sigess-sdpa-styles';
     style.textContent = `
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -68,161 +144,189 @@ class SDPAEngine {
       .sigess-audit-red { border: 2px solid #ef4444 !important; border-radius: 10px; padding: 3px; background: rgba(239, 68, 68, 0.04); }
       .sigess-audit-orange { border: 2px solid #f59e0b !important; border-radius: 10px; padding: 3px; background: rgba(245, 158, 11, 0.04); }
       
-      .sigess-sdpa-panel {
+      .sigess-sdpa-pill {
         position: fixed;
-        top: 16px;
-        right: 16px;
-        width: 180px;
-        background: var(--sigess-glass);
-        backdrop-filter: blur(16px) saturate(180%);
-        -webkit-backdrop-filter: blur(16px) saturate(180%);
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        z-index: 10000;
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
-        overflow: hidden;
-        border: 1px solid var(--sigess-border);
-        animation: sigess-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        color: #1e293b;
-      }
-
-      @keyframes sigess-slide-in {
-        from { transform: translateX(100%) opacity(0); }
-        to { transform: translateX(0) opacity(1); }
-      }
-      
-      .sigess-panel-header {
+        top: 18px;
+        right: 18px;
+        z-index: 2147483647;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px 8px 12px;
         background: linear-gradient(135deg, var(--sigess-teal) 0%, #134e4a 100%);
-        padding: 8px 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
-      }
-
-      .sigess-header-title {
-        color: white;
-        font-weight: 700;
-        font-size: 11px;
-        letter-spacing: -0.01em;
-      }
-      
-      .sigess-panel-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
-      
-      .sigess-data-card {
-        background: rgba(255,255,255,0.4);
-        border: 1px solid rgba(226, 232, 240, 0.3);
-        border-radius: 6px;
-        padding: 4px 6px;
-        display: flex;
-        flex-direction: column;
-        gap: 1px;
-        transition: all 0.2s ease;
-      }
-
-      .sigess-data-card:hover {
-        background: white;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-      }
-
-      .sigess-label {
-        font-size: 8px;
-        font-weight: 700;
-        color: #64748b;
-        text-transform: uppercase;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-
-      .sigess-value {
-        font-size: 10px;
-        font-weight: 600;
-        color: #1e293b;
-        line-height: 1.2;
-      }
-
-      .sigess-btn-fill {
-        width: 100%;
-        padding: 8px;
-        background: linear-gradient(135deg, var(--sigess-teal) 0%, var(--sigess-teal-dark) 100%);
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-weight: 700;
-        font-size: 10px;
+        color: #ffffff;
+        border-radius: 9999px;
+        box-shadow: 0 4px 14px rgba(15, 118, 110, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.2);
         cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: -0.01em;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        user-select: none;
+        animation: sigess-pill-appear 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      @keyframes sigess-pill-appear {
+        from { transform: translateY(-10px) scale(0.95); opacity: 0; }
+        to { transform: translateY(0) scale(1); opacity(1); }
+      }
+
+      .sigess-sdpa-pill:hover {
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 8px 22px rgba(15, 118, 110, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.3);
+        filter: brightness(1.08);
+      }
+
+      .sigess-sdpa-pill:active {
+        transform: translateY(0) scale(0.98);
+      }
+
+      .sigess-pill-logo {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
+        width: 22px;
+        height: 22px;
+        background: #ffffff;
+        border-radius: 50%;
+        padding: 2px;
+        flex-shrink: 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
       }
 
-      .sigess-btn-fill:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(15, 118, 110, 0.35);
-        filter: brightness(1.1);
+      .sigess-pill-logo-img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
       }
 
-      .sigess-btn-fill:active {
-        transform: translateY(0);
+      .sigess-pill-text {
+        color: white;
+        line-height: 1;
       }
 
-      .sigess-icon-circle {
-        background: rgba(15, 118, 110, 0.1);
+      .sigess-pill-loading {
+        pointer-events: none;
+        opacity: 0.8;
+      }
+
+      .sigess-suggest-box {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 5px;
+        font-size: 11px;
+        color: #b45309;
+        background: rgba(245, 158, 11, 0.08);
+        border: 1px dashed rgba(245, 158, 11, 0.45);
         border-radius: 6px;
-        padding: 4px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        padding: 3px 8px;
+        line-height: 1.3;
+        animation: sigess-suggest-fade 0.2s ease-in;
+      }
+
+      @keyframes sigess-suggest-fade {
+        from { opacity: 0; transform: translateY(-3px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .sigess-suggest-logo {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        object-fit: contain;
+        display: inline-block;
+        vertical-align: middle;
+        background: #ffffff;
+        padding: 1px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+      }
+
+      .sigess-suggest-val {
+        font-weight: 600;
+        color: #78350f;
+      }
+
+      .sigess-suggest-apply-btn {
+        margin-left: 6px;
+        background: #f59e0b;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        padding: 2px 7px;
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+
+      .sigess-suggest-apply-btn:hover {
+        background: #d97706;
       }
     `;
     document.head.appendChild(style);
   }
 
   private startAuditor() {
-    if (this.auditIntervalId) clearInterval(this.auditIntervalId);
-    this.auditIntervalId = setInterval(() => {
-      // Re-injeta se sumiu mas ainda estamos na rota
-      if (window.location.hash.includes('/solicitacao-pescador/etapas')) {
-        if (!document.getElementById('sigess-sdpa-panel')) this.injectUI();
+    if (this.auditIntervalId) {
+      clearInterval(this.auditIntervalId);
+      this.auditIntervalId = null;
+    }
 
-        if (document.querySelector('.card-content') || document.querySelector('.br-card')) {
-          this.runAudit();
-        }
+    // Executa auditoria imediatamente na primeira chamada
+    this.runAudit();
+
+    this.auditIntervalId = setInterval(() => {
+      if (this.isEtapasRoute()) {
+        if (!document.getElementById('sigess-sdpa-pill')) this.injectUI();
+        this.runAudit();
       } else {
         this.stop();
       }
-    }, 1500);
+    }, 1000);
   }
 
   private runAudit() {
-    if (!this.auditData) return;
+    if (!this.auditData && this.settings?.pessoaData) {
+      this.auditData = this.settings.pessoaData;
+    }
 
-    // Limpeza global de estilos de auditoria antes de começar
-    document.querySelectorAll('.sigess-audit-green, .sigess-audit-red, .sigess-audit-orange')
-      .forEach(el => el.classList.remove('sigess-audit-green', 'sigess-audit-red', 'sigess-audit-orange'));
+    if (this.auditData) {
+      this.auditDateField();
+      this.auditGrauInstrucao();
 
-    this.auditDateField();
+      // 2. Auditoria de Endereço
+      const d = this.auditData;
+      this.auditTextField('input[name="endereco.cep"]', d.cep || "");
+      this.auditTextField('input[name="endereco.logradouro"]', d.endereco || "");
+      this.auditTextField('input[name="endereco.numero"]', d.numero || "");
+      this.auditTextField('input[name="endereco.bairro"]', d.bairro || "");
+      this.auditTextField('input[name="endereco.municipio"]', d.cidade || "");
+      this.auditTextField('input[name="endereco.uf"]', d.uf || "");
+    }
 
-    // 2. Auditoria de Endereço
-    const d = this.auditData;
-    this.auditTextField('input[name="endereco.cep"]', d.cep || "");
-    this.auditTextField('input[name="endereco.logradouro"]', d.endereco || "");
-    this.auditTextField('input[name="endereco.numero"]', d.numero || "");
-    this.auditTextField('input[name="endereco.bairro"]', d.bairro || "");
-    this.auditTextField('input[name="endereco.municipio"]', d.cidade || "");
-    this.auditTextField('input[name="endereco.uf"]', d.uf || "");
-
-    // 3. Auditoria de Regras (Atividade, Contribuição, etc)
+    // 3. Auditoria de Regras (Atividade, Contribuição, etc) - Roda sempre
     this.auditRadioRule('registroPesca.idAtividadePesqueira', 'Familiar');
     this.auditRadioStatus('registroPesca.realizouContribuicao', 'Sim');
     this.auditRadioStatus('registroPesca.possuiNotasFiscais', 'não');
     this.auditRadioStatus('informarDadosBancarios', 'não');
 
     this.validateSubmitButton();
+
+    // Contabiliza os campos auditados respeitando as cores e semântica existentes do projeto
+    const okCount = document.querySelectorAll('.sigess-audit-green').length;
+    const warningCount = document.querySelectorAll('.sigess-audit-orange').length;
+    const missingCount = document.querySelectorAll('.sigess-audit-red').length;
+    this.auditStats = {
+      ok: okCount,
+      warning: warningCount,
+      missing: missingCount,
+      total: okCount + warningCount + missingCount
+    };
+    this.broadcastSdpaDataToSidebar();
   }
 
   private applyAuditStyle(el: HTMLElement | null, status: 'green' | 'red' | 'orange' | 'none') {
@@ -244,10 +348,41 @@ class SDPAEngine {
     const normalizeBase = (baseValue || "").trim().toLowerCase();
 
     if (pageVal === normalizeBase && pageVal !== "") {
+      parent.querySelector('.sigess-suggest-box')?.remove();
       this.applyAuditStyle(parent, 'green');
     } else if (normalizeBase !== "") {
       this.applyAuditStyle(parent, 'orange');
+
+      let suggestEl = parent.querySelector('.sigess-suggest-box') as HTMLElement | null;
+      const currentValSpan = suggestEl?.querySelector('.sigess-suggest-val');
+      if (!suggestEl || currentValSpan?.textContent !== baseValue) {
+        suggestEl?.remove();
+
+        const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+        const logoUrl = browserAPI?.runtime?.getURL ? browserAPI.runtime.getURL('sigess-logo.png') : 'sigess-logo.png';
+
+        suggestEl = document.createElement('div');
+        suggestEl.className = 'sigess-suggest-box';
+        suggestEl.innerHTML = `
+          <img src="${logoUrl}" alt="SIGESS" class="sigess-suggest-logo" />:
+          <span class="sigess-suggest-val">${baseValue}</span>
+          <button type="button" class="sigess-suggest-apply-btn" title="Aplicar valor cadastrado no SIGESS">Aplicar</button>
+        `;
+
+        suggestEl.querySelector('.sigess-suggest-apply-btn')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.setInputValue(input, baseValue);
+          input.blur();
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        });
+
+        parent.appendChild(suggestEl);
+      }
     } else {
+      parent.querySelector('.sigess-suggest-box')?.remove();
       this.applyAuditStyle(parent, 'none');
     }
   }
@@ -295,10 +430,46 @@ class SDPAEngine {
     const nBase = normalize(baseVal);
 
     if (nPage === nBase && nPage !== "") {
+      parent.querySelector('.sigess-suggest-box')?.remove();
       this.applyAuditStyle(parent, 'green');
     } else if (baseVal !== "") {
       this.applyAuditStyle(parent, 'orange');
+
+      const formattedDate = this.formatDateBR(baseVal);
+      let suggestEl = parent.querySelector('.sigess-suggest-box') as HTMLElement | null;
+      const currentValSpan = suggestEl?.querySelector('.sigess-suggest-val');
+      if (!suggestEl || currentValSpan?.textContent !== formattedDate) {
+        suggestEl?.remove();
+
+        const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+        const logoUrl = browserAPI?.runtime?.getURL ? browserAPI.runtime.getURL('sigess-logo.png') : 'sigess-logo.png';
+
+        suggestEl = document.createElement('div');
+        suggestEl.className = 'sigess-suggest-box';
+        suggestEl.innerHTML = `
+          <img src="${logoUrl}" alt="SIGESS" class="sigess-suggest-logo" />:
+          <span class="sigess-suggest-val">${formattedDate}</span>
+          <button type="button" class="sigess-suggest-apply-btn" title="Aplicar data do SIGESS">Aplicar</button>
+        `;
+
+        suggestEl.querySelector('.sigess-suggest-apply-btn')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if ((dateInput as any)._flatpickr) {
+            (dateInput as any)._flatpickr.setDate(baseVal, true, "d/m/Y");
+          } else {
+            this.setInputValue(dateInput, formattedDate);
+          }
+          dateInput.blur();
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        });
+
+        parent.appendChild(suggestEl);
+      }
     } else {
+      parent.querySelector('.sigess-suggest-box')?.remove();
       this.applyAuditStyle(parent, 'none');
     }
   }
@@ -318,16 +489,29 @@ class SDPAEngine {
   }
 
   private auditRadioStatus(name: string, expectedLabel: string) {
-    const checked = document.querySelector(`input[name="${name}"]:checked`);
+    const allRadios = document.querySelectorAll(`input[name="${name}"]`);
+    if (allRadios.length === 0) return;
+
+    // Limpa estado anterior de todos os radios do grupo e de seus wrappers
+    allRadios.forEach(radio => {
+      const wrapper = radio.closest('.br-radio') as HTMLElement | null;
+      if (wrapper) {
+        this.applyAuditStyle(wrapper, 'none');
+        if (wrapper.parentElement) {
+          this.applyAuditStyle(wrapper.parentElement, 'none');
+        }
+      }
+    });
+
+    const checked = document.querySelector(`input[name="${name}"]:checked`) as HTMLInputElement | null;
     if (checked) {
       const label = document.querySelector(`label[for="${checked.id}"]`);
-      // Foca estritamente no grupo de rádio
-      const parent = checked.closest('.br-radio')?.parentElement;
-      if (parent && parent instanceof HTMLElement && label) {
+      const targetEl = (checked.closest('.br-radio') || checked.parentElement) as HTMLElement | null;
+      if (targetEl && label) {
         if (label.textContent?.toLowerCase().includes(expectedLabel.toLowerCase())) {
-          this.applyAuditStyle(parent, 'green');
+          this.applyAuditStyle(targetEl, 'green');
         } else {
-          this.applyAuditStyle(parent, 'red');
+          this.applyAuditStyle(targetEl, 'red');
         }
       }
     }
@@ -350,19 +534,118 @@ class SDPAEngine {
     }
   }
 
-  private mapEducationLevel(level: string): string {
-    const l = level.toUpperCase().trim();
-    const map: Record<string, string> = {
-      'FUNDAMENTAL INCOMPLETO': 'FUNDAMENTAL INCOMPL.',
-      'FUNDAMENTAL COMPLETO': 'FUNDAMENTAL COMPLETO',
-      'MÉDIO INCOMPLETO': 'ENS. MEDIO INCOMPL',
-      'MEDIO INCOMPLETO': 'ENS. MEDIO INCOMPL',
-      'MÉDIO COMPLETO': 'ENS. MEDIO COMPLETO',
-      'MEDIO COMPLETO': 'ENS. MEDIO COMPLETO',
-      'SUPERIOR INCOMPLETO': 'SUPERIOR INCOMPLETO',
-      'SUPERIOR COMPLETO': 'SUPERIOR COMPLETO'
-    };
-    return map[l] || level;
+  private resolveGrauInstrucaoMte(escolaridade?: string, alfabetizado?: string): { id: string; label: string } {
+    const isAlfabetizado = (alfabetizado || "").trim().toUpperCase();
+    if (isAlfabetizado === "NÃO" || isAlfabetizado === "NAO") {
+      return { id: "grauInstrucao-item-1", label: "Analfabeto" };
+    }
+
+    const esc = (escolaridade || "").trim().toUpperCase();
+    if (!esc) {
+      return { id: "grauInstrucao-item-1", label: "Analfabeto" };
+    }
+
+    if (esc.includes("SUPERIOR") && esc.includes("COMPLETO") && !esc.includes("INCOMPLETO")) {
+      return { id: "grauInstrucao-item-9", label: "Ensino Superior Completo" };
+    }
+    if (esc.includes("SUPERIOR") && esc.includes("INCOMPLETO")) {
+      return { id: "grauInstrucao-item-8", label: "Ensino Superior Incompleto" };
+    }
+    if ((esc.includes("MÉDIO") || esc.includes("MEDIO")) && esc.includes("COMPLETO") && !esc.includes("INCOMPLETO")) {
+      return { id: "grauInstrucao-item-7", label: "Ensino Médio Completo" };
+    }
+    if ((esc.includes("MÉDIO") || esc.includes("MEDIO")) && esc.includes("INCOMPLETO")) {
+      return { id: "grauInstrucao-item-6", label: "Ensino Médio Incompleto" };
+    }
+    if (esc.includes("FUNDAMENTAL II") && esc.includes("INCOMPLETO")) {
+      return { id: "grauInstrucao-item-4", label: "6º ao 9º Ano Incompleto" };
+    }
+    if (esc.includes("FUNDAMENTAL I") && esc.includes("INCOMPLETO")) {
+      return { id: "grauInstrucao-item-2", label: "Até 5º Ano Incompleto" };
+    }
+    if (esc.includes("FUNDAMENTAL") && (esc.includes("I COMPLETO") || esc.includes("II COMPLETO") || esc.includes("COMPLETO"))) {
+      return { id: "grauInstrucao-item-3", label: "5º Ano Completo" };
+    }
+    if (esc.includes("ANALFABETO")) {
+      return { id: "grauInstrucao-item-1", label: "Analfabeto" };
+    }
+
+    return { id: "grauInstrucao-item-1", label: "Analfabeto" };
+  }
+
+  private selectGrauInstrucaoDirect(itemId: string) {
+    const radio = document.getElementById(itemId) as HTMLInputElement | null;
+    const label = document.querySelector(`label[for="${itemId}"]`) as HTMLElement | null;
+
+    if (label) {
+      label.click();
+    }
+    if (radio) {
+      radio.checked = true;
+      for (const type of ["click", "input", "change"]) {
+        radio.dispatchEvent(new Event(type, { bubbles: true }));
+      }
+    }
+
+    const selectContainer = (radio || label)?.closest('.br-select');
+    if (selectContainer) {
+      const visualInput = selectContainer.querySelector('input:not([type="radio"])') as HTMLInputElement | null;
+      if (visualInput && label?.textContent) {
+        visualInput.value = label.textContent.trim();
+        visualInput.dispatchEvent(new Event('input', { bubbles: true }));
+        visualInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      selectContainer.querySelectorAll('.br-item').forEach(item => item.classList.remove('selected', 'highlighted'));
+      (radio || label)?.closest('.br-item')?.classList.add('selected', 'highlighted');
+    }
+  }
+
+  private auditGrauInstrucao() {
+    if (!this.auditData) return;
+    const target = this.resolveGrauInstrucaoMte(this.auditData.escolaridade, (this.auditData as any).alfabetizado);
+    if (!target?.id) return;
+
+    const checkedRadio = document.querySelector('input[id^="grauInstrucao-item-"]:checked') as HTMLInputElement | null;
+    const selectContainer = document.querySelector('.br-select:has([id^="grauInstrucao"])') ||
+                            document.querySelector('[id^="grauInstrucao-item-"]')?.closest('.br-select');
+
+    if (!selectContainer || !(selectContainer instanceof HTMLElement)) return;
+
+    const currentSelectedId = checkedRadio?.id || "";
+    const isOk = currentSelectedId === target.id;
+
+    if (isOk) {
+      selectContainer.querySelector('.sigess-suggest-box')?.remove();
+      this.applyAuditStyle(selectContainer, 'green');
+    } else {
+      this.applyAuditStyle(selectContainer, 'orange');
+
+      let suggestEl = selectContainer.querySelector('.sigess-suggest-box') as HTMLElement | null;
+      const currentValSpan = suggestEl?.querySelector('.sigess-suggest-val');
+      if (!suggestEl || currentValSpan?.textContent !== target.label) {
+        suggestEl?.remove();
+
+        const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+        const logoUrl = browserAPI?.runtime?.getURL ? browserAPI.runtime.getURL('sigess-logo.png') : 'sigess-logo.png';
+
+        suggestEl = document.createElement('div');
+        suggestEl.className = 'sigess-suggest-box';
+        suggestEl.innerHTML = `
+          <img src="${logoUrl}" alt="SIGESS" class="sigess-suggest-logo" />:
+          <span class="sigess-suggest-val">${target.label}</span>
+          <button type="button" class="sigess-suggest-apply-btn" title="Aplicar grau de instrução do SIGESS">Aplicar</button>
+        `;
+
+        suggestEl.querySelector('.sigess-suggest-apply-btn')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.selectGrauInstrucaoDirect(target.id);
+          this.auditGrauInstrucao();
+        });
+
+        selectContainer.appendChild(suggestEl);
+      }
+    }
   }
 
   private formatDateBR(d?: string): string {
@@ -378,77 +661,119 @@ class SDPAEngine {
     return d;
   }
 
-  private injectUI() {
-    if (document.getElementById('sigess-sdpa-panel')) return;
+  private broadcastSdpaDataToSidebar() {
+    try {
+      const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+      if (browserAPI?.runtime?.sendMessage) {
+        const payload = {
+          nome: this.auditData?.nome || "",
+          cpf: this.auditData?.cpf || "",
+          dataPrimeiroRegistro: this.formatDateBR(this.auditData?.dataPrimeiroRegistro || ""),
+          rgp: (this.auditData as any)?.rgp || "",
+          endereco: this.auditData?.endereco || "",
+          numero: this.auditData?.numero || "",
+          bairro: this.auditData?.bairro || "",
+          cidade: this.auditData?.cidade || "",
+          uf: this.auditData?.uf || "",
+          telefone: this.auditData?.telefone || "",
+          email: this.settings?.sdpaDefaultEmail || (this.auditData as any)?.email || "",
+          auditStats: this.auditStats,
+        };
 
-    const panel = document.createElement('div');
-    panel.id = 'sigess-sdpa-panel';
-    panel.className = 'sigess-sdpa-panel';
+        // Dispara tanto SDPA_DATA_BROADCAST quanto UPDATE_SDPA_STATUS para compatibilidade
+        browserAPI.runtime.sendMessage({
+          action: "SDPA_DATA_BROADCAST",
+          data: payload,
+        }).catch(() => {});
 
-    const firstReg = this.formatDateBR(this.auditData?.dataPrimeiroRegistro);
-    const address = this.auditData ?
-      (`${this.auditData.endereco || ""}, ${this.auditData.numero || "S/N"} - ${this.auditData.bairro || ""} (${this.auditData.cidade || ""}/${this.auditData.uf || ""})`).trim()
-      : "---";
+        browserAPI.runtime.sendMessage({
+          action: "UPDATE_SDPA_STATUS",
+          data: payload,
+        }).catch(() => {});
 
-    panel.innerHTML = `
-      <div class="sigess-panel-header">
-        <div class="sigess-icon-circle" style="background: rgba(255,255,255,0.1)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>
-        </div>
-        <span class="sigess-header-title">Solicitação SDPA</span>
-      </div>
-      <div class="sigess-panel-body">
-        <div class="sigess-data-card">
-            <label class="sigess-label">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                Nome (Portal MTE)
-            </label>
-            <div id="sigess-fisherman-name" class="sigess-value">Extraindo nome...</div>
-        </div>
-        
-        <div class="sigess-data-card">
-            <label class="sigess-label">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                Data 1º Reg (SIGESS)
-            </label>
-            <div class="sigess-value">${firstReg}</div>
-        </div>
-
-        <div class="sigess-data-card">
-            <label class="sigess-label">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                Endereço (SIGESS)
-            </label>
-            <div class="sigess-value" style="font-size: 11px;">${address}</div>
-        </div>
-
-        <button class="sigess-btn-fill" id="sigess-btn-fill">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            PREENCHER SDPA
-        </button>
-      </div>
-    `;
-    document.body.appendChild(panel);
-
-    // Atualiza nome extraído da página
-    setTimeout(() => {
-      const nameEl = Array.from(document.querySelectorAll('[id^="campo-informacao-"]')).find(el => {
-        const label = el.parentElement?.parentElement?.querySelector('div:first-child')?.textContent?.trim();
-        return label === "Nome";
-      });
-
-      if (nameEl) {
-        const nameTarget = document.getElementById('sigess-fisherman-name');
-        if (nameTarget) nameTarget.textContent = nameEl.textContent?.trim() || "---";
+        // Armazena no storage local para carregamento síncrono da Sidebar
+        browserAPI.storage?.local?.set({ sigess_sdpa_current: payload }).catch(() => {});
       }
-    }, 2000);
-
-    document.getElementById('sigess-btn-fill')?.addEventListener('click', () => {
-      this.runFiller().catch(err => console.error("[SIGESS] SDPA Filler Error:", err));
-    });
+    } catch {}
   }
 
-  private async runFiller() {
+  public highlightAttachments() {
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      fileInput.style.display = 'block';
+      fileInput.style.width = '100%';
+      fileInput.style.padding = '20px';
+      fileInput.style.border = '2px dashed #f59e0b';
+      fileInput.style.marginTop = '10px';
+      fileInput.classList.add('sigess-flash-upload');
+      fileInput.focus();
+    }
+  }
+
+  private injectUI() {
+    if (document.getElementById('sigess-sdpa-pill')) return;
+    document.getElementById('sigess-sdpa-panel')?.remove();
+
+    const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+    const logoUrl = browserAPI?.runtime?.getURL ? browserAPI.runtime.getURL('sigess-logo.png') : 'sigess-logo.png';
+
+    const pill = document.createElement('div');
+    pill.id = 'sigess-sdpa-pill';
+    pill.className = 'sigess-sdpa-pill';
+    pill.title = 'Clique para preencher a solicitação SDPA';
+
+    pill.innerHTML = `
+      <div class="sigess-pill-logo">
+        <img src="${logoUrl}" alt="SIGESS" class="sigess-pill-logo-img" />
+      </div>
+      <span class="sigess-pill-text" id="sigess-pill-text">Preencher</span>
+    `;
+
+    document.body.appendChild(pill);
+
+    pill.addEventListener('click', () => {
+      const textEl = document.getElementById('sigess-pill-text');
+      if (textEl) textEl.textContent = 'Preenchendo...';
+      pill.classList.add('sigess-pill-loading');
+
+      this.runFiller()
+        .then(() => {
+          if (textEl) textEl.textContent = 'Concluído!';
+          setTimeout(() => {
+            if (textEl) textEl.textContent = 'Preencher';
+            pill.classList.remove('sigess-pill-loading');
+          }, 3000);
+        })
+        .catch(err => {
+          console.error("[SIGESS] SDPA Filler Error:", err);
+          if (textEl) textEl.textContent = 'Preencher';
+          pill.classList.remove('sigess-pill-loading');
+        });
+    });
+
+    this.broadcastSdpaDataToSidebar();
+  }
+
+  private setInputValue(input: HTMLInputElement | HTMLTextAreaElement, value: string) {
+    const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+    if (setter) {
+      setter.call(input, "");
+      setter.call(input, value);
+    } else {
+      input.value = value;
+    }
+    for (const type of ["input", "change", "blur"]) {
+      input.dispatchEvent(new Event(type, { bubbles: true }));
+    }
+    input.blur();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }
+
+  public async runFiller() {
     if (!this.auditData) {
         alert("Dados de auditoria não encontrados. Abra novamente pelo SIGESS Web.");
         return;
@@ -460,9 +785,9 @@ class SDPAEngine {
     this.fillInput('input[name="contato.email"]', this.settings?.sdpaDefaultEmail || "");
     this.fillInput('input[name="contato.telefone"]', this.auditData.telefone || this.settings?.sdpaFallbackPhone || "");
 
-    // 2. Escolaridade com Mapeamento MTE
-    const escolaridadeMTE = this.mapEducationLevel(this.auditData.escolaridade || "");
-    this.selectInBrSelect('grauInstrucao', escolaridadeMTE);
+    // 2. Grau de Instrução (Escolaridade)
+    const grauTarget = this.resolveGrauInstrucaoMte(this.auditData.escolaridade, (this.auditData as any).alfabetizado);
+    this.selectGrauInstrucaoDirect(grauTarget.id);
 
     // 3. RGP / CPF
     const cpfValue = this.getCPF();
@@ -474,8 +799,7 @@ class SDPAEngine {
         return label?.includes('RGP');
       });
       if (rgpInput && rgpValue !== "PAPA") {
-        rgpInput.value = rgpValue;
-        rgpInput.dispatchEvent(new Event('input', { bubbles: true }));
+        this.setInputValue(rgpInput, rgpValue);
       }
     }
 
@@ -521,9 +845,7 @@ class SDPAEngine {
   private fillInput(selector: string, value: string) {
     const el = document.querySelector(selector) as HTMLInputElement;
     if (el) {
-      el.value = value;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
+      this.setInputValue(el, value);
     }
   }
 
@@ -573,17 +895,21 @@ class SDPAEngine {
       fileInput.classList.add('sigess-flash-upload');
     }
 
-    alert(`Preenchimento Concluído!\n\nNome copiado para o clipboard: ${name}\n\nO campo de upload agora está visível em destaque.`);
+    // Desfocar qualquer elemento ativo para que o cursor não fique preso no telefone ou CEP
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+      if (el instanceof HTMLElement) el.blur();
+    });
   }
 }
 
-// Inicializa o motor apenas na página específica de etapas
-if (document.location.href.includes('/solicitacao-pescador/etapas')) {
-  (async () => {
-    try {
-      await SDPAEngine.initialize();
-    } catch (err) {
-      console.error("[SIGESS] SDPA Factory Error:", err);
-    }
-  })();
-}
+// Inicializa o motor em qualquer rota do portal MTE para monitorar transições SPA sem F5
+(async () => {
+  try {
+    await SDPAEngine.initialize();
+  } catch (err) {
+    console.error("[SIGESS] SDPA Factory Error:", err);
+  }
+})();

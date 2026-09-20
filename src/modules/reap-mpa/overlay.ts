@@ -104,12 +104,16 @@ async function executeTurboApi() {
     const settings = storageResult.sigessSettings || {};
     const pdfCache = await getReapPdfCacheForPreset(settings.activeReapMpaPresetId);
 
-    const errorMsg = validateReapSettings(settings, State.gender);
+    const errorMsg = validateReapSettings(settings, State.gender, { hasPdf: Boolean(pdfCache?.b64) });
     if (errorMsg) {
       alert(errorMsg);
       if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
       return;
     }
+
+    // Garante que dias e espécies sejam sempre gerados frescos com as configurações ativas atuais
+    State.daysMap = DaysGenerator.generate(State.gender, settings);
+    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
 
     const config = buildTurboConfig(settings, pdfCache);
     const response = await browser.runtime.sendMessage({ action: "turboFillReap", config });
@@ -134,7 +138,12 @@ const injectButton = async () => {
   const activeManager = isV1Portal() ? LegacyWorkflowManager : WorkflowManager;
 
   let container = document.getElementById("sigess-reap-container");
-  if (!isReapPage()) { if (container) container.style.display = "none"; return; }
+  if (!isReapPage()) {
+    if (container) {
+      container.style.display = "none";
+    }
+    return;
+  }
   if (container) {
     container.style.display = "flex";
     if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
@@ -195,9 +204,10 @@ const injectButton = async () => {
   let modeParcialUpdate = () => {};
   let presetUpdate = () => {};
   let settingsSnapshot: any = {};
+  let pdfCacheSnapshot: any = null;
 
   const refreshUI = () => {
-    const needsConfiguration = Boolean(validateReapSettings(settingsSnapshot, State.gender));
+    const needsConfiguration = Boolean(validateReapSettings(settingsSnapshot, State.gender, { hasPdf: Boolean(pdfCacheSnapshot?.b64) }));
     columns.style.display = needsConfiguration ? "none" : "grid";
     configurePanel.style.display = needsConfiguration ? "block" : "none";
     updateGrid();
@@ -256,6 +266,7 @@ const injectButton = async () => {
     const shouldRebuild = nextPresetIds.join("|") !== presetIds.join("|") || namesChanged;
 
     activePresetId = current?.activeReapMpaPresetId || presets[0]?.id || "";
+    pdfCacheSnapshot = await getReapPdfCacheForPreset(activePresetId);
     presetRow.style.display = presets.length > 1 ? "flex" : "none";
     if (resetBtn) resetBtn.style.gridRow = presets.length > 1 ? "5" : "4";
     if (!shouldRebuild) {
@@ -291,7 +302,7 @@ const injectButton = async () => {
   }
 
    browser.storage.onChanged.addListener((changes) => {
-    if ("sigessSettings" in changes) void loadPresetControls();
+    if ("sigessSettings" in changes || "sigessReapPdfCaches" in changes || "sigessReapPdfCache" in changes) void loadPresetControls();
   });
 
   // --- Modo Sequência / Parcial ---
@@ -349,10 +360,11 @@ const injectButton = async () => {
     } else if (State.monthlyProgress[i] === "skipped") {
       bgColor = "#6c757d"; textColor = "white"; border = "1px solid #545b62"; opacity = "0.5";
     } else if (State.turboFillMode === "sequencia" && i < State.currentMonthIndex) {
-      bgColor = "#f0f0f0"; textColor = "#bbb"; border = "1px dashed #ccc"; opacity = "0.45";
+      textColor = "#bbb"; border = "1px dashed #ccc"; opacity = "0.45";
     } else if (State.turboFillMode === "parcial") {
       const sel = State.turboSelectedMonths.has(i);
-      bgColor = sel ? "#e8f4fd" : "#f0f0f0"; textColor = sel ? "#0056b3" : "#bbb";
+      if (sel) bgColor = "#e8f4fd";
+      textColor = sel ? "#0056b3" : "#bbb";
       border = sel ? "1px solid #007bff" : "1px dashed #ccc"; opacity = sel ? "1" : "0.45";
     }
 
@@ -389,6 +401,24 @@ const injectButton = async () => {
       title: "Enviando",
       animatedDots: true,
       zIndex: 99999,
+      preventTabClose: true,
+    });
+  };
+  (globalThis as any).showTurboSuccessOverlay = (onConfirm?: () => void) => {
+    showSigessOverlay({
+      id: "sigess-turbo-overlay",
+      title: "Preenchido!",
+      animatedDots: false,
+      hideSpinner: true,
+      isSuccess: true,
+      zIndex: 99999,
+      actionButton: {
+        label: "OK",
+        onClick: () => {
+          hideSigessOverlay("sigess-turbo-overlay");
+          if (onConfirm) onConfirm();
+        },
+      },
     });
   };
   (globalThis as any).hideTurboOverlay = () => {
@@ -404,7 +434,8 @@ const injectButton = async () => {
     if (State.isPaused) { activeManager.start(); refreshUI(); return; }
 
     const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
-    const errorMsg = validateReapSettings(settings, State.gender);
+    const pdfCache = await getReapPdfCacheForPreset(settings.activeReapMpaPresetId);
+    const errorMsg = validateReapSettings(settings, State.gender, { hasPdf: Boolean(pdfCache?.b64) });
     if (errorMsg) { alert(errorMsg); return; }
 
     btn.disabled = true; btn.innerText = "Validando...";
@@ -433,18 +464,16 @@ const injectButton = async () => {
 
     btnTurbo.disabled = true; btnTurbo.innerHTML = "Validando...";
     const settings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
-    const errorMsg = validateReapSettings(settings, State.gender);
+    const pdfCache = await getReapPdfCacheForPreset(settings.activeReapMpaPresetId);
+    const errorMsg = validateReapSettings(settings, State.gender, { hasPdf: Boolean(pdfCache?.b64) });
     if (errorMsg) { alert(errorMsg); refreshUI(); btnTurbo.disabled = false; return; }
 
     const lic = await browser.runtime.sendMessage({ action: "checkLicense" });
     if (!lic.ok) { alert(getLicenseErrorMessage(lic.reason)); refreshUI(); btnTurbo.disabled = false; return; }
 
     try {
-      // v1 always regenerates — no mid-run resume, and stale maps from prior v2 runs must not leak in
-      if (isV1Portal() || !State.daysMap || Object.keys(State.daysMap).length === 0)
-        State.daysMap = DaysGenerator.generate(State.gender, settings);
-      if (isV1Portal() || !State.production || State.production.length === 0)
-        State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
+      State.daysMap = DaysGenerator.generate(State.gender, settings);
+      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
     } catch (err: any) {
       alert(err.message);
       refreshUI(); btnTurbo.disabled = false; return;

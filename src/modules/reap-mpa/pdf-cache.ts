@@ -3,6 +3,16 @@ import { ReapMpaPdfCache, ReapMpaPdfCaches } from "../../shared/types";
 export const REAP_PDF_CACHES_STORAGE_KEY = "sigessReapPdfCaches";
 const LEGACY_REAP_PDF_CACHE_STORAGE_KEY = "sigessReapPdfCache";
 
+function getLocalStorage() {
+  if (typeof browser !== "undefined" && browser?.storage?.local) {
+    return browser.storage.local;
+  }
+  if (typeof chrome !== "undefined" && (chrome as any)?.storage?.local) {
+    return (chrome as any).storage.local;
+  }
+  return null;
+}
+
 function isPdfCache(value: unknown): value is ReapMpaPdfCache {
   if (!value || typeof value !== "object") return false;
   const cache = value as Partial<ReapMpaPdfCache>;
@@ -18,7 +28,10 @@ function readCaches(value: unknown): ReapMpaPdfCaches {
 }
 
 export async function getReapPdfCacheForPreset(presetId?: string): Promise<ReapMpaPdfCache | null> {
-  const result = await browser.storage.local.get([
+  const storage = getLocalStorage();
+  if (!storage) return null;
+
+  const result = await storage.get([
     REAP_PDF_CACHES_STORAGE_KEY,
     LEGACY_REAP_PDF_CACHE_STORAGE_KEY,
   ]);
@@ -35,9 +48,10 @@ export async function getReapPdfCacheForPreset(presetId?: string): Promise<ReapM
   if (Object.keys(caches).length > 0) return null;
 
   const migratedCaches = { ...caches, [presetId]: legacyCache };
-  await browser.storage.local.set({
+  await storage.set({
     [REAP_PDF_CACHES_STORAGE_KEY]: migratedCaches,
   });
+  await storage.remove(LEGACY_REAP_PDF_CACHE_STORAGE_KEY);
   return legacyCache;
 }
 
@@ -45,16 +59,20 @@ export async function saveReapPdfCacheForPreset(
   presetId: string | undefined,
   cache: ReapMpaPdfCache,
 ): Promise<void> {
+  const storage = getLocalStorage();
+  if (!storage) return;
+
   if (!presetId) {
-    await browser.storage.local.set({ [LEGACY_REAP_PDF_CACHE_STORAGE_KEY]: cache });
+    await storage.set({ [LEGACY_REAP_PDF_CACHE_STORAGE_KEY]: cache });
     return;
   }
 
-  const result = await browser.storage.local.get(REAP_PDF_CACHES_STORAGE_KEY);
+  const result = await storage.get(REAP_PDF_CACHES_STORAGE_KEY);
   const caches = readCaches(result[REAP_PDF_CACHES_STORAGE_KEY]);
-  await browser.storage.local.set({
+  await storage.set({
     [REAP_PDF_CACHES_STORAGE_KEY]: { ...caches, [presetId]: cache },
   });
+  await storage.remove(LEGACY_REAP_PDF_CACHE_STORAGE_KEY);
 }
 
 export async function copyReapPdfCache(
@@ -65,11 +83,25 @@ export async function copyReapPdfCache(
   if (cache) await saveReapPdfCacheForPreset(targetPresetId, cache);
 }
 
-export async function removeReapPdfCacheForPreset(presetId: string): Promise<void> {
-  const result = await browser.storage.local.get(REAP_PDF_CACHES_STORAGE_KEY);
-  const caches = readCaches(result[REAP_PDF_CACHES_STORAGE_KEY]);
-  if (!(presetId in caches)) return;
+export async function removeReapPdfCacheForPreset(presetId?: string): Promise<void> {
+  const storage = getLocalStorage();
+  if (!storage) return;
 
-  delete caches[presetId];
-  await browser.storage.local.set({ [REAP_PDF_CACHES_STORAGE_KEY]: caches });
+  const result = await storage.get([
+    REAP_PDF_CACHES_STORAGE_KEY,
+    LEGACY_REAP_PDF_CACHE_STORAGE_KEY,
+  ]);
+  const caches = readCaches(result[REAP_PDF_CACHES_STORAGE_KEY]);
+
+  if (presetId) {
+    delete caches[presetId];
+  } else {
+    for (const key of Object.keys(caches)) {
+      delete caches[key];
+    }
+  }
+
+  // Remove SEMPRE a chave legada para evitar que o PDF ressuscite em ambientes de produção
+  await storage.remove(LEGACY_REAP_PDF_CACHE_STORAGE_KEY);
+  await storage.set({ [REAP_PDF_CACHES_STORAGE_KEY]: caches });
 }
