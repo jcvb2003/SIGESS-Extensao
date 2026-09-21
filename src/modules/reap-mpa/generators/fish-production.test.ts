@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { ProductionGenerator } from "./fish-production";
+import { buildMonthPlan } from "../monthly-plan";
 
 const species = [12, 21, 26, 25, 15].map((id) => ({
   id,
   kgMin: "5",
-  kgMax: "5",
+  kgMax: "9",
   priceMin: "10",
-  priceMax: "11",
+  priceMax: "13",
 }));
 
 const settings = {
@@ -48,5 +49,43 @@ describe("ProductionGenerator", () => {
       expect(active).toHaveLength(4);
       expect(new Set(active.map((fish) => fish.id)).size).toBe(4);
     }
+  });
+
+  it("preserves the shuffled calendar order in the monthly payload", () => {
+    const result = ProductionGenerator.generate(daysMap, "MASCULINO", settings, {
+      mode: "mpa",
+      randomFn: () => 0.5,
+    });
+    const monthPlan = buildMonthPlan(settings, 4, daysMap, result);
+    const expected = result
+      .filter((fish) => fish.monthlyKg[4] > 0)
+      .sort((a, b) => (a.monthlyOrder?.[4] ?? Number.MAX_SAFE_INTEGER) - (b.monthlyOrder?.[4] ?? Number.MAX_SAFE_INTEGER))
+      .map((fish) => fish.id);
+
+    expect(monthPlan.especies?.map((species) => species.especiePescado)).toEqual(expected);
+  });
+
+  it("derives kg from configured days without flattening the monthly values", () => {
+    const singleSpeciesSettings = {
+       mpaSpecies: [{ id: 10, kgMin: "30", kgMax: "35", priceMin: "10", priceMax: "13" }],
+      mpaSpeciesCount: 1,
+      mpaDefesoMonths: [1, 2, 3, 4, 5, 6, 7],
+      mpaMascDaysMin: "21",
+      mpaMascDaysMax: "25",
+      mpaMascProductionAnnualMin: 1500,
+      mpaMascProductionAnnualMax: 1760,
+    };
+    const daysMap = {
+      0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
+      7: 21, 8: 22, 9: 23, 10: 24, 11: 25,
+    };
+
+    const result = ProductionGenerator.generate(daysMap, "MASCULINO", singleSpeciesSettings, {
+      mode: "mpa",
+      randomFn: () => 0.5,
+    });
+
+    expect([7, 8, 9, 10, 11].map((month) => result[0].monthlyKg[month])).toEqual([30, 31, 33, 34, 35]);
+    expect(Object.values(result[0].monthlyKg).every((kg) => Number.isInteger(kg))).toBe(true);
   });
 });

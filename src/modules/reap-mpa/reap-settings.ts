@@ -35,6 +35,10 @@ const REAP_STATE_LABELS: Record<number, string> = {
   28: "EX",
 };
 
+export const MIN_KG_SPAN = 4;
+export const MIN_DAYS_SPAN = 4;
+export const MIN_PRICE_SPAN = 3;
+
 const REAP_FISHING_LOCATION_LABELS: Record<number, string> = {
   1: "Açude",
   2: "Estuário",
@@ -120,10 +124,13 @@ export function getValidSpeciesPool(settingsSpecies?: unknown[]): FishData[] {
     const priceMin = Number(String(species.priceMin ?? "").replace(",", "."));
     const priceMax = Number(String(species.priceMax ?? "").replace(",", "."));
     if (![kgMin, kgMax, priceMin, priceMax].every(Number.isFinite)) return [];
-    if (kgMin <= 0 || kgMax <= 0 || priceMin <= 0 || priceMax <= 0 || kgMin > kgMax || priceMin > priceMax) return [];
+    if (
+      kgMin <= 0 || kgMax <= 0 || priceMin <= 0 || priceMax <= 0 ||
+      kgMin > kgMax || kgMax - kgMin < MIN_KG_SPAN || priceMin > priceMax
+    ) return [];
 
     const normalizedPrices = normalizePriceBounds(priceMin, priceMax);
-    if (!normalizedPrices) return [];
+    if (!normalizedPrices || normalizedPrices[1] - normalizedPrices[0] < MIN_PRICE_SPAN) return [];
 
     const meta = FULL_PORTAL_SPECIES.find((item) => item.id === Number(species.id));
     return [{

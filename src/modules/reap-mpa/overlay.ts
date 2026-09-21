@@ -2,8 +2,6 @@ import { WorkflowManager } from './workflow';
 import { State } from './session-state';
 import { Icons } from "./utils/icons";
 import { Utils } from './utils/dom-utils';
-import { DaysGenerator } from './generators/days-schedule';
-import { ProductionGenerator } from './generators/fish-production';
 import { validateReapSettings, buildTurboConfig } from './turbo-config';
 import { getReapPdfCacheForPreset } from './pdf-cache';
 import { activateReapMpaPreset } from './reap-settings';
@@ -110,10 +108,6 @@ async function executeTurboApi() {
       if ((globalThis as any).refreshSigessUI) (globalThis as any).refreshSigessUI();
       return;
     }
-
-    // Garante que dias e espécies sejam sempre gerados frescos com as configurações ativas atuais
-    State.daysMap = DaysGenerator.generate(State.gender, settings);
-    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
 
     const config = buildTurboConfig(settings, pdfCache);
     const response = await browser.runtime.sendMessage({ action: "turboFillReap", config });
@@ -237,7 +231,6 @@ const injectButton = async () => {
 
    let presetIds: string[] = [];
    let activePresetId = "";
-   let resetBtn: HTMLButtonElement | undefined;
 
   async function activatePresetFromOverlay(presetId: string) {
     if (State.isRunning || (globalThis as any).__sigessTurboRunning) return;
@@ -268,7 +261,6 @@ const injectButton = async () => {
     activePresetId = current?.activeReapMpaPresetId || presets[0]?.id || "";
     pdfCacheSnapshot = await getReapPdfCacheForPreset(activePresetId);
     presetRow.style.display = presets.length > 1 ? "flex" : "none";
-    if (resetBtn) resetBtn.style.gridRow = presets.length > 1 ? "5" : "4";
     if (!shouldRebuild) {
       presetUpdate();
       refreshUI();
@@ -471,14 +463,6 @@ const injectButton = async () => {
     const lic = await browser.runtime.sendMessage({ action: "checkLicense" });
     if (!lic.ok) { alert(getLicenseErrorMessage(lic.reason)); refreshUI(); btnTurbo.disabled = false; return; }
 
-    try {
-      State.daysMap = DaysGenerator.generate(State.gender, settings);
-      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
-    } catch (err: any) {
-      alert(err.message);
-      refreshUI(); btnTurbo.disabled = false; return;
-    }
-
     State.turboMode = true;
     activeManager.start();
     refreshUI();
@@ -487,13 +471,7 @@ const injectButton = async () => {
 
   refreshUI();
 
-  // --- Botão Resetar ---
-   resetBtn = document.createElement("button");
-   resetBtn.innerHTML = "Resetar";
-   resetBtn.style.cssText = "grid-column: 1 / -1; grid-row: 4; padding: 5px 0; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin: 0; display: flex; align-items: center; justify-content: center; gap: 4px;";
-   resetBtn.onclick = (e) => { e.stopPropagation(); State.clearData(); refreshUI(); };
    columns.appendChild(actionsGroup);
-   columns.appendChild(resetBtn);
    void loadPresetControls();
 
   Draggable.init(container);

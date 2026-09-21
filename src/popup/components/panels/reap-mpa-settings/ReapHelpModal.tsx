@@ -1,31 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 interface ReapHelpModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
 }
 
-function parseCurrencyInput(value: string): number {
-  if (!value) return 0;
-  const normalized = value.trim().replace(/[^0-9,.-]/g, "");
-  const withDot = normalized.includes(",")
-    ? normalized.replaceAll(".", "").replace(",", ".")
-    : normalized;
-  const num = Number(withDot);
-  return Number.isFinite(num) && num > 0 ? num : 0;
-}
-
-function parseMonthsInput(value: string): number {
-  if (!value) return 0;
-  const digits = value.replace(/\D/g, "");
-  const num = Number.parseInt(digits, 10);
-  return Number.isFinite(num) && num > 0 ? Math.min(12, num) : 0;
-}
-
 export function ReapHelpModal({ isOpen, onClose }: ReapHelpModalProps) {
-  const [simulatedMonthlyValue, setSimulatedMonthlyValue] = useState("1500");
-  const [simulatedMonths, setSimulatedMonths] = useState("8");
-
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -36,13 +16,6 @@ export function ReapHelpModal({ isOpen, onClose }: ReapHelpModalProps) {
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
-
-  const totalCalculated =
-    parseCurrencyInput(simulatedMonthlyValue) * parseMonthsInput(simulatedMonths);
-  const formattedTotal = totalCalculated.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
 
   return (
     <div
@@ -85,42 +58,6 @@ export function ReapHelpModal({ isOpen, onClose }: ReapHelpModalProps) {
           <p>
             Assim, ao final do ano, os valores e as informações apresentados no REAP devem guardar correspondência com a atividade de comercialização e com as contribuições declaradas e recolhidas ao longo dos meses em que a atividade pesqueira esteve permitida.
           </p>
-          <div className="help-modal-calc-card">
-            Se o pescador declarar uma comercialização de{" "}
-            <strong>R$</strong>
-            <input
-              type="text"
-              className="help-calc-input"
-              value={simulatedMonthlyValue}
-              onChange={(e) => {
-                const cleaned = e.target.value.replace(/[^0-9.,]/g, "").replace(",", ".");
-                const parts = cleaned.split(".");
-                setSimulatedMonthlyValue(parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : cleaned);
-              }}
-              placeholder="0,00"
-              aria-label="Valor de comercialização por mês (X)"
-            />{" "}
-            por mês durante{" "}
-            <input
-              type="text"
-              className="help-calc-input-months"
-              value={simulatedMonths}
-              onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, "");
-                const num = Number.parseInt(digits, 10);
-                if (Number.isNaN(num)) {
-                  setSimulatedMonths("");
-                } else {
-                  setSimulatedMonths(String(Math.min(12, Math.max(1, num))));
-                }
-              }}
-              placeholder="0"
-              maxLength={2}
-              aria-label="Meses de atividade (X)"
-            />{" "}
-            meses de atividade, ao final do ano terá declarado uma comercialização total de{" "}
-            <span className="help-calc-output">{formattedTotal}</span>.
-          </div>
         </div>
         <div className="help-modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppSettings } from "../../../../shared/types";
 import { SpeciesSearch } from "./SharedFields";
 import { ReapHelpModal } from "./ReapHelpModal";
-import { getValidSpeciesPool, normalizeProductionRange } from "../../../../modules/reap-mpa/reap-settings";
+import { getValidSpeciesPool, MIN_DAYS_SPAN, MIN_KG_SPAN, MIN_PRICE_SPAN, normalizePriceBounds, normalizeProductionRange } from "../../../../modules/reap-mpa/reap-settings";
 
 function cleanSpeciesNumericInput(value: string, allowDecimal = true): string {
   if (!value) return "";
@@ -28,6 +28,16 @@ function cleanDaysInput(value: string): string {
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function parseMoneyValue(value?: string): number {
+  if (!value) return 0;
+  const normalized = value.trim().replace(/[^0-9,.-]/g, "");
+  const withDot = normalized.includes(",")
+    ? normalized.replaceAll(".", "").replace(",", ".")
+    : normalized;
+  const numberValue = Number(withDot);
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : 0;
 }
 
 function calculateProductionSlice(settings: AppSettings) {
@@ -351,6 +361,14 @@ export function ReapSpeciesSection({
           {Array.from({ length: visibleSpeciesCount }, (_, idx) => {
             const data = settings.mpaSpecies?.[idx] || {};
             const isOptional = idx >= 1;
+            const kgMin = Number(String(data.kgMin ?? "").replace(",", "."));
+            const kgMax = Number(String(data.kgMax ?? "").replace(",", "."));
+            const priceMin = Number(String(data.priceMin ?? "").replace(",", "."));
+            const priceMax = Number(String(data.priceMax ?? "").replace(",", "."));
+            const normalizedPrices = normalizePriceBounds(priceMin, priceMax);
+            const hasKgRangeError = Boolean(data.id) && Number.isFinite(kgMin) && Number.isFinite(kgMax) && kgMax - kgMin < MIN_KG_SPAN;
+            const hasPriceRangeError = Boolean(data.id) && Number.isFinite(priceMin) && Number.isFinite(priceMax)
+              && (!normalizedPrices || normalizedPrices[1] - normalizedPrices[0] < MIN_PRICE_SPAN);
             return (
               <div
                 key={idx}
@@ -422,6 +440,16 @@ export function ReapSpeciesSection({
                     </div>
                   ))}
                 </div>
+                {hasKgRangeError && (
+                  <p style={{ fontSize: "10px", color: "var(--color-danger)", margin: "6px 0 0" }}>
+                    A faixa de KG deve ter pelo menos {MIN_KG_SPAN} kg entre o mínimo e o máximo.
+                  </p>
+                )}
+                {hasPriceRangeError && (
+                  <p style={{ fontSize: "10px", color: "var(--color-danger)", margin: "6px 0 0" }}>
+                    A faixa de preço deve ter pelo menos R$ {MIN_PRICE_SPAN.toFixed(2).replace(".", ",")} entre o mínimo e o máximo.
+                  </p>
+                )}
               </div>
             );
           })}
@@ -447,7 +475,9 @@ export function ReapSpeciesSection({
         )}
 
         {(() => {
-          const fishingCount = 12 - (settings.mpaDefesoMonths || []).length;
+          const fishingCount = 12 - new Set(
+            (settings.mpaDefesoMonths || []).filter((month) => Number.isInteger(month) && month >= 1 && month <= 12),
+          ).size;
           const mascMin = Number(settings.mpaMascDaysMin) || 0;
           const mascMax = Number(settings.mpaMascDaysMax) || 0;
           const femMin = Number(settings.mpaFemDaysMin) || 0;
@@ -465,6 +495,11 @@ export function ReapSpeciesSection({
 
           const hasMasc = mascMin > 0 && mascMax > 0 && fishingCount > 0;
           const hasFem = femMin > 0 && femMax > 0 && fishingCount > 0;
+          const monthlyCommercializationInput = settings.mpaEsocialMonthlyValue ?? settings.valorComercializado ?? "";
+          const monthlyCommercialization = parseMoneyValue(monthlyCommercializationInput);
+          const estimatedAnnualCommercialization = monthlyCommercialization * fishingCount;
+          const recommendedAnnualMin = Math.max(0, estimatedAnnualCommercialization - 300);
+          const recommendedAnnualMax = estimatedAnnualCommercialization + 300;
 
           const panelColors: Record<string, { accent: string; soft: string }> = {
             MASCULINO: { accent: "#2563eb", soft: "rgba(37,99,235,0.08)" },
@@ -493,7 +528,51 @@ export function ReapSpeciesSection({
           };
 
           return (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) auto",
+                gap: "8px 12px",
+                alignItems: "end",
+                padding: "10px 12px",
+                border: "1px solid var(--color-border)",
+                borderRadius: "8px",
+                background: "var(--color-surface-alt)",
+              }}>
+                <div>
+                  <label className="reap-label" htmlFor="mpaMonthlyCommercialization">
+                    Qual o valor médio mensal de produção que você usa para gerar boletos no e-Social?
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <strong style={{ color: "var(--color-accent-strong)", fontSize: "12px" }}>R$</strong>
+                    <input
+                      id="mpaMonthlyCommercialization"
+                      type="text"
+                      inputMode="decimal"
+                      className="gps-input"
+                      style={{ maxWidth: "180px" }}
+                      value={monthlyCommercializationInput}
+                      onChange={(event) => onUpdate({
+                        mpaEsocialMonthlyValue: event.target.value.replace(/[^0-9.,]/g, ""),
+                      })}
+                      placeholder="0,00"
+                    />
+                  </div>
+                </div>
+                <div style={{ fontSize: "10px", color: "var(--color-muted)", textAlign: "right", lineHeight: 1.45 }}>
+                  {monthlyCommercialization > 0 && fishingCount > 0 ? (
+                    <>
+                      <div>Meses de atividade: <strong>{fishingCount}</strong></div>
+                      <div>O valor anual produzido é aproximadamente de <strong>{formatCurrency(estimatedAnnualCommercialization)}</strong>.</div>
+                      <div>Faixa recomendada: <strong>{formatCurrency(recommendedAnnualMin)} a {formatCurrency(recommendedAnnualMax)}</strong>.</div>
+                    </>
+                  ) : (
+                    "Informe um valor mensal para calcular a estimativa anual."
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
               {[
                 {
                   label: "MASCULINO",
@@ -509,8 +588,9 @@ export function ReapSpeciesSection({
                   onAnnualChange: ([lo, hi]: [number, number]) => onUpdate({ mpaMascAnnualMin: lo, mpaMascAnnualMax: hi }),
                   onDaysMinChange: (v: string) => onUpdate({ mpaMascDaysMin: v, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined }),
                   onDaysMaxChange: (v: string) => onUpdate({ mpaMascDaysMax: v, mpaMascAnnualMin: undefined, mpaMascAnnualMax: undefined }),
-                  daysMinVal: settings.mpaMascDaysMin || "",
-                  daysMaxVal: settings.mpaMascDaysMax || "",
+                   daysMinVal: settings.mpaMascDaysMin || "",
+                   daysMaxVal: settings.mpaMascDaysMax || "",
+                   daysRangeError: mascMin > 0 && mascMax > 0 && mascMax - mascMin < MIN_DAYS_SPAN,
                   prodAbsMin,
                   prodAbsMax,
                   prodAnnualMin: mascProdAnnualMin,
@@ -534,8 +614,9 @@ export function ReapSpeciesSection({
                   onAnnualChange: ([lo, hi]: [number, number]) => onUpdate({ mpaFemAnnualMin: lo, mpaFemAnnualMax: hi }),
                   onDaysMinChange: (v: string) => onUpdate({ mpaFemDaysMin: v, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined }),
                   onDaysMaxChange: (v: string) => onUpdate({ mpaFemDaysMax: v, mpaFemAnnualMin: undefined, mpaFemAnnualMax: undefined }),
-                  daysMinVal: settings.mpaFemDaysMin || "",
-                  daysMaxVal: settings.mpaFemDaysMax || "",
+                   daysMinVal: settings.mpaFemDaysMin || "",
+                   daysMaxVal: settings.mpaFemDaysMax || "",
+                   daysRangeError: femMin > 0 && femMax > 0 && femMax - femMin < MIN_DAYS_SPAN,
                   prodAbsMin,
                   prodAbsMax,
                   prodAnnualMin: femProdAnnualMin,
@@ -618,7 +699,12 @@ export function ReapSpeciesSection({
                           onChange={(e) => panel.onDaysMaxChange(cleanDaysInput(e.target.value))}
                         />
                       </div>
-                      {panel.has ? (
+                       {panel.daysRangeError && (
+                         <div style={{ fontSize: "10px", color: "var(--color-danger)", marginTop: "4px" }}>
+                           A faixa de Dias/Mês deve ter pelo menos {MIN_DAYS_SPAN} dias.
+                         </div>
+                       )}
+                       {panel.has ? (
                         <AnnualRangeSlider
                           absMin={panel.absMin}
                           absMax={panel.absMax}
@@ -632,7 +718,8 @@ export function ReapSpeciesSection({
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            </>
           );
         })()}
       </div>

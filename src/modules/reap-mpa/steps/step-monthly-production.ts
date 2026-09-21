@@ -168,12 +168,8 @@ export const Page3 = {
     const rawSettings = (await browser.storage.local.get("sigessSettings")).sigessSettings || {};
     const settings = normalizeReapSettings(rawSettings);
 
-    if (!State.daysMap || Object.keys(State.daysMap).length === 0) {
-      State.daysMap = DaysGenerator.generate(State.gender, settings);
-    }
-    if (!State.production || State.production.length === 0) {
-      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
-    }
+    State.daysMap = DaysGenerator.generate(State.gender, settings);
+    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
 
     return settings;
   },

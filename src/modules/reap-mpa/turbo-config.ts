@@ -1,7 +1,7 @@
 import { State } from "./session-state";
 import { TurboReapConfig } from "../../shared/types";
-import { getEffectiveFishingMethod, getValidSpeciesPool } from "./reap-settings";
-import { buildMonthPlan, hasConfiguredDefesoMonths } from "./monthly-plan";
+import { getEffectiveFishingMethod, getValidSpeciesPool, MIN_DAYS_SPAN, MIN_KG_SPAN, MIN_PRICE_SPAN, normalizePriceBounds } from "./reap-settings";
+import { buildMonthPlan, getFishingMonthIndexes, hasConfiguredDefesoMonths } from "./monthly-plan";
 import { DaysGenerator } from "./generators/days-schedule";
 import { ProductionGenerator } from "./generators/fish-production";
 
@@ -40,8 +40,17 @@ function validateSpeciesSection(settings: any, errors: string[]): void {
       errors.push("KG Mín não pode ser maior que KG Máx em nenhuma espécie.");
       break;
     }
+    if (kgMax - kgMin < MIN_KG_SPAN) {
+      errors.push(`A faixa de KG da espécie deve ter pelo menos ${MIN_KG_SPAN} kg entre o mínimo e o máximo.`);
+      break;
+    }
     if (priceMin > priceMax) {
       errors.push("Preço Mín não pode ser maior que Preço Máx em nenhuma espécie.");
+      break;
+    }
+    const normalizedPrices = normalizePriceBounds(priceMin, priceMax);
+    if (!normalizedPrices || normalizedPrices[1] - normalizedPrices[0] < MIN_PRICE_SPAN) {
+      errors.push(`A faixa de preço da espécie deve ter pelo menos R$ ${MIN_PRICE_SPAN.toFixed(2).replace(".", ",")} entre o mínimo e o máximo.`);
       break;
     }
   }
@@ -71,6 +80,8 @@ function validateSingleGender(settings: any, g: string, errors: string[]): void 
     errors.push(`Os limites de Dias/Mês para o gênero ${gLabel} devem estar entre 1 e 30 dias.`);
   } else if (daysMin > daysMax) {
     errors.push(`Dias/Mês Mínimo não pode ser maior que Máximo para o gênero ${gLabel}.`);
+  } else if (daysMax - daysMin < MIN_DAYS_SPAN) {
+    errors.push(`A faixa de Dias/Mês para o gênero ${gLabel} deve ter pelo menos ${MIN_DAYS_SPAN} dias.`);
   }
 
   const prodMin = settings[`${prefix}ProductionAnnualMin`];
@@ -185,12 +196,15 @@ export function buildTurboConfig(
   const petrecho = getEffectiveFishingMethod(settings);
 
   const configuredSpeciesCount = Number(settings?.mpaSpeciesCount);
-  if (!State.daysMap || Object.keys(State.daysMap).length === 0) {
-    State.daysMap = DaysGenerator.generate(State.gender, settings);
-  }
-  const rotationEnabled = Boolean(settings?.mpaRotateMonthlySpecies);
-  if (!State.production || State.production.length === 0 || (!rotationEnabled && State.production.length !== configuredSpeciesCount)) {
-    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
+  State.daysMap = DaysGenerator.generate(State.gender, settings);
+  State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
+
+  const incompleteMonth = getFishingMonthIndexes(settings).find((monthIndex) => {
+    const activeSpecies = State.production.filter((fish) => fish.monthlyKg[monthIndex] > 0);
+    return activeSpecies.length !== configuredSpeciesCount || new Set(activeSpecies.map((fish) => fish.id)).size !== configuredSpeciesCount;
+  });
+  if (incompleteMonth !== undefined) {
+    throw new Error(`A produção do mês ${incompleteMonth + 1} não contém exatamente ${configuredSpeciesCount} espécies.`);
   }
 
   const config: TurboReapConfig = {

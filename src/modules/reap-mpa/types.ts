@@ -13,6 +13,8 @@ export interface FishProduction {
   price: number;
   monthlyKg: Record<number, number>;
   monthlyPrices?: Record<number, number>;
+  /** Ordem da espécie no calendário sorteado para cada mês ativo. */
+  monthlyOrder?: Record<number, number>;
 }
 
 export class InvalidSpeciesPoolError extends Error {

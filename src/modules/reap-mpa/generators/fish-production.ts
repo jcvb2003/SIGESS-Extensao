@@ -57,17 +57,20 @@ function smoothPass(arr: number[], maxStep: number): void {
   }
 }
 
-function getSmoothedIntensities(fishingMonths: number[], daysMap: Record<number, number>): Record<number, number> {
+function getDayIntensities(
+  fishingMonths: number[],
+  daysMap: Record<number, number>,
+  configuredMin?: number,
+  configuredMax?: number,
+): Record<number, number> {
   const values = fishingMonths.map((item) => daysMap[item] || 0);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const observedMin = Math.min(...values);
+  const observedMax = Math.max(...values);
+  const min = Number.isFinite(configuredMin) ? configuredMin! : observedMin;
+  const max = Number.isFinite(configuredMax) ? configuredMax! : observedMax;
   const intensityList = fishingMonths.map((m) =>
     max === min ? 0.5 : Math.max(0, Math.min(1, ((daysMap[m] || 0) - min) / (max - min)))
   );
-
-  for (let pass = 0; pass < 5; pass += 1) {
-    smoothPass(intensityList, 0.35);
-  }
 
   const smoothed: Record<number, number> = {};
   fishingMonths.forEach((m, idx) => {
@@ -83,23 +86,41 @@ function buildCalendar(pool: FishData[], count: number, months: number[], rotate
   return calendar;
 }
 
-function buildProduction(calendar: MonthlyCalendar, pool: FishData[], months: number[], daysMap: Record<number, number>): FishProduction[] {
+function buildProduction(
+  calendar: MonthlyCalendar,
+  pool: FishData[],
+  months: number[],
+  daysMap: Record<number, number>,
+  configuredDayMin?: number,
+  configuredDayMax?: number,
+  randomFn: () => number = Math.random,
+): FishProduction[] {
   const usedIds = new Set(Object.values(calendar).flat().map((fish) => fish.id));
-  const intensities = getSmoothedIntensities(months, daysMap);
-  return pool.filter((fish) => usedIds.has(fish.id)).map((fish) => {
+  const intensities = getDayIntensities(months, daysMap, configuredDayMin, configuredDayMax);
+  const production = pool.filter((fish) => usedIds.has(fish.id)).map((fish) => {
     const monthlyKg: Record<number, number> = {};
     const monthlyPrices: Record<number, number> = {};
+    const monthlyOrder: Record<number, number> = {};
     for (let month = 0; month < 12; month += 1) {
       monthlyKg[month] = 0;
       monthlyPrices[month] = 0;
     }
     for (const month of months) {
-      if (!calendar[month].some((item) => item.id === fish.id)) continue;
+      const order = calendar[month].findIndex((item) => item.id === fish.id);
+      if (order < 0) continue;
+      monthlyOrder[month] = order;
       const intensity = intensities[month] ?? 0.5;
-      monthlyKg[month] = Math.max(fish.kgMin, Math.min(fish.kgMax, Math.round(fish.kgMin + intensity * (fish.kgMax - fish.kgMin))));
+       const baseKg = fish.kgMin + intensity * (fish.kgMax - fish.kgMin);
+       const jitterAmplitude = Math.min(0.4, (fish.kgMax - fish.kgMin) * 0.1);
+       const jitter = (Math.max(0, Math.min(0.999999999, randomFn())) * 2 - 1) * jitterAmplitude;
+       monthlyKg[month] = Math.max(
+         fish.kgMin,
+         Math.min(fish.kgMax, Math.round(baseKg + jitter)),
+       );
     }
-    return { id: fish.id, name: fish.name, totalKg: 0, price: 0, monthlyKg, monthlyPrices };
+    return { id: fish.id, name: fish.name, totalKg: 0, price: 0, monthlyKg, monthlyPrices, monthlyOrder };
   });
+  return production;
 }
 
 function activeMonthsForFish(fish: FishProduction): number[] {
@@ -460,7 +481,10 @@ export const ProductionGenerator = {
     let lastError = "Não foi possível gerar uma produção compatível com as configurações.";
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
       const calendar = buildCalendar(pool, count, months, rotate, randomFn);
-      const production = buildProduction(calendar, pool, months, daysMap);
+      const dayPrefix = gender === "MASCULINO" ? "mpaMascDays" : "mpaFemDays";
+      const configuredDayMin = Number(settings?.[`${dayPrefix}Min`]);
+      const configuredDayMax = Number(settings?.[`${dayPrefix}Max`]);
+      const production = buildProduction(calendar, pool, months, daysMap, configuredDayMin, configuredDayMax, randomFn);
       assignInitialPrices(production, pool, randomFn);
       const capacity = this.calculateCapacity(production, pool, months);
       let range: [number, number];

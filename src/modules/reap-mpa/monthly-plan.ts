@@ -50,10 +50,11 @@ export function getPeakMonthIndexes(defesoMonths: number[]): Set<number> {
 }
 
 function buildSpeciesForMonth(monthIndex: number, production: FishProduction[]): TurboEspecieConfig[] {
-  return production
+  const activeProduction = production
+    .filter((fish) => (fish.monthlyKg[monthIndex] || 0) > 0)
+    .sort((a, b) => (a.monthlyOrder?.[monthIndex] ?? Number.MAX_SAFE_INTEGER) - (b.monthlyOrder?.[monthIndex] ?? Number.MAX_SAFE_INTEGER))
     .map((fish) => {
       const monthlyKg = fish.monthlyKg[monthIndex] || 0;
-      if (monthlyKg <= 0) return null;
 
       return {
         especiePescado: fish.id,
@@ -63,6 +64,14 @@ function buildSpeciesForMonth(monthIndex: number, production: FishProduction[]):
       };
     })
     .filter((item): item is TurboEspecieConfig => item !== null);
+
+  return activeProduction;
+}
+
+export function getActiveProductionForMonth(monthIndex: number, production: FishProduction[]): FishProduction[] {
+  return production
+    .filter((fish) => (fish.monthlyKg[monthIndex] || 0) > 0)
+    .sort((a, b) => (a.monthlyOrder?.[monthIndex] ?? Number.MAX_SAFE_INTEGER) - (b.monthlyOrder?.[monthIndex] ?? Number.MAX_SAFE_INTEGER));
 }
 
 export function buildMonthPlan(

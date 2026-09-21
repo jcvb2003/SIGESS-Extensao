@@ -28,8 +28,16 @@ describe("REAP MPA production settings", () => {
   it("discards invalid price steps from the species pool", () => {
     const pool = getValidSpeciesPool([
       { id: 12, kgMin: "5", kgMax: "5", priceMin: "12.30", priceMax: "12.40" },
-      { id: 21, kgMin: "5", kgMax: "6", priceMin: "10", priceMax: "11" },
+      { id: 21, kgMin: "5", kgMax: "9", priceMin: "10", priceMax: "13" },
     ]);
     expect(pool.map((species) => species.id)).toEqual([21]);
+  });
+
+  it("requires at least three reais of effective price range", () => {
+    const pool = getValidSpeciesPool([
+      { id: 21, kgMin: "5", kgMax: "9", priceMin: "10", priceMax: "12.9" },
+      { id: 26, kgMin: "5", kgMax: "9", priceMin: "10", priceMax: "13" },
+    ]);
+    expect(pool.map((species) => species.id)).toEqual([26]);
   });
 });

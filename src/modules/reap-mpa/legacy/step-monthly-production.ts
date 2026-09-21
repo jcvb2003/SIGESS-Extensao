@@ -4,7 +4,7 @@ import { ProductionGenerator } from '../generators/fish-production';
 import { Utils } from '../utils/dom-utils';
 import { IWorkflowManager } from "../types";
 import { MUNICIPIOS_LIST } from '../../../shared/data/municipios';
-import { isDefesoMonth } from '../monthly-plan';
+import { getActiveProductionForMonth, isDefesoMonth } from '../monthly-plan';
 import {
   getReapStateLabel,
   getReapFishingLocationLabel,
@@ -199,9 +199,8 @@ export const Page3 = {
     if (!prodTable) return;
 
     let rowIdx = 0;
-    for (const fish of State.production) {
+    for (const fish of getActiveProductionForMonth(realMonthIndex, State.production)) {
       const monthlyKg = fish.monthlyKg[realMonthIndex] || 0;
-      if (monthlyKg <= 0) continue;
 
       await Page3.ensureRowExists(prodTable, rowIdx);
       const row = prodTable.querySelectorAll("tbody tr")[rowIdx] as HTMLElement;

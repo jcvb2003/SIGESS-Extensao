@@ -236,6 +236,8 @@ export interface AppSettings {
   }>;
   mpaSpeciesCount?: number;
   mpaRotateMonthlySpecies?: boolean;
+  /** Valor mensal de referência usado apenas para estimar a produção anual do REAP MPA. */
+  mpaEsocialMonthlyValue?: string;
 
   mpaMascProdMin?: string;
   mpaMascProdMax?: string;
