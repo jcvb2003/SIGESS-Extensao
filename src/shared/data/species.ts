@@ -7,16 +7,6 @@ export interface FishData {
   priceMax: number;
 }
 
-export const DEFAULT_SPECIES: FishData[] = [
-  { id: 15, name: "Matrinxã ou Jatuarana", kgMin: 45, kgMax: 50, priceMin: 13, priceMax: 16 },
-  { id: 25, name: "Acará", kgMin: 55, kgMax: 60, priceMin: 10, priceMax: 13 },
-  { id: 26, name: "Aracu", kgMin: 55, kgMax: 60, priceMin: 9, priceMax: 13 },
-  { id: 21, name: "Traíra", kgMin: 55, kgMax: 60, priceMin: 8, priceMax: 12 },
-  { id: 12, name: "Mapará", kgMin: 60, kgMax: 70, priceMin: 8, priceMax: 11 },
-];
-
-export const SPECIES_LIST = DEFAULT_SPECIES;
-
 export const FULL_PORTAL_SPECIES = [
   { "id": 1, "nome": "Tucunaré", "camposAdicionais": { "nomeCientifico": "(Cichla ssp)" } },
   { "id": 2, "nome": "Pirarucu", "camposAdicionais": { "nomeCientifico": "(Arapaima gigas)" } },

@@ -45,6 +45,7 @@ skills-lock.json
 AGENTS.md
 
 # Temporary / generated files
+.wrangler/
 diff.txt
 SESSION.md
 Descrição.md

@@ -7,7 +7,14 @@
   "secrets": {
     "required": ["GITHUB_READ_TOKEN"],
   },
+  "routes": [
+    {
+      "pattern": "downloads.sigess.com.br",
+      "custom_domain": true,
+    },
+  ],
   "workers_dev": false,
+  "preview_urls": true,
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
