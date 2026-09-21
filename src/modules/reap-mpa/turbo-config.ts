@@ -1,6 +1,6 @@
 import { State } from "./session-state";
 import { TurboReapConfig } from "../../shared/types";
-import { getEffectiveFishingMethod } from "./reap-settings";
+import { getEffectiveFishingMethod, getValidSpeciesPool } from "./reap-settings";
 import { buildMonthPlan, hasConfiguredDefesoMonths } from "./monthly-plan";
 import { DaysGenerator } from "./generators/days-schedule";
 import { ProductionGenerator } from "./generators/fish-production";
@@ -18,9 +18,7 @@ function validateSpeciesSection(settings: any, errors: string[]): void {
   }
 
   const filled = (settings.mpaSpecies || []).filter((s: any) => Boolean(s?.id));
-  if (requestedSpeciesCount > filled.length) {
-    errors.push(`Cadastre pelo menos ${requestedSpeciesCount} espécie(s) nas configurações.`);
-  }
+  const validPool = getValidSpeciesPool(settings.mpaSpecies);
 
   for (const s of filled) {
     const kgMin = Number(String(s.kgMin ?? "").replace(",", "."));
@@ -46,6 +44,10 @@ function validateSpeciesSection(settings: any, errors: string[]): void {
       errors.push("Preço Mín não pode ser maior que Preço Máx em nenhuma espécie.");
       break;
     }
+  }
+
+  if (requestedSpeciesCount > filled.length || validPool.length < requestedSpeciesCount) {
+    errors.push(`A pool possui ${validPool.length} espécie(s) válida(s), mas são necessárias ${requestedSpeciesCount}.`);
   }
 }
 
@@ -182,12 +184,13 @@ export function buildTurboConfig(
   const isParcial = State.turboFillMode === "parcial";
   const petrecho = getEffectiveFishingMethod(settings);
 
-  const configuredSpeciesCount = Number(settings?.mpaSpeciesCount ?? 5);
+  const configuredSpeciesCount = Number(settings?.mpaSpeciesCount);
   if (!State.daysMap || Object.keys(State.daysMap).length === 0) {
     State.daysMap = DaysGenerator.generate(State.gender, settings);
   }
-  if (!State.production || State.production.length === 0 || State.production.length !== configuredSpeciesCount) {
-    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
+  const rotationEnabled = Boolean(settings?.mpaRotateMonthlySpecies);
+  if (!State.production || State.production.length === 0 || (!rotationEnabled && State.production.length !== configuredSpeciesCount)) {
+    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
   }
 
   const config: TurboReapConfig = {

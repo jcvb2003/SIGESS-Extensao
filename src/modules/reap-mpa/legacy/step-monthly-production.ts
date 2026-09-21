@@ -66,7 +66,7 @@ export const Page3 = {
   ensureInitialData: async (settings: any) => {
     // Always regenerate for legacy — avoids inheriting a stale daysMap from a prior v2 run
     State.daysMap = DaysGenerator.generate(State.gender, settings);
-    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
+    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
   },
 
   getStartIndex: (months: NodeListOf<Element>) => {
@@ -198,16 +198,17 @@ export const Page3 = {
       .find(el => el.textContent?.includes("Resultado"))?.closest(".br-table") as HTMLElement;
     if (!prodTable) return;
 
-    for (let fishIdx = 0; fishIdx < State.production.length; fishIdx++) {
-      const fish = State.production[fishIdx];
+    let rowIdx = 0;
+    for (const fish of State.production) {
       const monthlyKg = fish.monthlyKg[realMonthIndex] || 0;
-      if (monthlyKg === 0) continue;
+      if (monthlyKg <= 0) continue;
 
-      await Page3.ensureRowExists(prodTable, fishIdx);
-      const row = prodTable.querySelectorAll("tbody tr")[fishIdx] as HTMLElement;
+      await Page3.ensureRowExists(prodTable, rowIdx);
+      const row = prodTable.querySelectorAll("tbody tr")[rowIdx] as HTMLElement;
       if (!row) continue;
 
-      await Page3.fillProductionRow(row, fish, monthlyKg);
+      await Page3.fillProductionRow(row, fish, monthlyKg, realMonthIndex);
+      rowIdx += 1;
     }
   },
 
@@ -221,7 +222,7 @@ export const Page3 = {
     }
   },
 
-  fillProductionRow: async (row: HTMLElement, fish: any, monthlyKg: number) => {
+  fillProductionRow: async (row: HTMLElement, fish: any, monthlyKg: number, realMonthIndex: number) => {
     const specSelect = row.querySelector("td:nth-child(1) .br-select") as HTMLElement;
     if (specSelect) await Utils.fillAutocomplete(specSelect, fish.name);
     await Utils.selectOption(row.querySelector("td:nth-child(2) .br-select") as HTMLElement, "Quilo");
@@ -230,7 +231,8 @@ export const Page3 = {
     if (qtdInput) Utils.setReactInput(qtdInput, String(monthlyKg));
 
     const valInput = row.querySelector("td:nth-child(4) input") as HTMLInputElement;
-    if (valInput) Utils.setReactInput(valInput, fish.price.toFixed(2).replace(".", ","));
+    const monthlyPrice = fish.monthlyPrices?.[realMonthIndex] ?? fish.price;
+    if (valInput) Utils.setReactInput(valInput, Number(monthlyPrice).toFixed(2).replace(".", ","));
     await Utils.sleep(300);
   },
 };

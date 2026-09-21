@@ -2,6 +2,7 @@ import { Utils } from "../../shared/utils/dom-helpers";
 import { DaysGenerator } from '../reap-mpa/generators/days-schedule';
 import { ProductionGenerator } from '../reap-mpa/generators/fish-production';
 import type { FishProduction } from '../reap-mpa/types';
+import { getValidSpeciesPool } from '../reap-mpa/reap-settings';
 import { getLicenseErrorMessage } from "../../shared/services/license-messages";
 
 const MONTH_NAMES: Record<number, string> = {
@@ -63,19 +64,23 @@ export const AgroManager = {
     if (!settings.mpaMunicipio) {
       return "Configure um município no painel REAP MPA.";
     }
-    const filled = (settings.mpaSpecies || []).filter((s: any) => s?.id);
-    if (filled.length < 5) {
-      return "Configure pelo menos 5 espécies no painel REAP MPA.";
+    const requestedSpeciesCount = Number(settings.mpaSpeciesCount);
+    if (!Number.isInteger(requestedSpeciesCount) || requestedSpeciesCount < 1) {
+      return "Configure a quantidade de espécies no painel REAP MPA.";
     }
-    for (const s of filled) {
-      if (!s.kgMin || !s.kgMax || !s.priceMin || !s.priceMax) {
-        return "Preencha todos os campos numéricos das espécies no painel REAP MPA.";
-      }
+    const pool = getValidSpeciesPool(settings.mpaSpecies);
+    if (pool.length < requestedSpeciesCount) {
+      return `A pool possui ${pool.length} espécie(s) válida(s), mas o Agro precisa de ${requestedSpeciesCount}. Revise kg e preços.`;
     }
     if (!settings.mpaMascDaysMin || !settings.mpaMascDaysMax) {
       return "Configure os limites de dias trabalhados para MASCULINO no painel REAP MPA.";
     }
-    if (!settings.mpaMascProdMin || !settings.mpaMascProdMax) {
+    const prodMin = settings.mpaMascProductionAnnualMin ?? settings.mpaMascProdMin;
+    const prodMax = settings.mpaMascProductionAnnualMax ?? settings.mpaMascProdMax;
+    if (
+      prodMin == null || prodMax == null ||
+      !Number.isFinite(Number(prodMin)) || !Number.isFinite(Number(prodMax))
+    ) {
       return "Configure as metas de produção para MASCULINO no painel REAP MPA.";
     }
     return null;
@@ -113,7 +118,7 @@ export const AgroManager = {
 
       const gender: "MASCULINO" | "FEMININO" = "MASCULINO";
       const daysMap = DaysGenerator.generate(gender, settings);
-      const production: FishProduction[] = ProductionGenerator.generate(daysMap, gender, settings);
+      const production: FishProduction[] = ProductionGenerator.generate(daysMap, gender, settings, { mode: "agro" });
 
       await this.runFormAutomation(production, daysMap);
       await this.applyProduction(production);
@@ -124,7 +129,7 @@ export const AgroManager = {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = "Iniciar Automação REAP";
+        btn.textContent = "Iniciar preenchimento";
       }
     }
   },
@@ -142,7 +147,7 @@ export const AgroManager = {
     alert(getLicenseErrorMessage(lic?.reason));
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "Iniciar Automação REAP";
+      btn.textContent = "Iniciar preenchimento";
     }
   },
 
@@ -329,7 +334,10 @@ export const AgroManager = {
       )[i] as HTMLInputElement;
 
       if (qtdInput) Utils.setReactInput(qtdInput, String(production[i].totalKg));
-      if (precoInput) Utils.setReactInput(precoInput, production[i].price.toFixed(2).replace('.', ','));
+      // O REAP Agro historicamente recebe preços em degraus de R$ 0,50.
+      // A média ponderada interna pode ter centavos; discretize somente no payload Agro.
+      const agroPrice = Math.round(production[i].price * 2) / 2;
+      if (precoInput) Utils.setReactInput(precoInput, agroPrice.toFixed(2).replace('.', ','));
       await Utils.sleep(200);
     }
   },
@@ -360,7 +368,7 @@ export const initAgroUI = () => {
           font-weight: bold;
         `;
         const ni = document.createElement("button");
-        ni.textContent = "Iniciar Automação REAP";
+        ni.textContent = "Iniciar preenchimento";
         ni.dataset.sigessReap = "iniciar";
         ni.style.cssText = btnStyle;
         ni.onclick = () => AgroManager.executarAutomacao();

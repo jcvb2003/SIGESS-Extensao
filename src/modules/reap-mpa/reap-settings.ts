@@ -1,5 +1,8 @@
 import { AppSettings, ReapMpaPreset } from "../../shared/types";
 import { getConfiguredDefesoMonths } from "./monthly-plan";
+import { FULL_PORTAL_SPECIES } from "../../shared/data/species";
+import type { FishData } from "./types";
+import { InvalidSpeciesPoolError } from "./types";
 
 const REAP_STATE_LABELS: Record<number, string> = {
   1: "RONDONIA",
@@ -99,6 +102,99 @@ function normalizeDaysPerMonth(value?: string) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return value;
   return String(Math.min(30, Math.max(1, Math.trunc(parsed))));
+}
+
+export function normalizePriceBounds(priceMin: number, priceMax: number): [number, number] | null {
+  const min = Math.ceil(priceMin * 2) / 2;
+  const max = Math.floor(priceMax * 2) / 2;
+  return min <= max ? [min, max] : null;
+}
+
+export function getValidSpeciesPool(settingsSpecies?: unknown[]): FishData[] {
+  if (!Array.isArray(settingsSpecies)) return [];
+  const pool = settingsSpecies.flatMap((species: any) => {
+    if (!species?.id) return [];
+
+    const kgMin = Number(String(species.kgMin ?? "").replace(",", "."));
+    const kgMax = Number(String(species.kgMax ?? "").replace(",", "."));
+    const priceMin = Number(String(species.priceMin ?? "").replace(",", "."));
+    const priceMax = Number(String(species.priceMax ?? "").replace(",", "."));
+    if (![kgMin, kgMax, priceMin, priceMax].every(Number.isFinite)) return [];
+    if (kgMin <= 0 || kgMax <= 0 || priceMin <= 0 || priceMax <= 0 || kgMin > kgMax || priceMin > priceMax) return [];
+
+    const normalizedPrices = normalizePriceBounds(priceMin, priceMax);
+    if (!normalizedPrices) return [];
+
+    const meta = FULL_PORTAL_SPECIES.find((item) => item.id === Number(species.id));
+    return [{
+      id: Number(species.id),
+      name: meta?.nome || "Desconhecido",
+      kgMin,
+      kgMax,
+      priceMin: normalizedPrices[0],
+      priceMax: normalizedPrices[1],
+    }];
+  });
+
+  return Array.from(new Map(pool.map((species) => [species.id, species])).values());
+}
+
+export function assertValidSpeciesPool(pool: FishData[], requestedCount: number): void {
+  if (!Number.isInteger(requestedCount) || requestedCount < 1) {
+    throw new InvalidSpeciesPoolError("A quantidade de espécies deve ser um número inteiro maior que zero.");
+  }
+  if (pool.length < requestedCount) {
+    throw new InvalidSpeciesPoolError(
+      `A pool válida possui ${pool.length} espécie(s), mas são necessárias ${requestedCount}.`,
+    );
+  }
+}
+
+export function normalizeProductionRange(
+  savedMin: number | undefined,
+  savedMax: number | undefined,
+  absMin: number,
+  absMax: number,
+  minSpan = 300,
+): [number, number] {
+  if (!Number.isFinite(absMin) || !Number.isFinite(absMax) || absMax < absMin) {
+    throw new RangeError(`Envelope de produção inválido: absMin (${absMin}) não pode ser maior que absMax (${absMax}).`);
+  }
+
+  const intAbsMin = Math.ceil(absMin);
+  const intAbsMax = Math.floor(absMax);
+  if (intAbsMin > intAbsMax) {
+    throw new RangeError(`Envelope não contém nenhum valor inteiro viável: [${absMin}, ${absMax}].`);
+  }
+
+  const parsedSpan = Number(minSpan);
+  const safeSpan = Number.isFinite(parsedSpan) && parsedSpan >= 0 ? parsedSpan : 300;
+  const effectiveSpan = Math.min(safeSpan, intAbsMax - intAbsMin);
+  let lo = Number.isFinite(Number(savedMin)) ? Math.round(Number(savedMin)) : intAbsMin;
+  let hi = Number.isFinite(Number(savedMax)) ? Math.round(Number(savedMax)) : intAbsMax;
+
+  if (lo > hi) [lo, hi] = [hi, lo];
+  if (hi > intAbsMax) {
+    hi = intAbsMax;
+    lo = Math.min(lo, hi - effectiveSpan);
+  }
+  if (lo < intAbsMin) {
+    lo = intAbsMin;
+    hi = Math.max(hi, lo + effectiveSpan);
+  }
+  if (hi > intAbsMax) hi = intAbsMax;
+  if (hi - lo < effectiveSpan) {
+    if (intAbsMax - lo >= effectiveSpan) hi = lo + effectiveSpan;
+    else {
+      lo = Math.max(intAbsMin, intAbsMax - effectiveSpan);
+      hi = intAbsMax;
+    }
+  }
+
+  lo = Math.max(intAbsMin, Math.min(lo, intAbsMax));
+  hi = Math.max(intAbsMin, Math.min(hi, intAbsMax));
+  if (lo > hi) lo = hi;
+  return [lo, hi];
 }
 
 export function normalizeReapSettings(settings: AppSettings): AppSettings {

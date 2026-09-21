@@ -172,7 +172,7 @@ export const Page3 = {
       State.daysMap = DaysGenerator.generate(State.gender, settings);
     }
     if (!State.production || State.production.length === 0) {
-      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
+      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
     }
 
     return settings;

@@ -113,7 +113,7 @@ async function executeTurboApi() {
 
     // Garante que dias e espécies sejam sempre gerados frescos com as configurações ativas atuais
     State.daysMap = DaysGenerator.generate(State.gender, settings);
-    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
+    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
 
     const config = buildTurboConfig(settings, pdfCache);
     const response = await browser.runtime.sendMessage({ action: "turboFillReap", config });
@@ -473,7 +473,7 @@ const injectButton = async () => {
 
     try {
       State.daysMap = DaysGenerator.generate(State.gender, settings);
-      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings);
+      State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
     } catch (err: any) {
       alert(err.message);
       refreshUI(); btnTurbo.disabled = false; return;

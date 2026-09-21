@@ -235,6 +235,7 @@ export interface AppSettings {
     priceMax?: string;
   }>;
   mpaSpeciesCount?: number;
+  mpaRotateMonthlySpecies?: boolean;
 
   mpaMascProdMin?: string;
   mpaMascProdMax?: string;

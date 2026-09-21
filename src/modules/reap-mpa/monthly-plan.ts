@@ -59,7 +59,7 @@ function buildSpeciesForMonth(monthIndex: number, production: FishProduction[]):
         especiePescado: fish.id,
         unidadeMedida: 1,
         quantidade: monthlyKg,
-        valorMedioQuilo: fish.price,
+        valorMedioQuilo: fish.monthlyPrices?.[monthIndex] ?? fish.price,
       };
     })
     .filter((item): item is TurboEspecieConfig => item !== null);

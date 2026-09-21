@@ -2,11 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppSettings } from "../../../../shared/types";
 import { SpeciesSearch } from "./SharedFields";
 import { ReapHelpModal } from "./ReapHelpModal";
-
-function parsePositiveNumber(value?: string) {
-  const parsed = Number(String(value ?? "").replace(",", "."));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
+import { getValidSpeciesPool, normalizeProductionRange } from "../../../../modules/reap-mpa/reap-settings";
 
 function cleanSpeciesNumericInput(value: string, allowDecimal = true): string {
   if (!value) return "";
@@ -34,42 +30,35 @@ function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function normalizeRange(valueMin: number | undefined, valueMax: number | undefined, absMin: number, absMax: number) {
-  const min = Math.min(absMax, Math.max(absMin, Number.isFinite(valueMin) ? valueMin! : absMin));
-  const max = Math.min(absMax, Math.max(absMin, Number.isFinite(valueMax) ? valueMax! : absMax));
-  return [Math.min(min, max), Math.max(min, max)] as [number, number];
-}
-
 function calculateProductionSlice(settings: AppSettings) {
   const productiveMonths = 12 - new Set(
     (settings.mpaDefesoMonths || []).filter((month) => Number.isInteger(month) && month >= 1 && month <= 12),
   ).size;
 
-  const species = (settings.mpaSpecies || [])
-    .map((item) => {
-      const kgMin = parsePositiveNumber(item.kgMin);
-      const kgMax = parsePositiveNumber(item.kgMax);
-      const priceMin = parsePositiveNumber(item.priceMin);
-      const priceMax = parsePositiveNumber(item.priceMax);
-      if (kgMin == null || kgMax == null || priceMin == null || priceMax == null) return null;
-      if (kgMin > kgMax || priceMin > priceMax) return null;
-      return {
-        annualMin: kgMin * priceMin * productiveMonths,
-        annualMax: kgMax * priceMax * productiveMonths,
-      };
-    })
-    .filter((item): item is { annualMin: number; annualMax: number } => item !== null);
-
+  const species = getValidSpeciesPool(settings.mpaSpecies);
+  const requestedCount = Number(settings.mpaSpeciesCount);
   const usableCount = species.length;
-  const min = species.reduce((acc, item) => acc + item.annualMin, 0);
-  const max = species.reduce((acc, item) => acc + item.annualMax, 0);
+  if (!Number.isInteger(requestedCount) || requestedCount < 1 || usableCount < requestedCount || productiveMonths <= 0) {
+    return { min: 0, max: 0, usableCount, productiveMonths, isReady: false };
+  }
+
+  const annualMin = species
+    .map((item) => item.kgMin * item.priceMin * productiveMonths)
+    .sort((a, b) => a - b)
+    .slice(0, requestedCount)
+    .reduce((sum, value) => sum + value, 0);
+  const annualMax = species
+    .map((item) => item.kgMax * item.priceMax * productiveMonths)
+    .sort((a, b) => b - a)
+    .slice(0, requestedCount)
+    .reduce((sum, value) => sum + value, 0);
 
   return {
-    min: Math.round(min),
-    max: Math.round(max),
+    min: Math.ceil(annualMin),
+    max: Math.floor(annualMax),
     usableCount,
     productiveMonths,
-    isReady: productiveMonths > 0 && usableCount > 0,
+    isReady: annualMin <= annualMax,
   };
 }
 
@@ -238,20 +227,24 @@ export function ReapSpeciesSection({
   const productionSlice = calculateProductionSlice(settings);
   const prodAbsMin = productionSlice.min;
   const prodAbsMax = productionSlice.max;
-  const [mascProdAnnualMin, mascProdAnnualMax] = normalizeRange(
+  const [mascProdAnnualMin, mascProdAnnualMax] = normalizeProductionRange(
     settings.mpaMascProductionAnnualMin,
     settings.mpaMascProductionAnnualMax,
     prodAbsMin,
     prodAbsMax,
   );
-  const [femProdAnnualMin, femProdAnnualMax] = normalizeRange(
+  const [femProdAnnualMin, femProdAnnualMax] = normalizeProductionRange(
     settings.mpaFemProductionAnnualMin,
     settings.mpaFemProductionAnnualMax,
     prodAbsMin,
     prodAbsMax,
   );
   const productionInputsKey = JSON.stringify(
-    (settings.mpaSpecies || []).map((item) => [item.kgMin, item.kgMax, item.priceMin, item.priceMax]),
+    [
+      settings.mpaSpeciesCount,
+      settings.mpaDefesoMonths,
+      ...(settings.mpaSpecies || []).map((item) => [item.kgMin, item.kgMax, item.priceMin, item.priceMax]),
+    ],
   );
   const previousProductionInputsKey = useRef<string>();
 
@@ -344,6 +337,14 @@ export function ReapSpeciesSection({
             ))}
           </select>
           {speciesCountFeedback}
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: "var(--color-text)" }}>
+            <input
+              type="checkbox"
+              checked={Boolean(settings.mpaRotateMonthlySpecies)}
+              onChange={(event) => onUpdate({ mpaRotateMonthlySpecies: event.target.checked })}
+            />
+            Alternar espécies mensalmente
+          </label>
         </div>
 
         <div className="stack" style={{ gap: "8px" }}>
