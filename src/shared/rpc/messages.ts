@@ -56,6 +56,7 @@ export const UpdateGovBatchStatusRequestSchema = z.object({
     "carregando_comercializacao",
     "baixando_pdf",
   ]).optional(),
+  competenciasResultados: z.array(z.any()).optional(),
   lastError: z.string().optional(),
 });
 

@@ -38,6 +38,10 @@ export interface SigessOverlayConfig {
     label: string;
     onClick: () => void | Promise<void>;
   };
+  /** Conteúdo adicional construído pelo módulo consumidor. */
+  content?: HTMLElement;
+  /** Largura máxima do card; útil para overlays com listas de progresso. */
+  maxWidth?: string;
 }
 
 export const SIGESS_OVERLAY_STYLE_ID = "sigess-automation-overlay-style";
@@ -177,7 +181,7 @@ export function createSigessOverlayElement(config: SigessOverlayConfig): HTMLEle
 
   // Card central
   const box = document.createElement("div");
-  box.style.cssText = "background: #ffffff !important; padding: 30px 40px !important; border-radius: 20px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35) !important; border: 2px solid rgba(16, 185, 129, 0.4) !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 14px !important; min-width: 300px !important; max-width: 420px !important; text-align: center !important; box-sizing: border-box !important;";
+  box.style.cssText = `background: #ffffff !important; padding: 30px 40px !important; border-radius: 20px !important; box-shadow: 0 25px 50px -12px rgba(16, 185, 129, 0.24) !important; border: 2px solid rgba(16, 185, 129, 0.4) !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 14px !important; min-width: 300px !important; max-width: ${config.maxWidth || "420px"} !important; text-align: center !important; box-sizing: border-box !important;`;
 
   box.appendChild(createOverlayLoader(config));
   box.appendChild(createOverlayTitle(config));
@@ -196,6 +200,10 @@ export function createSigessOverlayElement(config: SigessOverlayConfig): HTMLEle
     note.textContent = config.note;
     note.style.cssText = "background: #f0fdf4 !important; border: 1px solid #bbf7d0 !important; border-radius: 8px !important; padding: 8px 14px !important; font-size: 11.5px !important; color: #166534 !important; line-height: 1.4 !important; margin-top: 4px !important;";
     box.appendChild(note);
+  }
+
+  if (config.content) {
+    box.appendChild(config.content);
   }
 
   // Botão de ação opcional (ex: "OK")

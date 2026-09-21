@@ -3,7 +3,9 @@ import {
   AppSettings,
   EsocialCompetenciaPlanejada,
   GovBatchCompetenciaResult,
+  GovBatchCompetenciaStage,
 } from "../../../shared/types";
+import type { EsocialOverlayState } from "../types";
 import {
   extractMoneyValues,
   extractCompetenciaFromUrl,
@@ -49,6 +51,23 @@ type GpsQueueState = {
 };
 
 type GpsExecutionAction = "ja_existente" | "reabrir_e_gerar" | "gerar";
+
+const GENERATION_STAGES_TOTAL = 5;
+// O teste aprovado dispara todas as competências. Se o eSocial exigir
+// contenção, basta reduzir este valor sem trocar o modelo de jobs.
+const ESOCIAL_PARALLEL_CONCURRENCY_LIMIT = Number.POSITIVE_INFINITY;
+
+const STAGE_DESCRIPTIONS: Record<GovBatchCompetenciaStage, string> = {
+  preparacao: "Preparando dados da competência...",
+  rascunho: "Salvando o rascunho de comercialização...",
+  eventos: "Enviando eventos de comercialização...",
+  fechamento: "Fechando a folha e confirmando a guia...",
+  download: "Baixando o boleto...",
+};
+
+function stageIndex(stage: GovBatchCompetenciaStage): number {
+  return ["preparacao", "rascunho", "eventos", "fechamento", "download"].indexOf(stage) + 1;
+}
 
 function normalizePlannedCompetencias(settings: AppSettings): EsocialCompetenciaPlanejada[] {
   const planned = (settings.competencias || [])
@@ -109,11 +128,108 @@ function clearGpsQueueState() {
 }
 
 function queueStatusExtra(state: GpsQueueState, competenciaAtual?: string) {
+  const competenciaIndice = competenciaAtual
+    ? state.competencias.findIndex((item) => `${item.ano}${item.mes}` === competenciaAtual) + 1
+    : state.index + 1;
   return {
     competenciaAtual,
-    competenciaIndice: state.index + 1,
+    competenciaIndice: competenciaIndice > 0 ? competenciaIndice : state.index + 1,
     competenciasTotal: state.competencias.length,
     competenciasResultados: state.resultados,
+  };
+}
+
+function updateCompetenciaResult(
+  competencia: string,
+  patch: Partial<GovBatchCompetenciaResult> & Pick<GovBatchCompetenciaResult, "status">,
+): GpsQueueState | null {
+  const state = readGpsQueueState();
+  if (!state) return null;
+
+  const current = state.resultados.find((item) => item.competencia === competencia);
+  const result: GovBatchCompetenciaResult = {
+    ...(current || { competencia }),
+    ...patch,
+    competencia,
+  };
+  state.resultados = [
+    ...state.resultados.filter((item) => item.competencia !== competencia),
+    result,
+  ].sort((left, right) => left.competencia.localeCompare(right.competencia));
+  writeGpsQueueState(state);
+  return state;
+}
+
+function reportCompetenciaStage(
+  competencia: string,
+  status: GovBatchCompetenciaResult["status"],
+  etapa: GovBatchCompetenciaStage,
+  description = STAGE_DESCRIPTIONS[etapa],
+  extra?: Partial<GovBatchCompetenciaResult>,
+) {
+  const state = updateCompetenciaResult(competencia, {
+    status,
+    etapa,
+    etapaIndice: stageIndex(etapa),
+    etapasTotal: GENERATION_STAGES_TOTAL,
+    etapaDescricao: description,
+    ...extra,
+  });
+  if (!state) return;
+
+  const overlayState = buildCompetenciasOverlayState(
+    state,
+    description,
+    `${competenciaLabel(competencia)} · ${description}`,
+    stageIndex(etapa),
+  );
+
+  reportStatusMessage(
+    {
+      status: "processando",
+      title: description,
+      description: `${competenciaLabel(competencia)} · ${description}`,
+      progressFlow: "geracao",
+      progressStage: etapa === "preparacao"
+        ? "preparando_competencia"
+        : etapa === "download"
+          ? "baixando_pdf"
+          : "carregando_comercializacao",
+    },
+    {
+      ...queueStatusExtra(state, competencia),
+      overlayState,
+    },
+  );
+}
+
+function buildCompetenciasOverlayState(
+  state: GpsQueueState,
+  title: string,
+  description: string,
+  step: number,
+  complete = false,
+): EsocialOverlayState {
+  return {
+    step,
+    total: GENERATION_STAGES_TOTAL,
+    title,
+    description,
+    complete,
+    competencias: state.competencias.map((item) => {
+      const itemCompetencia = `${item.ano}${item.mes}`;
+      const result = state.resultados.find((entry) => entry.competencia === itemCompetencia);
+      return {
+        competencia: itemCompetencia,
+        status: result?.status || "pendente",
+        etapa: result?.etapa,
+        etapaIndice: result?.etapaIndice,
+        etapasTotal: result?.etapasTotal,
+        etapaDescricao: result?.etapaDescricao,
+        lastError: result?.lastError,
+        reabertura: state.plano?.[itemCompetencia] === "reabrir_e_gerar",
+      };
+    }),
   };
 }
 
@@ -228,6 +344,166 @@ async function prepararPlanoDeGeracao(
   return prepared;
 }
 
+async function executarPlanoParalelo(
+  settings: AppSettings,
+  state: GpsQueueState,
+): Promise<void> {
+  const planejadas = state.competencias.filter((item) => {
+    const competencia = `${item.ano}${item.mes}`;
+    const recorded = state.resultados.find((result) => result.competencia === competencia);
+    const alreadyCompleted = recorded?.status === "concluido" || recorded?.status === "ja_existente";
+    return state.plano?.[competencia] !== "reabrir_e_gerar" && !alreadyCompleted;
+  });
+
+  const jobs = planejadas.map((planned) => async () => {
+    const competencia = `${planned.ano}${planned.mes}`;
+    const info = state.diagnostico?.[competencia];
+    const acao = state.plano?.[competencia];
+    if (!info || !acao) {
+      throw new Error(`Plano de execução ausente para ${competencia}.`);
+    }
+
+    if (acao === "ja_existente" && hasGuiaEmitida(info)) {
+      reportCompetenciaStage(
+        competencia,
+        "processando",
+        "download",
+        "Baixando guia já existente...",
+      );
+      const guiaUrl = buildEsocialUrl(
+        `/FolhaPagamento/EmitirGuia/EmitirGuiaMensal?competencia=${competencia}`,
+      );
+      await baixarGuiaPdfDirecto(
+        guiaUrl,
+        competencia,
+        false,
+        {
+          valorComercializado: 0,
+          valorDeclarado: info.valorDeclarado,
+          valorPago: info.valorPago,
+        },
+        { suppressBatchStatus: true },
+      );
+      updateCompetenciaResult(competencia, {
+        status: "ja_existente",
+        etapa: "download",
+        etapaIndice: GENERATION_STAGES_TOTAL,
+        etapasTotal: GENERATION_STAGES_TOTAL,
+        etapaDescricao: "Guia existente baixada",
+        valorDeclarado: info.valorDeclarado,
+        valorPago: info.valorPago,
+      });
+      return;
+    }
+
+    if (acao !== "gerar") return;
+    await executarFluxoDiretoGps(settings, competencia, { advanceQueue: false });
+  });
+
+  const settled = await settleJobs(jobs, ESOCIAL_PARALLEL_CONCURRENCY_LIMIT);
+  const failedCompetencias: string[] = [];
+  settled.forEach((result, index) => {
+    if (result.status !== "rejected") return;
+    const planned = planejadas[index];
+    const competencia = `${planned.ano}${planned.mes}`;
+    const errorMessage = result.reason instanceof Error
+      ? result.reason.message
+      : String(result.reason);
+    failedCompetencias.push(competencia);
+    const currentState = updateCompetenciaResult(competencia, {
+      status: "erro",
+      etapaDescricao: errorMessage,
+      lastError: errorMessage,
+    });
+    if (currentState) {
+      reportStatusMessage(
+        {
+          status: "erro",
+          title: `Falha em ${competenciaLabel(competencia)}`,
+          description: errorMessage,
+          progressFlow: "geracao",
+          progressStage: "preparando_competencia",
+        },
+        queueStatusExtra(currentState, competencia),
+      );
+    }
+  });
+
+  const finalState = readGpsQueueState() || state;
+  const completedCount = finalState.resultados.filter(
+    (result) => result.status === "concluido" || result.status === "ja_existente",
+  ).length;
+  const totalCount = finalState.competencias.length;
+  if (failedCompetencias.length > 0) {
+    reportStatusMessage(
+      {
+        status: "erro",
+        title: "Geração concluída com erros",
+        description: `${completedCount}/${totalCount} competência(s) processada(s).`,
+        progressFlow: "geracao",
+        progressStage: "baixando_pdf",
+      },
+      {
+        ...queueStatusExtra(finalState),
+        overlayState: buildCompetenciasOverlayState(
+          finalState,
+          "Geração concluída com erros",
+          `${completedCount}/${totalCount} competência(s) processada(s).`,
+          GENERATION_STAGES_TOTAL,
+        ),
+      },
+    );
+  } else {
+    reportStatusMessage(
+      {
+        status: "concluido",
+        title: "Geração concluída",
+        description: `${completedCount}/${totalCount} competência(s) processada(s) com sucesso.`,
+        progressFlow: "geracao",
+        progressStage: "baixando_pdf",
+      },
+      {
+        ...queueStatusExtra(finalState),
+        overlayState: null,
+      },
+    );
+    showSuccessModal("Geração concluída");
+  }
+
+  clearGpsQueueState();
+  releaseGpsFlowLock();
+}
+
+async function settleJobs<T>(
+  jobs: Array<() => Promise<T>>,
+  concurrencyLimit: number,
+): Promise<PromiseSettledResult<T>[]> {
+  if (!Number.isFinite(concurrencyLimit) || concurrencyLimit >= jobs.length) {
+    return Promise.allSettled(jobs.map((job) => job()));
+  }
+
+  const results: PromiseSettledResult<T>[] = new Array(jobs.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < jobs.length) {
+      const index = cursor++;
+      try {
+        results[index] = { status: "fulfilled", value: await jobs[index]() };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  };
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(Math.max(1, concurrencyLimit), jobs.length) },
+      () => worker(),
+    ),
+  );
+  return results;
+}
+
 function markCurrentCompetenciaResult(
   status: GovBatchCompetenciaResult["status"],
   lastError?: string,
@@ -250,14 +526,25 @@ function markCurrentCompetenciaResult(
   return state;
 }
 
-export async function executarFluxoDiretoGps(settings: AppSettings, competencia: string) {
+type GpsExecutionOptions = {
+  advanceQueue?: boolean;
+};
+
+export async function executarFluxoDiretoGps(
+  settings: AppSettings,
+  competencia: string,
+  options: GpsExecutionOptions = {},
+) {
   const queue = readGpsQueueState();
-  const queueCompetencia = queue?.competencias[queue.index];
+  const queueCompetencia = queue?.competencias.find(
+    (item) => `${item.ano}${item.mes}` === competencia,
+  );
   const valorComercializado = normalizeMoneyValue(
     queueCompetencia?.valorComercializado ?? settings.valorComercializado,
   );
   console.debug("[SIGESS] valorComercializado from tab context:", settings.valorComercializado);
   console.debug("[SIGESS] valorComercializado normalized:", valorComercializado);
+  reportCompetenciaStage(competencia, "processando", "preparacao");
   const { comercializacaoHtml, autonomosHtml } = await carregarDadosComercializacao(competencia);
   const comercializacaoDoc = parseHtml(comercializacaoHtml);
   const comercializacaoPayload = buildComercializacaoPayload(
@@ -266,6 +553,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     valorComercializado,
   );
 
+  reportCompetenciaStage(competencia, "processando", "rascunho");
   const salvarResp = await postJson(
     "/FolhaPagamento/SeguradoEspecial/SalvarRascunhoComercializacaoProducao",
     comercializacaoPayload,
@@ -276,6 +564,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
   logger.info("eSocial", savingMsg.title);
   reportStatusMessage(savingMsg);
 
+  reportCompetenciaStage(competencia, "processando", "eventos");
   const enviarResp = await postJson(
     "/FolhaPagamento/SeguradoEspecial/EnviarEventosComercializacaoProducao",
     comercializacaoPayload,
@@ -296,6 +585,7 @@ export async function executarFluxoDiretoGps(settings: AppSettings, competencia:
     valorComercializado,
     enviaRemuneracoesParams,
     settings,
+    options,
   );
 }
 
@@ -304,7 +594,9 @@ async function executarFechamentoDireto(
   valorComercializado: string,
   enviaRemuneracoesParams: URLSearchParams,
   settings: AppSettings,
+  options: GpsExecutionOptions = {},
 ): Promise<void> {
+  reportCompetenciaStage(competencia, "processando", "fechamento");
   const remuneracoesMsg = esocialMessages.loadingClosureScreen();
   logger.info("eSocial", remuneracoesMsg.title);
   reportStatusMessage(remuneracoesMsg);
@@ -361,6 +653,7 @@ async function executarFechamentoDireto(
     throw new Error("A folha não foi fechada com guia confirmada após o POST de fechamento.");
   }
 
+  reportCompetenciaStage(competencia, "processando", "download");
   await baixarGuiaPdfDirecto(
     guiaUrl,
     competencia,
@@ -370,18 +663,26 @@ async function executarFechamentoDireto(
       valorDeclarado: guiaAposFechamento.valorDeclarado,
       valorPago: guiaAposFechamento.valorPago,
     },
+    { suppressBatchStatus: true },
   );
 
-  await advanceGpsQueueAfterCompletion(
-    settings,
-    competencia,
-    "concluido",
-    {
-      valorComercializado: Number.parseFloat(valorComercializado.replace(",", ".")) || undefined,
-      valorDeclarado: guiaAposFechamento.valorDeclarado,
-      valorPago: guiaAposFechamento.valorPago,
-    },
-  );
+  const boletoInfo = {
+    valorComercializado: Number.parseFloat(valorComercializado.replace(",", ".")) || undefined,
+    valorDeclarado: guiaAposFechamento.valorDeclarado,
+    valorPago: guiaAposFechamento.valorPago,
+  };
+  if (options.advanceQueue !== false) {
+    await advanceGpsQueueAfterCompletion(settings, competencia, "concluido", boletoInfo);
+  } else {
+    updateCompetenciaResult(competencia, {
+      status: "concluido",
+      etapa: "download",
+      etapaIndice: GENERATION_STAGES_TOTAL,
+      etapasTotal: GENERATION_STAGES_TOTAL,
+      etapaDescricao: "Boleto baixado",
+      ...boletoInfo,
+    });
+  }
 }
 async function carregarDadosComercializacao(competencia: string): Promise<{
   comercializacaoHtml: string;
@@ -646,6 +947,12 @@ function iniciarReaberturaDaCompetencia(
   valorComercializado: string,
   state: GpsQueueState,
 ) {
+  reportCompetenciaStage(
+    competencia,
+    "processando",
+    "preparacao",
+    "Reabrindo competência " + competenciaLabel(competencia) + "...",
+  );
   const reopenMsg = esocialMessages.reopeningCompetencia(competenciaLabel(competencia));
   reportStatusMessage(reopenMsg, {
     ...queueStatusExtra(state, competencia),
@@ -1356,6 +1663,17 @@ export async function executarFluxoDirectoFromHome(settings: AppSettings): Promi
   // the whole tab. Read the complete Competencias table once, then keep the
   // resulting action plan in sessionStorage while the queue advances.
   activeQueue = await prepararPlanoDeGeracao(activeQueue, competencia);
+
+  // A normal generation can keep the authenticated page stable and run one
+  // independent pipeline per competence. Reopening remains an isolated path
+  // because the portal still requires a physical navigation for that action.
+  const hasReopening = activeQueue.competencias.some(
+    (item) => activeQueue.plano?.[`${item.ano}${item.mes}`] === "reabrir_e_gerar",
+  );
+  if (!hasReopening) {
+    await executarPlanoParalelo(settings, activeQueue);
+    return;
+  }
 
   const checkMsg = esocialMessages.verifyingBoletoStatus();
   logger.info("eSocial", checkMsg.title);

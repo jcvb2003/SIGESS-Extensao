@@ -29,13 +29,18 @@ type EsocialDownloadIdentity = {
   nome: string;
 };
 
+export type GuideDownloadOptions = {
+  suppressBatchStatus?: boolean;
+};
+
 function baixarGuiaPdfDirecto(
   guiaUrl: string,
   competencia: string,
   boletoGerado = false,
   valores: BoletoValores = {},
+  options: GuideDownloadOptions = {},
 ) {
-  return baixarGuiaPdf(guiaUrl, competencia, boletoGerado, valores);
+  return baixarGuiaPdf(guiaUrl, competencia, boletoGerado, valores, options);
 }
 
 export function observarBotaoEmitirGuia() {
@@ -137,17 +142,15 @@ async function baixarGuiaPdf(
   competencia: string,
   boletoGerado = false,
   valores: BoletoValores = {},
+  options: GuideDownloadOptions = {},
 ) {
   const downloadingMsg = esocialMessages.manualEmitGuideDetected();
   logger.info("eSocial", downloadingMsg.title);
-  reportStatusMessage(downloadingMsg, {
-    overlayState: {
-      step: 3,
-      total: 3,
-      title: "Preparando o download do boleto",
-      description: `Preparando o download do boleto de ${formatCompetencia(competencia)}...`,
-    },
-  });
+  // A geração paralela mantém um overlay por competência. O download apenas
+  // atualiza o status persistido; o coordenador é quem redesenha as barras.
+  if (!options.suppressBatchStatus) {
+    reportStatusMessage(downloadingMsg);
+  }
 
   console.log("[SIGESS] Iniciando fetch da guia URL:", guiaUrl);
   const controller = new AbortController();
@@ -188,7 +191,7 @@ async function baixarGuiaPdf(
           contentType,
         });
 
-        return baixarGuiaPdf(resolvedPdfUrl, competencia, boletoGerado, valores);
+        return baixarGuiaPdf(resolvedPdfUrl, competencia, boletoGerado, valores, options);
       }
 
       if (html && looksLikeHtmlDocument(html)) {
@@ -209,19 +212,13 @@ async function baixarGuiaPdf(
 
     const successMsg = esocialMessages.pdfDownloadedSuccessfully(filename);
     logger.info("eSocial", successMsg.title);
-    reportStatusMessage(successMsg, {
-      loginConcluido: true,
-      boletoGerado,
-      boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), ...valores },
-      overlayState: {
-        step: 3,
-        total: 3,
-        title: "Boleto salvo com sucesso",
-        description: `Arquivo: ${filename}`,
-        complete: true,
-        hideAt: Date.now() + 4000,
-      },
-    });
+    if (!options.suppressBatchStatus) {
+      reportStatusMessage(successMsg, {
+        loginConcluido: true,
+        boletoGerado,
+        boletoInfo: { detectado: true, competencia: formatCompetencia(competencia), ...valores },
+      });
+    }
   } finally {
     clearTimeout(timeoutId);
   }

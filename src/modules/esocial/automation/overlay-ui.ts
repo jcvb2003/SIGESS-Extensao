@@ -4,6 +4,7 @@ import {
 } from "../utils/esocial-constants";
 import type { EsocialOverlayState } from "../types";
 import type { StatusMessage } from "../utils/status-messages";
+import { hideSigessOverlay, showSigessOverlay } from "../../../shared/ui/automation-overlay";
 
 function escapeHtml(value: string): string {
   return value
@@ -26,53 +27,91 @@ export function renderEsocialProgressOverlay(state: EsocialOverlayState) {
     return;
   }
 
-  let overlay = document.getElementById(ESOCIAL_PROGRESS_OVERLAY_ID);
-  if (!overlay) {
-    overlay = document.createElement("div");
-    overlay.id = ESOCIAL_PROGRESS_OVERLAY_ID;
-    overlay.style.cssText =
-      "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px);";
-    document.body.appendChild(overlay);
-  }
+  const content = document.createElement("div");
+  content.style.cssText =
+    "width:100%; display:flex; flex-direction:column; gap:10px; text-align:left;";
 
-  const overlayTotal = Math.max(1, state.total || 1);
-  const overlayStep = Math.min(
-    overlayTotal,
-    Math.max(1, state.complete ? overlayTotal : state.step || 1),
+  const summary = document.createElement("div");
+  summary.textContent = `Andamento da emissão · ${state.competencias?.length || state.total || 1} competência(s)`;
+  summary.style.cssText =
+    "font-size:11px; color:#667085; border-top:1px solid #e5eaed; padding-top:12px;";
+  content.appendChild(summary);
+
+  const list = document.createElement("div");
+  list.setAttribute("role", "list");
+  list.style.cssText =
+    "display:flex; flex-direction:column; gap:8px; max-height:380px; overflow-y:auto; padding-right:4px;";
+
+  const results = [...(state.competencias || [])].sort((left, right) =>
+    left.competencia.localeCompare(right.competencia),
   );
+  const stages = ["preparacao", "rascunho", "eventos", "fechamento", "download"] as const;
 
-  const segments = Array.from({ length: overlayTotal })
-    .map((_, index) => {
-      const filled = index < overlayStep;
-      return `<span style="height: 4px; flex: 1; background: ${
-        filled ? "#0f766e" : "#d9e2ec"
-      }; transition: background 0.2s ease;"></span>`;
-    })
-    .join("");
+  for (const result of results) {
+    const row = document.createElement("div");
+    row.setAttribute("role", "listitem");
+    row.style.cssText =
+      "display:flex; flex-direction:column; gap:4px; padding:7px 8px; border:1px solid #e5e7eb; border-radius:9px; background:#f8fafc;";
 
-  overlay.innerHTML = `<section role="status" aria-live="polite" style="background: #ffffff; padding: 26px 28px; border-left: 3px solid ${
-    state.complete ? "#0f766e" : "#176b68"
-  }; width: min(420px, calc(100vw - 32px)); font-family: 'Segoe UI', Tahoma, sans-serif; box-shadow: 0 14px 32px rgba(15, 23, 42, 0.22); color: #1f2937; display: flex; flex-direction: column; align-items: stretch; gap: 18px;">
-      <div style="display:flex; align-items:flex-start; gap:12px;">
-        <div aria-hidden="true" style="margin-top:2px; width: 24px; height: 24px; border: 3px solid #dfe8e7; border-top-color: ${
-          state.complete ? "#16a34a" : "#176b68"
-        }; border-radius: 50%; animation: ${
-          state.complete ? "none" : "sigessEsocialSpin 1s linear infinite"
-        };"></div>
-        <div style="display:flex; flex-direction:column; gap:4px;">
-          <span style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#176b68;">SIGESS · eSocial</span>
-          <strong style="font-size: 16px; color: #1f2937; line-height:1.35;">${escapeHtml(state.title)}</strong>
-          <span style="font-size: 12px; color: #667085; line-height:1.5;">${escapeHtml(state.description)}</span>
-        </div>
-      </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; padding-top:14px; border-top:1px solid #e5eaed; font-size:11px; color:#667085;">
-        <span>Andamento da emissão</span>
-        <span>Etapa ${overlayStep} de ${overlayTotal}</span>
-      </div>
-      <div style="display:flex; gap:6px;">${segments}</div>
-    </section>
-    <style>@keyframes sigessEsocialSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
-  overlay.style.display = "flex";
+    const header = document.createElement("div");
+    header.style.cssText = "display:flex; align-items:center; justify-content:space-between; gap:8px;";
+    const label = document.createElement("strong");
+    label.textContent = formatCompetencia(result.competencia);
+    label.style.cssText = "font-size:12px; color:#1f2937;";
+    header.appendChild(label);
+
+    if (result.reabertura) {
+      const badge = document.createElement("span");
+      badge.textContent = "REABERTURA";
+      badge.style.cssText =
+        "font-size:9px; font-weight:700; letter-spacing:.06em; color:#9a3412; background:#ffedd5; border:1px solid #fed7aa; border-radius:999px; padding:2px 6px;";
+      header.appendChild(badge);
+    }
+    row.appendChild(header);
+
+    const bars = document.createElement("div");
+    bars.style.cssText = "display:flex; gap:4px; width:100%;";
+    const activeIndex = Math.max(0, (result.etapaIndice || 0) - 1);
+    stages.forEach((stage, index) => {
+      const bar = document.createElement("span");
+      const completed = result.status === "concluido" ||
+        (result.status === "ja_existente" && stage === "download") ||
+        (result.status === "processando" && index < activeIndex);
+      const active = result.status === "processando" && index === activeIndex;
+      const errored = result.status === "erro" && index === activeIndex;
+      bar.title = stage;
+      bar.style.cssText = `height:6px; flex:1; border-radius:999px; background:${
+        errored ? "#dc2626" : completed ? "#10b981" : active ? "#34d399" : "#dbe4ea"
+      }; transition:background .2s ease;${active ? " animation:sigess-esocial-stage-pulse 1.1s ease-in-out infinite;" : ""}`;
+      bars.appendChild(bar);
+    });
+    row.appendChild(bars);
+
+    const description = document.createElement("span");
+    description.textContent = result.lastError || result.etapaDescricao || statusLabel(result.status);
+    description.style.cssText = `font-size:10px; color:${result.status === "erro" ? "#b91c1c" : "#667085"};`;
+    row.appendChild(description);
+    list.appendChild(row);
+  }
+  content.appendChild(list);
+
+  showSigessOverlay({
+    id: ESOCIAL_PROGRESS_OVERLAY_ID,
+    title: state.title,
+    description: state.description,
+    content,
+    maxWidth: "520px",
+    animatedDots: !state.complete,
+    isSuccess: state.complete,
+    hideSpinner: state.complete,
+  });
+
+  const style = document.createElement("style");
+  style.textContent = `
+    @keyframes sigess-esocial-stage-pulse { 0%, 100% { opacity: .55; transform: scaleX(.96); } 50% { opacity: 1; transform: scaleX(1); } }
+    @media (prefers-reduced-motion: reduce) { [style*="sigess-esocial-stage-pulse"] { animation: none !important; } }
+  `;
+  document.head?.appendChild(style);
 
   if (state.hideAt && state.hideAt > Date.now()) {
     window.setTimeout(() => {
@@ -86,9 +125,25 @@ export function renderEsocialProgressOverlay(state: EsocialOverlayState) {
 
 export function clearEsocialProgressOverlay() {
   sessionStorage.removeItem(ESOCIAL_PROGRESS_OVERLAY_STORAGE_KEY);
-  const overlay = document.getElementById(ESOCIAL_PROGRESS_OVERLAY_ID);
-  if (overlay) {
-    overlay.remove();
+  hideSigessOverlay(ESOCIAL_PROGRESS_OVERLAY_ID);
+}
+
+function formatCompetencia(competencia: string): string {
+  return /^\d{6}$/.test(competencia)
+    ? `${competencia.slice(4, 6)}/${competencia.slice(0, 4)}`
+    : competencia;
+}
+
+type OverlayCompetenciaStatus = NonNullable<EsocialOverlayState["competencias"]>[number]["status"];
+
+function statusLabel(status: OverlayCompetenciaStatus): string {
+  switch (status) {
+    case "concluido": return "Concluído";
+    case "ja_existente": return "Guia existente baixada";
+    case "erro": return "Erro";
+    case "processando": return "Processando...";
+    case "ignorado": return "Ignorado";
+    default: return "Aguardando...";
   }
 }
 
@@ -123,7 +178,9 @@ export function reportBatchStatus(
   statusDescription: string,
   extra?: Record<string, unknown>,
 ) {
-  const overlayState = (extra?.overlayState as EsocialOverlayState | null | undefined) ?? undefined;
+  const overlayState = extra && Object.prototype.hasOwnProperty.call(extra, "overlayState")
+    ? (extra.overlayState as EsocialOverlayState | null)
+    : undefined;
   const payloadExtra = { ...(extra || {}) };
   delete payloadExtra.overlayState;
 
@@ -169,6 +226,8 @@ export function showSuccessModal(title: string = "Boleto Gerado!", onClose?: () 
     return;
   }
 
+  clearEsocialProgressOverlay();
+
   const modalId = "sigess-success-modal";
   let modal = document.getElementById(modalId);
 
@@ -179,7 +238,7 @@ export function showSuccessModal(title: string = "Boleto Gerado!", onClose?: () 
   modal = document.createElement("div");
   modal.id = modalId;
   modal.style.cssText =
-    "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px);";
+    "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2147483647; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); pointer-events: auto;";
 
   const content = document.createElement("div");
   content.style.cssText =
@@ -190,7 +249,7 @@ export function showSuccessModal(title: string = "Boleto Gerado!", onClose?: () 
       <div style="font-size: 48px; margin-bottom: 16px;">✓</div>
       <h2 style="margin: 0; color: #16a34a; font-size: 24px; font-weight: 600;">${escapeHtml(title)}</h2>
     </div>
-    <button id="sigess-modal-ok" style="
+    <button id="sigess-modal-ok" type="button" style="
       background: #007bff;
       color: white;
       border: none;
@@ -206,10 +265,13 @@ export function showSuccessModal(title: string = "Boleto Gerado!", onClose?: () 
   modal.appendChild(content);
   document.body.appendChild(modal);
 
-  const okButton = document.getElementById("sigess-modal-ok");
+  const okButton = content.querySelector("#sigess-modal-ok") as HTMLButtonElement | null;
   if (okButton) {
-    okButton.addEventListener("click", () => {
+    okButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       modal?.remove();
+      clearEsocialProgressOverlay();
       onClose?.();
     });
 

@@ -35,6 +35,7 @@ export class StorageService {
   private static readonly CADASTRO_SESSION_KEY = "sigessActiveCadastro";
   private static readonly CLOSED_GOV_BATCH_STATUSES_KEY =
     "sigess_closed_gov_batch_statuses";
+  private static readonly credentialWriteQueues = new Map<number, Promise<void>>();
   static async get<T>(keys: string | string[]): Promise<Record<string, T>> {
     const storage = getBrowserStorage();
     if (!storage) return {} as Record<string, T>;
@@ -245,9 +246,7 @@ export class StorageService {
     tabId: number,
     creds: UserCredentials,
   ): Promise<void> {
-    const key = `credenciais_${tabId}`;
-    await this.set({ [key]: creds });
-    await this.set({ sigess_last_esocial_credentials: creds });
+    await this.withCredentialWriteLock(tabId, () => this.persistCredentials(tabId, creds));
   }
 
   static async clearCredentials(tabId: number): Promise<void> {
@@ -321,17 +320,19 @@ export class StorageService {
     tabId: number,
     patch: Partial<UserCredentials>,
   ): Promise<UserCredentials | null> {
-    const current = await this.getCredentials(tabId);
-    if (!current) return null;
+    return this.withCredentialWriteLock(tabId, async () => {
+      const current = await this.getCredentials(tabId);
+      if (!current) return null;
 
-    const next: UserCredentials = {
-      ...current,
-      ...patch,
-      lastUpdatedAt: Date.now(),
-    };
+      const next: UserCredentials = {
+        ...current,
+        ...patch,
+        lastUpdatedAt: Date.now(),
+      };
 
-    await this.saveCredentials(tabId, next);
-    return next;
+      await this.persistCredentials(tabId, next);
+      return next;
+    });
   }
 
   static async updateBatchStatus(
@@ -341,22 +342,66 @@ export class StorageService {
     statusDescription: string,
     extra?: Partial<UserCredentials>,
   ): Promise<UserCredentials | null> {
-    const shouldKeepError = status === "erro";
-    const current = await this.getCredentials(tabId);
-    if (!current) return null;
+    return this.withCredentialWriteLock(tabId, async () => {
+      const shouldKeepError = status === "erro";
+      const current = await this.getCredentials(tabId);
+      if (!current) return null;
 
-    return this.updateCredentials(tabId, {
-      status,
-      statusTitle,
-      statusDescription,
-      ...extra,
-      // Status intermediários descrevem apenas a etapa corrente. Eles não
-      // podem apagar a consulta nem o histórico sequencial já confirmado.
-      consultas: extra?.consultas ?? current.consultas,
-      competenciasResultados:
-        extra?.competenciasResultados ?? current.competenciasResultados,
-      lastError: shouldKeepError ? extra?.lastError : undefined,
+      const next: UserCredentials = {
+        ...current,
+        status,
+        statusTitle,
+        statusDescription,
+        ...extra,
+        // Status intermediários descrevem apenas a etapa corrente. Eles não
+        // podem apagar a consulta nem o histórico sequencial já confirmado.
+        consultas: extra?.consultas ?? current.consultas,
+        competenciasResultados:
+          extra?.competenciasResultados ?? current.competenciasResultados,
+        lastError: shouldKeepError ? extra?.lastError : undefined,
+        lastUpdatedAt: Date.now(),
+      };
+
+      await this.persistCredentials(tabId, next);
+      return next;
     });
+  }
+
+  private static async persistCredentials(
+    tabId: number,
+    creds: UserCredentials,
+  ): Promise<void> {
+    const key = `credenciais_${tabId}`;
+    await this.set({ [key]: creds });
+    await this.set({ sigess_last_esocial_credentials: creds });
+  }
+
+  /**
+   * Serializa apenas a persistência da credencial de uma aba. As requisições
+   * do eSocial continuam concorrentes; somente o merge get->set é protegido
+   * para que os estados de competências não se sobrescrevam.
+   */
+  private static async withCredentialWriteLock<T>(
+    tabId: number,
+    task: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.credentialWriteQueues.get(tabId) ?? Promise.resolve();
+    let release!: () => void;
+    const ticket = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const queue = previous.then(() => ticket);
+    this.credentialWriteQueues.set(tabId, queue);
+
+    await previous;
+    try {
+      return await task();
+    } finally {
+      release();
+      if (this.credentialWriteQueues.get(tabId) === queue) {
+        this.credentialWriteQueues.delete(tabId);
+      }
+    }
   }
 
   static async updateCadastroInteraction(

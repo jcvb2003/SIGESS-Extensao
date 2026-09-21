@@ -23,4 +23,14 @@ export type EsocialOverlayState = {
   description: string;
   complete?: boolean;
   hideAt?: number;
+  competencias?: Array<{
+    competencia: string;
+    status: "pendente" | "processando" | "concluido" | "ja_existente" | "ignorado" | "erro";
+    etapa?: "preparacao" | "rascunho" | "eventos" | "fechamento" | "download";
+    etapaIndice?: number;
+    etapasTotal?: number;
+    etapaDescricao?: string;
+    lastError?: string;
+    reabertura?: boolean;
+  }>;
 };

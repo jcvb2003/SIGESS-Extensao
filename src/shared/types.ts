@@ -146,11 +146,23 @@ export type GovBatchCompetenciaResultStatus =
   | "processando"
   | "concluido"
   | "ja_existente"
+  | "ignorado"
   | "erro";
+
+export type GovBatchCompetenciaStage =
+  | "preparacao"
+  | "rascunho"
+  | "eventos"
+  | "fechamento"
+  | "download";
 
 export interface GovBatchCompetenciaResult {
   competencia: string;
   status: GovBatchCompetenciaResultStatus;
+  etapa?: GovBatchCompetenciaStage;
+  etapaIndice?: number;
+  etapasTotal?: number;
+  etapaDescricao?: string;
   lastError?: string;
   valorComercializado?: number;
   valorDeclarado?: number;

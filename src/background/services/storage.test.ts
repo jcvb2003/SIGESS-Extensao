@@ -64,4 +64,31 @@ describe("StorageService status encerrado do lote GOV", () => {
     get.mockRestore();
     set.mockRestore();
   });
+
+  it("mescla atualizações concorrentes da mesma aba sem perder campos", async () => {
+    let credentials = {
+      cpf: "71060926229",
+      senha: "senha",
+      portalType: "esocial" as const,
+    };
+    const getCredentials = vi
+      .spyOn(StorageService, "getCredentials")
+      .mockImplementation(async () => ({ ...credentials }));
+    const set = vi.spyOn(StorageService, "set").mockImplementation(async (data) => {
+      const next = data.credenciais_18 as typeof credentials | undefined;
+      if (next) credentials = { ...credentials, ...next };
+    });
+
+    await Promise.all([
+      StorageService.updateCredentials(18, { competenciaAtual: "202605" }),
+      StorageService.updateCredentials(18, { competenciaIndice: 2 }),
+    ]);
+
+    expect(credentials).toMatchObject({
+      competenciaAtual: "202605",
+      competenciaIndice: 2,
+    });
+    getCredentials.mockRestore();
+    set.mockRestore();
+  });
 });
