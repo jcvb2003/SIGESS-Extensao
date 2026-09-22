@@ -214,6 +214,13 @@ export const esocialMessages = {
     ...geracao("carregando_comercializacao"),
   }),
 
+  verifyingClosureAccess: (): StatusMessage => ({
+    status: "processando",
+    title: "Liberando encerramento da folha",
+    description: "Verificando se a competência pode ser encerrada...",
+    ...geracao("carregando_comercializacao"),
+  }),
+
   caepfNotLinked: (competencia: string): StatusMessage => ({
     status: "erro",
     title: `CAEPF não vinculado ao CEI em ${formatCompetencia(competencia)}`,

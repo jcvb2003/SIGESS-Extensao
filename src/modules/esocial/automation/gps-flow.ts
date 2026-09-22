@@ -18,7 +18,7 @@ import {
   GPS_FLOW_QUEUE_STATE_KEY,
 } from "../utils/esocial-constants";
 import { extractHtmlAlertMessage, parseHtml, resolveGuiaUrlFromDocument } from "../services/document-parser";
-import { postJson, buildEsocialUrl } from "../services/esocial-api";
+import { getJson, postJson, buildEsocialUrl } from "../services/esocial-api";
 import { buildComercializacaoPayload } from "../services/comercializacao";
 import { clearEsocialProgressOverlay, reportStatusMessage, showSuccessModal } from "./overlay-ui";
 import { baixarGuiaPdfDirecto } from "./guide-download";
@@ -28,7 +28,6 @@ import { fetchBoletoData, fetchBoletosDoAno, fetchComercializacaoData } from "..
 type PendingGpsClosureState = {
   competencia: string;
   valorComercializado?: string;
-  enviaRemuneracoesBody?: string;
   listagemNavigationStartedAt?: number;
   fechamentoNavigationStartedAt?: number;
   fechamentoSubmittedAt?: number;
@@ -37,7 +36,6 @@ type PendingGpsClosureState = {
   step:
     | "awaiting_generation_context_page"
     | "awaiting_reopen_page"
-    | "awaiting_remuneracoes_page"
     | "awaiting_closure_page"
     | "awaiting_closure_result";
 };
@@ -53,9 +51,10 @@ type GpsQueueState = {
 type GpsExecutionAction = "ja_existente" | "reabrir_e_gerar" | "gerar";
 
 const GENERATION_STAGES_TOTAL = 5;
-// O teste aprovado dispara todas as competências. Se o eSocial exigir
-// contenção, basta reduzir este valor sem trocar o modelo de jobs.
-const ESOCIAL_PARALLEL_CONCURRENCY_LIMIT = Number.POSITIVE_INFINITY;
+// O eSocial demonstrou lock/filas internas para mutações concorrentes do mesmo
+// CPF. O estado de referência mantém as competências novas em série e baixa
+// guias já existentes em paralelo.
+const ESOCIAL_MUTATION_CONCURRENCY_LIMIT = 1;
 
 const STAGE_DESCRIPTIONS: Record<GovBatchCompetenciaStage, string> = {
   preparacao: "Preparando dados da competência...",
@@ -355,7 +354,7 @@ async function executarPlanoParalelo(
     return state.plano?.[competencia] !== "reabrir_e_gerar" && !alreadyCompleted;
   });
 
-  const jobs = planejadas.map((planned) => async () => {
+  const buildJob = (planned: EsocialCompetenciaPlanejada) => async () => {
     const competencia = `${planned.ano}${planned.mes}`;
     const info = state.diagnostico?.[competencia];
     const acao = state.plano?.[competencia];
@@ -398,13 +397,38 @@ async function executarPlanoParalelo(
 
     if (acao !== "gerar") return;
     await executarFluxoDiretoGps(settings, competencia, { advanceQueue: false });
-  });
+  };
 
-  const settled = await settleJobs(jobs, ESOCIAL_PARALLEL_CONCURRENCY_LIMIT);
+  const existingDownloads = planejadas.filter((planned) => {
+    const competencia = `${planned.ano}${planned.mes}`;
+    const info = state.diagnostico?.[competencia];
+    return state.plano?.[competencia] === "ja_existente" && !!info && hasGuiaEmitida(info);
+  });
+  const mutations = planejadas.filter((planned) => {
+    const competencia = `${planned.ano}${planned.mes}`;
+    return state.plano?.[competencia] === "gerar";
+  });
+  const entries = [
+    ...existingDownloads.map((planned) => ({ planned, job: buildJob(planned) })),
+    ...mutations.map((planned) => ({ planned, job: buildJob(planned) })),
+  ];
+
+  const existingCount = existingDownloads.length;
+  const settledExisting = await settleJobs(
+    entries.slice(0, existingCount).map((entry) => entry.job),
+    Number.POSITIVE_INFINITY,
+  );
+  const settledMutations = await settleJobs(
+    entries.slice(existingCount).map((entry) => entry.job),
+    ESOCIAL_MUTATION_CONCURRENCY_LIMIT,
+  );
+  const settled = [...settledExisting, ...settledMutations];
+
   const failedCompetencias: string[] = [];
   settled.forEach((result, index) => {
     if (result.status !== "rejected") return;
-    const planned = planejadas[index];
+    const planned = entries[index]?.planned;
+    if (!planned) return;
     const competencia = `${planned.ano}${planned.mes}`;
     const errorMessage = result.reason instanceof Error
       ? result.reason.message
@@ -545,7 +569,7 @@ export async function executarFluxoDiretoGps(
   console.debug("[SIGESS] valorComercializado from tab context:", settings.valorComercializado);
   console.debug("[SIGESS] valorComercializado normalized:", valorComercializado);
   reportCompetenciaStage(competencia, "processando", "preparacao");
-  const { comercializacaoHtml, autonomosHtml } = await carregarDadosComercializacao(competencia);
+  const { comercializacaoHtml } = await carregarDadosComercializacao(competencia);
   const comercializacaoDoc = parseHtml(comercializacaoHtml);
   const comercializacaoPayload = buildComercializacaoPayload(
     comercializacaoDoc,
@@ -565,25 +589,18 @@ export async function executarFluxoDiretoGps(
   reportStatusMessage(savingMsg);
 
   reportCompetenciaStage(competencia, "processando", "eventos");
-  const enviarResp = await postJson(
+  await postJson(
     "/FolhaPagamento/SeguradoEspecial/EnviarEventosComercializacaoProducao",
     comercializacaoPayload,
   );
-  console.debug("[SIGESS] EnviarEventos response:", enviarResp.slice(0, 500));
 
   const sendingMsg = esocialMessages.sendingCommercializationEvents();
   logger.info("eSocial", sendingMsg.title);
   reportStatusMessage(sendingMsg);
 
-  const enviaRemuneracoesParams = buildEnviaRemuneracoesFormData(
-    competencia,
-    parseHtml(enviarResp),
-    parseHtml(autonomosHtml),
-  );
   await executarFechamentoDireto(
     competencia,
     valorComercializado,
-    enviaRemuneracoesParams,
     settings,
     options,
   );
@@ -592,33 +609,19 @@ export async function executarFluxoDiretoGps(
 async function executarFechamentoDireto(
   competencia: string,
   valorComercializado: string,
-  enviaRemuneracoesParams: URLSearchParams,
   settings: AppSettings,
   options: GpsExecutionOptions = {},
 ): Promise<void> {
   reportCompetenciaStage(competencia, "processando", "fechamento");
-  const remuneracoesMsg = esocialMessages.loadingClosureScreen();
-  logger.info("eSocial", remuneracoesMsg.title);
-  reportStatusMessage(remuneracoesMsg);
+  const accessMsg = esocialMessages.verifyingClosureAccess();
+  logger.info("eSocial", accessMsg.title);
+  reportStatusMessage(accessMsg);
+  await verificarAcessoFechamento(competencia);
 
-  const remuneracoesHtml = await postForm(
-    `/FolhaPagamento/Listagem/EnviaRemuneracoes?competencia=${competencia}&considerarRegistrosExcluidos=true`,
-    enviaRemuneracoesParams,
-  );
-  const remuneracoesDoc = parseHtml(remuneracoesHtml);
-  console.debug("[SIGESS] EnviaRemuneracoes direto respondeu:", {
-    competencia,
-    htmlLength: remuneracoesHtml.length,
-    finalUrl: buildEsocialUrl(`/FolhaPagamento/Listagem/EnviaRemuneracoes?competencia=${competencia}`),
-    hasForm: !!remuneracoesDoc.querySelector("form"),
-  });
-
-  let fechamentoHtml = remuneracoesHtml;
-  let fechamentoDoc = remuneracoesDoc;
-  if (!fechamentoDoc.querySelector("form")) {
-    fechamentoHtml = await carregarTelaFechamento(competencia);
-    fechamentoDoc = parseHtml(fechamentoHtml);
-  }
+  const fechamentoMsg = esocialMessages.loadingClosureScreen();
+  logger.info("eSocial", fechamentoMsg.title);
+  reportStatusMessage(fechamentoMsg);
+  const fechamentoDoc = parseHtml(await carregarTelaFechamento(competencia));
 
   const fechamentoForm = buildFechamentoFormData(fechamentoDoc, competencia);
   const closingMsg = esocialMessages.closingPayroll();
@@ -686,13 +689,12 @@ async function executarFechamentoDireto(
 }
 async function carregarDadosComercializacao(competencia: string): Promise<{
   comercializacaoHtml: string;
-  autonomosHtml: string;
 }> {
   const loadingMsg = esocialMessages.loadingCommercializationData();
   logger.info("eSocial", loadingMsg.title);
   reportStatusMessage(loadingMsg);
 
-  const comercializacaoPromise = fetch(
+  const response = await fetch(
     buildEsocialUrl(
       `/FolhaPagamento/SeguradoEspecial/ComercializacaoProducao?competencia=${competencia}`,
     ),
@@ -705,41 +707,17 @@ async function carregarDadosComercializacao(competencia: string): Promise<{
     return null;
   });
 
-  const autonomosPromise = fetch(
-    buildEsocialUrl(
-      `/FolhaPagamento/SeguradoEspecial/PagamentoAutonomos?competencia=${competencia}`,
-    ),
-    {
-      method: "GET",
-      credentials: "include",
-    },
-  ).catch((error) => {
-    console.debug("[SIGESS] Falha ao carregar autonomos:", error);
-    return null;
-  });
-
-  const [comercializacaoResponse, autonomosResponse] = await Promise.all([
-    comercializacaoPromise,
-    autonomosPromise,
-  ]);
-
-  if (!comercializacaoResponse?.ok) {
+  if (!response?.ok) {
     throw new Error("Nao foi possivel carregar a comercializacao da competencia.");
   }
 
-  if (!autonomosResponse?.ok) {
-    throw new Error("Nao foi possivel carregar os pagamentos de autonomos da competencia.");
-  }
-
-  const comercializacaoHtml = await comercializacaoResponse.text();
-  const autonomosHtml = await autonomosResponse.text();
-  if (respostaIndicaCaepfAusente(comercializacaoHtml) || respostaIndicaCaepfAusente(autonomosHtml)) {
+  const comercializacaoHtml = await response.text();
+  if (respostaIndicaCaepfAusente(comercializacaoHtml)) {
     throw new Error("CAEPF_NAO_VINCULADO_AO_CEI");
   }
 
   return {
     comercializacaoHtml,
-    autonomosHtml,
   };
 }
 
@@ -1079,7 +1057,6 @@ function submitNativeFechamentoForm(doc: Document, competencia: string) {
   setPendingGpsClosureState({
     competencia,
     valorComercializado: currentState?.valorComercializado,
-    enviaRemuneracoesBody: currentState?.enviaRemuneracoesBody,
     listagemNavigationStartedAt: currentState?.listagemNavigationStartedAt,
     fechamentoNavigationStartedAt: currentState?.fechamentoNavigationStartedAt,
     fechamentoSubmittedAt: Date.now(),
@@ -1089,44 +1066,6 @@ function submitNativeFechamentoForm(doc: Document, competencia: string) {
   });
 
   console.debug("[SIGESS] Submetendo formulario real de fechamento");
-  form.submit();
-}
-
-function submitNativeEnviaRemuneracoes(
-  params: URLSearchParams,
-  competencia: string,
-  valorComercializado: string,
-) {
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = buildEsocialUrl(
-    `/FolhaPagamento/Listagem/EnviaRemuneracoes?competencia=${competencia}&considerarRegistrosExcluidos=true`,
-  );
-  form.style.display = "none";
-
-  params.forEach((value, name) => {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  });
-
-  document.body.appendChild(form);
-  const currentState = getPendingGpsClosureState();
-  setPendingGpsClosureState({
-    competencia,
-    valorComercializado,
-    enviaRemuneracoesBody: params.toString(),
-    listagemNavigationStartedAt: currentState?.listagemNavigationStartedAt,
-    fechamentoNavigationStartedAt: Date.now(),
-    competenciaIndex: currentState?.competenciaIndex,
-    fechamentoRetryCount: currentState?.fechamentoRetryCount,
-    step: "awaiting_closure_page",
-  });
-
-  console.debug("[SIGESS] Submetendo formulario real de EnviaRemuneracoes");
-  console.debug("[SIGESS] EnviaRemuneracoes body:", params.toString());
   form.submit();
 }
 
@@ -1151,6 +1090,22 @@ function normalizeMoneyValue(value: string): string {
   return trimmed || "0";
 }
 
+async function verificarAcessoFechamento(competencia: string): Promise<void> {
+  const result = await getJson<Record<string, unknown>>(
+    `/FolhaPagamento/SeguradoEspecial/VerificarAcessoFechamentoFolhaAposEnvioEventosComercializacao?competencia=${competencia}`,
+  );
+  const objeto = result.Objeto ?? result.objeto;
+  const sucesso = result.Sucesso ?? result.sucesso;
+  console.debug("[SIGESS] Verificação de acesso ao fechamento:", {
+    competencia,
+    objeto,
+    sucesso,
+  });
+  if (sucesso === false || objeto !== true) {
+    throw new Error("O eSocial não liberou o fechamento da competência.");
+  }
+}
+
 export async function carregarTelaFechamento(competencia: string): Promise<string> {
   const response = await fetch(
     buildEsocialUrl(`/FolhaPagamento/FechamentoFolha?competencia=${competencia}`),
@@ -1165,19 +1120,6 @@ export async function carregarTelaFechamento(competencia: string): Promise<strin
   }
 
   return response.text();
-}
-
-function buildEnviaRemuneracoesFormData(
-  competencia: string,
-  comercializacaoDoc: Document,
-  autonomosDoc: Document,
-): URLSearchParams {
-  const params = new URLSearchParams();
-  params.set("Competencia", competencia);
-  appendNamedElements(params, comercializacaoDoc.querySelectorAll("input[name], select[name], textarea[name]"));
-  appendNamedElements(params, autonomosDoc.querySelectorAll("input[name], select[name], textarea[name]"));
-  params.set("MostrarMensagem13", "false");
-  return params;
 }
 
 function appendNamedElements(
@@ -1342,33 +1284,6 @@ export async function resumePendingGpsFlow(settings?: AppSettings): Promise<bool
         overlayState: null,
       });
     }
-    return true;
-  }
-
-  if (pending.step === "awaiting_remuneracoes_page") {
-    if (!window.location.href.includes("/FolhaPagamento/Listagem/ListarPagamentos")) {
-      return false;
-    }
-
-    const body = pending.enviaRemuneracoesBody || "";
-    if (!body) {
-      clearPendingGpsClosureState();
-      releaseGpsFlowLock();
-      throw new Error("Nao foi possivel retomar o EnviaRemuneracoes: corpo pendente ausente.");
-    }
-
-    // Preserve the rendered-page context before submitting the native form.
-    // The optimization previously submitted as soon as <body> existed,
-    // which could precede the portal's normal document initialization.
-    await waitForDocumentReady();
-    await waitForDocumentBody();
-    logGpsNavigationTiming("ListarPagamentos pronto", pending.listagemNavigationStartedAt, pending.competencia);
-    console.debug("[SIGESS] Retomando EnviaRemuneracoes a partir da tela real de ListarPagamentos");
-    submitNativeEnviaRemuneracoes(
-      new URLSearchParams(body),
-      pending.competencia,
-      pending.valorComercializado || "0",
-    );
     return true;
   }
 
