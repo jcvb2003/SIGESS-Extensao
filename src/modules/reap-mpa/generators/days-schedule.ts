@@ -1,12 +1,12 @@
 import { getFishingMonthIndexes, getPeakMonthIndexes } from "../monthly-plan";
 
 export const DaysGenerator: any = {
-  generate(gender: "MASCULINO" | "FEMININO", settings?: any) {
+  generate(gender: "MASCULINO" | "FEMININO", settings?: any, randomFn: () => number = Math.random) {
     const months = getFishingMonthIndexes(settings || {});
     const peaks = getPeakMonthIndexes(settings?.mpaDefesoMonths || []);
     const { min, max, annualMin, annualMax } = this.getMonthLimits(gender, settings, months.length);
 
-    const schedule = this.tryGenerateSchedule(months, peaks, min, max, annualMin, annualMax);
+    const schedule = this.tryGenerateSchedule(months, peaks, min, max, annualMin, annualMax, randomFn);
 
     if (!schedule) {
       throw new Error(
@@ -43,9 +43,9 @@ export const DaysGenerator: any = {
     return { min, max, annualMin, annualMax };
   },
 
-  tryGenerateSchedule(months: number[], peaks: Set<number>, min: number, max: number, annualMin: number | null, annualMax: number | null): Record<number, number> | null {
+  tryGenerateSchedule(months: number[], peaks: Set<number>, min: number, max: number, annualMin: number | null, annualMax: number | null, randomFn: () => number = Math.random): Record<number, number> | null {
     for (let attempt = 0; attempt < 200; attempt++) {
-      const schedule = this.generateSingleAttempt(months, peaks, min, max);
+      const schedule = this.generateSingleAttempt(months, peaks, min, max, randomFn);
       if (!schedule) continue;
 
       if (annualMin != null || annualMax != null) {
@@ -59,7 +59,7 @@ export const DaysGenerator: any = {
     return null;
   },
 
-  generateSingleAttempt(months: number[], peaks: Set<number>, min: number, max: number): Record<number, number> | null {
+  generateSingleAttempt(months: number[], peaks: Set<number>, min: number, max: number, randomFn: () => number = Math.random): Record<number, number> | null {
     const result: Record<number, number> = {};
     for (let i = 0; i < months.length; i++) {
       const m = months[i];
@@ -76,7 +76,7 @@ export const DaysGenerator: any = {
 
       if (localMin > localMax) return null;
 
-      result[m] = Math.floor(Math.random() * (localMax - localMin + 1)) + localMin;
+      result[m] = Math.floor(randomFn() * (localMax - localMin + 1)) + localMin;
     }
     return result;
   },

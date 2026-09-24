@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Download, Upload } from "lucide-react";
+import { Download, LoaderCircle, Play, Upload } from "lucide-react";
 import ReapMpaSettingsForm from "./components/panels/ReapMpaSettingsForm";
 import { StorageService } from "../background/services/storage";
 import { getDefesoMonthsNormalizationNotice, normalizeReapSettings } from "../modules/reap-mpa/reap-settings";
 import { copyReapPdfCache, getReapPdfCacheForPreset, removeReapPdfCacheForPreset, REAP_PDF_CACHES_STORAGE_KEY } from "../modules/reap-mpa/pdf-cache";
 import { checkPresetReadiness } from "../modules/reap-mpa/turbo-config";
+import { ReapSimulationGenderMonth, ReapSimulationResult, simulateReapMpa } from "../modules/reap-mpa/simulation";
 import { AppSettings, ReapMpaPreset } from "../shared/types";
 
 function getMpaSettings(settings: AppSettings): Partial<AppSettings> {
@@ -39,6 +40,68 @@ function getPresets(settings: AppSettings): ReapMpaPreset[] {
   return settings.reapMpaPresets?.length ? settings.reapMpaPresets : [createPreset(settings)];
 }
 
+const SIMULATION_MONTHS = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+
+function formatSimulationCurrency(value: number): string {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+const SimulationGenderCard: React.FC<{
+  label: string;
+  color: string;
+  data: ReapSimulationGenderMonth;
+  houvePesca: boolean;
+}> = ({ label, color, data, houvePesca }) => (
+  <div style={{
+    border: "1px solid var(--color-border)",
+    borderRadius: "7px",
+    padding: "10px",
+    background: "var(--color-surface-alt)",
+  }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+      <span style={{ color, fontWeight: 700, fontSize: "11px", letterSpacing: "0.04em" }}>{label}</span>
+      {houvePesca && !data.error && (
+        <strong style={{ color: "var(--color-accent-strong)", fontSize: "11px" }}>
+          {formatSimulationCurrency(data.total)}
+        </strong>
+      )}
+    </div>
+    {!houvePesca ? (
+      <div style={{ color: "var(--color-muted)", fontSize: "11px" }}>Defeso · sem pesca</div>
+    ) : data.error ? (
+      <div style={{ color: "var(--color-danger)", fontSize: "11px", lineHeight: 1.45 }}>{data.error}</div>
+    ) : (
+      <>
+        <div style={{ color: "var(--color-muted)", fontSize: "10px", marginBottom: "7px" }}>
+          {data.days} dias trabalhados no mês
+        </div>
+        <div style={{ display: "grid", gap: "4px" }}>
+          {data.species.map((fish) => (
+            <div key={fish.id} style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto",
+              gap: "8px",
+              fontSize: "10px",
+              padding: "4px 0",
+              borderTop: "1px solid var(--color-border)",
+            }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={fish.name}>
+                {fish.name}
+              </span>
+              <span style={{ color: "var(--color-muted)", whiteSpace: "nowrap" }}>
+                {fish.kg} kg × {formatSimulationCurrency(fish.price)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </>
+    )}
+  </div>
+);
+
 const ReapMpaSettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [status, setStatus] = useState("");
@@ -46,6 +109,9 @@ const ReapMpaSettingsPage: React.FC = () => {
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [presetNameDraft, setPresetNameDraft] = useState("");
   const [hasPdf, setHasPdf] = useState(false);
+  const [simulation, setSimulation] = useState<ReapSimulationResult | null>(null);
+  const [simulationRunning, setSimulationRunning] = useState(false);
+  const [simulationError, setSimulationError] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -168,6 +234,19 @@ const ReapMpaSettingsPage: React.FC = () => {
   const displayedSettings = selectedPreset.id === activePresetId
     ? settings
     : getSettingsForPreset(settings, selectedPreset);
+
+  const handleTestSettings = () => {
+    setSimulationRunning(true);
+    setSimulationError("");
+    try {
+      setSimulation(simulateReapMpa(displayedSettings));
+    } catch (error: any) {
+      setSimulation(null);
+      setSimulationError(error?.message || "Não foi possível simular esta configuração.");
+    } finally {
+      setSimulationRunning(false);
+    }
+  };
 
   const renamePreset = () => {
     const name = presetNameDraft.trim() || "Sem nome";
@@ -502,10 +581,80 @@ const ReapMpaSettingsPage: React.FC = () => {
                   onChange={handleImportSettings}
                 />
               </div>
-            </div>
-          </section>
-        </div>
-      </div>
+           </div>
+           </section>
+
+           <section
+             className="section"
+             style={{
+               marginTop: "0",
+               paddingTop: "24px",
+               paddingBottom: "24px",
+               borderTop: "1px solid var(--color-border)",
+               borderBottom: "none",
+             }}
+           >
+             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+               <div>
+                 <h2 className="section-title">Testar configurações</h2>
+                 <p className="section-description" style={{ marginTop: "4px" }}>
+                   Simule o preenchimento sem abrir o PesqBrasil. Nada será enviado ao portal.
+                 </p>
+               </div>
+               <button
+                 type="button"
+                 className="btn btn-accent"
+                 onClick={handleTestSettings}
+                 disabled={simulationRunning}
+                 style={{ gap: "8px", fontWeight: 600 }}
+               >
+                 {simulationRunning ? <LoaderCircle size={15} className="sigess-spin" /> : <Play size={15} />}
+                 {simulationRunning ? "Testando..." : "Testar configurações"}
+               </button>
+             </div>
+
+             {simulationError && (
+               <div className="reap-note reap-error-note" style={{ marginTop: "14px" }}>
+                 {simulationError}
+               </div>
+             )}
+
+             {simulation && (
+               <div style={{ display: "grid", gap: "7px", marginTop: "16px" }}>
+                 {simulation.months.map((month) => (
+                   <details key={month.month} open={month.month === 4} style={{
+                     border: "1px solid var(--color-border)",
+                     borderRadius: "7px",
+                     background: "var(--color-surface-alt)",
+                   }}>
+                     <summary style={{
+                       cursor: "pointer",
+                       display: "flex",
+                       justifyContent: "space-between",
+                       alignItems: "center",
+                       gap: "10px",
+                       padding: "9px 11px",
+                       fontSize: "11px",
+                       fontWeight: 700,
+                     }}>
+                       <span>{String(month.month + 1).padStart(2, "0")} · {SIMULATION_MONTHS[month.month]}</span>
+                       <span style={{ color: month.houvePesca ? "var(--color-accent-strong)" : "var(--color-muted)", fontWeight: 600 }}>
+                         {month.houvePesca
+                           ? `M ${formatSimulationCurrency(month.masculine.total)} · F ${formatSimulationCurrency(month.feminine.total)}`
+                           : "Defeso · sem pesca"}
+                       </span>
+                     </summary>
+                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px", padding: "0 10px 10px" }}>
+                       <SimulationGenderCard label="MASCULINO" color="#2563eb" data={month.masculine} houvePesca={month.houvePesca} />
+                       <SimulationGenderCard label="FEMININO" color="#db2777" data={month.feminine} houvePesca={month.houvePesca} />
+                     </div>
+                   </details>
+                 ))}
+               </div>
+             )}
+           </section>
+         </div>
+       </div>
     </div>
   );
 };

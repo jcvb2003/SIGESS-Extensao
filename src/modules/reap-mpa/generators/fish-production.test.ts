@@ -34,7 +34,7 @@ describe("ProductionGenerator", () => {
     });
 
     expect(activeCounts.every((count) => count === 4)).toBe(true);
-    expect(result.every((fish) => Object.values(fish.monthlyPrices || {}).every((price) => price === 0 || price * 2 === Math.round(price * 2)))).toBe(true);
+    expect(result.every((fish) => Object.values(fish.monthlyPrices || {}).every((price) => price === 0 || Math.abs(price * 4 - Math.round(price * 4)) < 1e-9))).toBe(true);
     expect(result.every((fish) => Math.abs(fish.price * fish.totalKg - Object.keys(fish.monthlyKg).reduce((sum, month) => sum + fish.monthlyKg[Number(month)] * (fish.monthlyPrices?.[Number(month)] || 0), 0)) < 0.01)).toBe(true);
   });
 
@@ -85,7 +85,36 @@ describe("ProductionGenerator", () => {
       randomFn: () => 0.5,
     });
 
-    expect([7, 8, 9, 10, 11].map((month) => result[0].monthlyKg[month])).toEqual([30, 31, 33, 34, 35]);
+    expect([7, 8, 9, 10, 11].map((month) => result[0].monthlyKg[month])).toEqual([30, 31, 32, 33, 34]);
+    expect([7, 8, 9, 10, 11].every((month, index, values) => index === 0 || result[0].monthlyKg[month] > result[0].monthlyKg[values[index - 1]])).toBe(true);
     expect(Object.values(result[0].monthlyKg).every((kg) => Number.isInteger(kg))).toBe(true);
+  });
+
+  it("respects optional monthly production bounds", () => {
+    const singleSpeciesSettings = {
+      mpaSpecies: [{ id: 10, kgMin: "30", kgMax: "35", priceMin: "10", priceMax: "13" }],
+      mpaSpeciesCount: 1,
+      mpaDefesoMonths: [1, 2, 3, 4, 5, 6, 7],
+      mpaMascDaysMin: "21",
+      mpaMascDaysMax: "25",
+      mpaMascProductionAnnualMin: 1500,
+      mpaMascProductionAnnualMax: 1760,
+      mpaMascProductionMonthlyMin: "300",
+      mpaMascProductionMonthlyMax: "455",
+    };
+    const daysMap = {
+      0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
+      7: 21, 8: 22, 9: 23, 10: 24, 11: 25,
+    };
+
+    const result = ProductionGenerator.generate(daysMap, "MASCULINO", singleSpeciesSettings, {
+      mode: "mpa",
+      randomFn: () => 0.5,
+    });
+    const monthlyTotals = [7, 8, 9, 10, 11].map((month) =>
+      result[0].monthlyKg[month] * (result[0].monthlyPrices?.[month] || 0),
+    );
+
+    expect(monthlyTotals.every((total) => total >= 300 && total <= 455)).toBe(true);
   });
 });

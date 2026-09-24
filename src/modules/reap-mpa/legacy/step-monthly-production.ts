@@ -1,6 +1,5 @@
 import { State } from '../session-state';
-import { DaysGenerator } from '../generators/days-schedule';
-import { ProductionGenerator } from '../generators/fish-production';
+import { generateMpaProduction } from '../generators/mpa-production';
 import { Utils } from '../utils/dom-utils';
 import { IWorkflowManager } from "../types";
 import { MUNICIPIOS_LIST } from '../../../shared/data/municipios';
@@ -65,8 +64,9 @@ export const Page3 = {
 
   ensureInitialData: async (settings: any) => {
     // Always regenerate for legacy — avoids inheriting a stale daysMap from a prior v2 run
-    State.daysMap = DaysGenerator.generate(State.gender, settings);
-    State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
+    const generated = generateMpaProduction(State.gender, settings);
+    State.daysMap = generated.daysMap;
+    State.production = generated.production;
   },
 
   getStartIndex: (months: NodeListOf<Element>) => {

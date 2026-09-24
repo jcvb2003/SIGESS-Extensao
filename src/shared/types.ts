@@ -255,6 +255,8 @@ export interface AppSettings {
   mpaMascProdMax?: string;
   mpaMascProductionAnnualMin?: number;
   mpaMascProductionAnnualMax?: number;
+  mpaMascProductionMonthlyMin?: string;
+  mpaMascProductionMonthlyMax?: string;
   mpaMascDaysMin?: string;
   mpaMascDaysMax?: string;
   mpaMascAnnualMin?: number;
@@ -263,6 +265,8 @@ export interface AppSettings {
   mpaFemProdMax?: string;
   mpaFemProductionAnnualMin?: number;
   mpaFemProductionAnnualMax?: number;
+  mpaFemProductionMonthlyMin?: string;
+  mpaFemProductionMonthlyMax?: string;
   mpaFemDaysMin?: string;
   mpaFemDaysMax?: string;
   mpaFemAnnualMin?: number;

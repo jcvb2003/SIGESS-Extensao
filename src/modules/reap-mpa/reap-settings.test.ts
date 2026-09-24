@@ -12,7 +12,7 @@ describe("REAP MPA production settings", () => {
 
   it("rejects inverted and integer-empty envelopes", () => {
     expect(() => normalizeProductionRange(0, 1, 100, 50)).toThrow(RangeError);
-    expect(() => normalizeProductionRange(0, 1, 1000.6, 1000.9)).toThrow(RangeError);
+    expect(() => normalizeProductionRange(0, 1, 1000.6, 1000.7)).toThrow(RangeError);
   });
 
   it("reorders saved endpoints and sanitizes invalid span values", () => {
@@ -23,6 +23,7 @@ describe("REAP MPA production settings", () => {
   it("normalizes price bounds without creating a value outside the interval", () => {
     expect(normalizePriceBounds(12.3, 12.4)).toBeNull();
     expect(normalizePriceBounds(12.3, 12.6)).toEqual([12.5, 12.5]);
+    expect(normalizePriceBounds(10.13, 10.49)).toEqual([10.25, 10.25]);
   });
 
   it("discards invalid price steps from the species pool", () => {

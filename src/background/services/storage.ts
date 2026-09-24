@@ -15,6 +15,7 @@ import {
   normalizePessoaData,
 } from "../../modules/automation/cadastro/source-normalizer";
 import {
+  consolidatePessoaProjections,
   hasMeaningfulSourceData,
   projectSourceFields,
 } from "../../modules/automation/cadastro/source-projections";
@@ -184,37 +185,12 @@ export class StorageService {
             },
           };
 
-    // 3. Reconsolidação Prioritária do pessoaData (objeto principal)
-    // Ordem: 1. CadÚnico, 2. PesqBrasil, 3. Resto (Cronológico)
-    const priorityOrder = [
-      "cadunico_adv",
-      "cadunico",
-      "pesqbrasil",
-      "pesq_brasil",
-      "inss",
-    ];
-
-    let consolidated: PessoaData = {
-      nome: "",
-      cpf: "",
+    // 3. Reconsolidação prioritária: CadÚnico vence coincidências; INSS e
+    // PesqBrasil apenas completam campos ausentes.
+    const consolidated: PessoaData = {
+      ...consolidatePessoaProjections(newProjections),
       fontes: { ...(currentPessoa.fontes || {}) } as Record<string, any>,
     };
-
-    // Primeiro aplica o "Resto" (fontes que não estão na lista de prioridade explícita)
-    Object.entries(newProjections).forEach(([f, d]) => {
-      if (!priorityOrder.includes(f)) {
-        consolidated = { ...consolidated, ...d };
-      }
-    });
-
-    // Depois aplica a prioridade (quem estiver no final do spread SOBRESCREVE)
-    // Por isso aplicamos a prioridade REVERSA (menos prioritário primeiro)
-    const reversedPriority = [...priorityOrder].reverse();
-    reversedPriority.forEach((f) => {
-      if (newProjections[f]) {
-        consolidated = { ...consolidated, ...newProjections[f] };
-      }
-    });
 
     // 4. Metadados e status das fontes
     consolidated.fontes ??= {};
@@ -234,6 +210,59 @@ export class StorageService {
 
     await this.saveSettings(newSettings);
     return newSettings;
+  }
+
+  static async rebuildCapturedPessoaData(): Promise<AppSettings> {
+    const settings = await this.getSettings();
+    const rawSources = settings.pessoaData_raw || {};
+    if (Object.keys(rawSources).length === 0) return settings;
+
+    const projections = Object.fromEntries(
+      Object.entries(rawSources).map(([source, data]) => [
+        source,
+        projectSourceFields(source, data),
+      ]),
+    ) as Record<string, Partial<PessoaData>>;
+    const rebuilt = consolidatePessoaProjections(projections);
+    const repairedPessoaData: PessoaData = {
+      ...rebuilt,
+      fontes: settings.pessoaData?.fontes || {},
+    };
+
+    // Keep fields from older captures that were not persisted in
+    // pessoaData_raw. A repair must fill the missing projection, not erase
+    // information that was already available to the user.
+    Object.entries(settings.pessoaData || {}).forEach(([key, value]) => {
+      if (key === "fontes" || value === undefined || value === null) return;
+      const currentValue = (repairedPessoaData as Record<string, unknown>)[key];
+      if (
+        currentValue === undefined ||
+        currentValue === null ||
+        (typeof currentValue === "string" && currentValue.trim() === "")
+      ) {
+        (repairedPessoaData as Record<string, unknown>)[key] = value;
+      }
+    });
+
+    const nextSettings: AppSettings = {
+      ...settings,
+      pessoaData: repairedPessoaData,
+      pessoaData_projections: projections,
+    };
+
+    // Snapshot/inspector reads must be idempotent. Persist only when the
+    // repaired projection actually changed; otherwise each read would emit a
+    // storage update and make the Web refetch in a loop.
+    if (
+      JSON.stringify(settings.pessoaData) === JSON.stringify(nextSettings.pessoaData) &&
+      JSON.stringify(settings.pessoaData_projections) ===
+        JSON.stringify(nextSettings.pessoaData_projections)
+    ) {
+      return settings;
+    }
+
+    await this.saveSettings(nextSettings);
+    return nextSettings;
   }
 
   static async getCredentials(tabId: number): Promise<UserCredentials | null> {

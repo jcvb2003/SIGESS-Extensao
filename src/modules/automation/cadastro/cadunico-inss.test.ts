@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CADASTRO_PORTAL_REGISTRY } from "./portal-registry";
-import { projectSourceFields } from "./source-projections";
+import { consolidatePessoaProjections, projectSourceFields } from "./source-projections";
 import { resolveTseQueryProfile } from "./tse-query-profile";
 import {
   CADUNICO_HOME_URL,
@@ -31,7 +31,7 @@ describe("adaptadores CadÚnico e Meu INSS", () => {
     } as Location)).toBe(false);
   });
 
-  it("projeta do INSS somente os campos permitidos no cadastro", () => {
+  it("projeta do INSS os campos seguros de fallback sem expor a senha", () => {
     expect(projectSourceFields("inss", {
       nit: "123",
       nome: "PESSOA",
@@ -39,10 +39,25 @@ describe("adaptadores CadÚnico e Meu INSS", () => {
       cpf: "00000000000",
       mae: "MAE",
       endereco: "RUA",
+      senhaGovInss: "segredo",
     })).toEqual({
       nit: "123",
       nome: "PESSOA",
       dataDeNascimento: "2000-01-01",
+      cpf: "00000000000",
+      mae: "MAE",
+      endereco: "RUA",
+    });
+  });
+
+  it("mantém o CadÚnico como fonte prioritária sobre o fallback do INSS", () => {
+    expect(consolidatePessoaProjections({
+      inss: { nome: "NOME DO INSS", cpf: "11111111111", mae: "MAE INSS" },
+      cadunico: { nome: "NOME DO CADÚNICO", cpf: "22222222222" },
+    })).toMatchObject({
+      nome: "NOME DO CADÚNICO",
+      cpf: "22222222222",
+      mae: "MAE INSS",
     });
   });
 

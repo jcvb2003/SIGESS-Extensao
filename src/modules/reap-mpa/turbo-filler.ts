@@ -21,6 +21,13 @@ class ReapTurbo {
         return state?.informesMensais?.find((mes: any) => mes.mes === monthNum) ?? null;
     }
 
+    private isUnavailableServerMonth(month: any): boolean {
+        return !month
+            || Boolean(month.invalido)
+            || month.configuracoes?.diasAtivo === "0"
+            || !month.id;
+    }
+
     private getValidationErrorSummary(responseText: string): string | null {
         const match = responseText.match(/"errosValidacao":\{([^}]*)\}/);
         if (!match) return null;
@@ -175,7 +182,7 @@ class ReapTurbo {
             }
 
             // 3. Respeita meses indisponíveis/inválidos na vigência do pescador (invalido: true ou diasAtivo: "0")
-            const isInvalidOnServer = Boolean(oldMes.invalido) || oldMes.configuracoes?.diasAtivo === "0";
+            const isInvalidOnServer = this.isUnavailableServerMonth(oldMes);
             if (isInvalidOnServer) {
                 this.debugLogger.log(`Mês ${mesNum} indisponível/fora de vigência no servidor. Preservado.`);
                 skippedMonths.push(mesNum);
@@ -324,7 +331,14 @@ class ReapTurbo {
         const freshState = await this.getReapState();
         const nonFishingMonths = nonFishingFromConfig.filter((mesNum: number) => {
             const serverMonth = freshState?.informesMensais?.find((m: any) => m.mes === mesNum);
-            return !serverMonth?.documentoJustificativaNaoDeclaracao?.id;
+            const unavailable = this.isUnavailableServerMonth(serverMonth);
+
+            if (unavailable) {
+                this.debugLogger.diag(`Mês ${mesNum} sem informe disponível para anexar documento. Ignorado.`);
+                return false;
+            }
+
+            return !serverMonth.documentoJustificativaNaoDeclaracao?.id;
         });
 
         if (nonFishingMonths.length === 0) {

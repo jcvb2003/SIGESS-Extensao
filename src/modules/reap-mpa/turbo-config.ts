@@ -1,9 +1,8 @@
 import { State } from "./session-state";
 import { TurboReapConfig } from "../../shared/types";
-import { getEffectiveFishingMethod, getValidSpeciesPool, MIN_DAYS_SPAN, MIN_KG_SPAN, MIN_PRICE_SPAN, normalizePriceBounds } from "./reap-settings";
+import { getEffectiveFishingMethod, getValidSpeciesPool, MAX_DAYS_VALUE, MIN_DAYS_SPAN, MIN_DAYS_VALUE, MIN_KG_SPAN, MIN_MONTHLY_PRODUCTION_SPAN, MIN_PRICE_SPAN, normalizePriceBounds } from "./reap-settings";
 import { buildMonthPlan, getFishingMonthIndexes, hasConfiguredDefesoMonths } from "./monthly-plan";
-import { DaysGenerator } from "./generators/days-schedule";
-import { ProductionGenerator } from "./generators/fish-production";
+import { generateMpaProduction } from "./generators/mpa-production";
 
 export interface ReapValidationOptions {
   hasPdf?: boolean;
@@ -76,8 +75,8 @@ function validateSingleGender(settings: any, g: string, errors: string[]): void 
     !Number.isInteger(daysMin) || !Number.isInteger(daysMax)
   ) {
     errors.push(`Preencha números inteiros válidos de Dias/Mês (Mín e Máx) para o gênero ${gLabel}.`);
-  } else if (daysMin < 1 || daysMax > 30) {
-    errors.push(`Os limites de Dias/Mês para o gênero ${gLabel} devem estar entre 1 e 30 dias.`);
+  } else if (daysMin < MIN_DAYS_VALUE || daysMax > MAX_DAYS_VALUE) {
+    errors.push(`Os limites de Dias/Mês para o gênero ${gLabel} devem estar entre ${MIN_DAYS_VALUE} e ${MAX_DAYS_VALUE} dias.`);
   } else if (daysMin > daysMax) {
     errors.push(`Dias/Mês Mínimo não pode ser maior que Máximo para o gênero ${gLabel}.`);
   } else if (daysMax - daysMin < MIN_DAYS_SPAN) {
@@ -91,6 +90,34 @@ function validateSingleGender(settings: any, g: string, errors: string[]): void 
     !Number.isFinite(Number(prodMin)) || !Number.isFinite(Number(prodMax))
   ) {
     errors.push(`Ajuste o slider de Produção Anual (R$) para o gênero ${gLabel}.`);
+  }
+
+  const monthlyMinRaw = settings[`${prefix}ProductionMonthlyMin`];
+  const monthlyMaxRaw = settings[`${prefix}ProductionMonthlyMax`];
+  const monthlyMin = monthlyMinRaw === undefined || monthlyMinRaw === ""
+    ? undefined
+    : Number(String(monthlyMinRaw).replace(",", "."));
+  const monthlyMax = monthlyMaxRaw === undefined || monthlyMaxRaw === ""
+    ? undefined
+    : Number(String(monthlyMaxRaw).replace(",", "."));
+
+  if (monthlyMin !== undefined && (!Number.isFinite(monthlyMin) || monthlyMin < 0)) {
+    errors.push(`Produção mensal mínima inválida para o gênero ${gLabel}.`);
+  }
+  if (monthlyMax !== undefined && (!Number.isFinite(monthlyMax) || monthlyMax < 0)) {
+    errors.push(`Produção mensal máxima inválida para o gênero ${gLabel}.`);
+  }
+  if (
+    monthlyMin !== undefined && monthlyMax !== undefined &&
+    Number.isFinite(monthlyMin) && Number.isFinite(monthlyMax) && monthlyMin > monthlyMax
+  ) {
+    errors.push(`Produção mensal mínima não pode ser maior que a máxima para o gênero ${gLabel}.`);
+  } else if (
+    monthlyMin !== undefined && monthlyMax !== undefined &&
+    Number.isFinite(monthlyMin) && Number.isFinite(monthlyMax) &&
+    monthlyMax - monthlyMin < MIN_MONTHLY_PRODUCTION_SPAN
+  ) {
+    errors.push(`A faixa de produção mensal para o gênero ${gLabel} deve ter pelo menos R$ ${MIN_MONTHLY_PRODUCTION_SPAN.toFixed(2).replace(".", ",")} de amplitude.`);
   }
 }
 
@@ -196,8 +223,9 @@ export function buildTurboConfig(
   const petrecho = getEffectiveFishingMethod(settings);
 
   const configuredSpeciesCount = Number(settings?.mpaSpeciesCount);
-  State.daysMap = DaysGenerator.generate(State.gender, settings);
-  State.production = ProductionGenerator.generate(State.daysMap, State.gender, settings, { mode: "mpa" });
+  const generated = generateMpaProduction(State.gender, settings);
+  State.daysMap = generated.daysMap;
+  State.production = generated.production;
 
   const incompleteMonth = getFishingMonthIndexes(settings).find((monthIndex) => {
     const activeSpecies = State.production.filter((fish) => fish.monthlyKg[monthIndex] > 0);

@@ -37,7 +37,11 @@ const REAP_STATE_LABELS: Record<number, string> = {
 
 export const MIN_KG_SPAN = 4;
 export const MIN_DAYS_SPAN = 4;
+export const MIN_DAYS_VALUE = 7;
+export const MAX_DAYS_VALUE = 28;
 export const MIN_PRICE_SPAN = 3;
+export const MPA_MONEY_STEP = 0.25;
+export const MIN_MONTHLY_PRODUCTION_SPAN = 60;
 
 const REAP_FISHING_LOCATION_LABELS: Record<number, string> = {
   1: "Açude",
@@ -105,12 +109,12 @@ function normalizeDaysPerMonth(value?: string) {
   if (value === undefined || value === "") return value;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return value;
-  return String(Math.min(30, Math.max(1, Math.trunc(parsed))));
+  return String(Math.min(MAX_DAYS_VALUE, Math.max(MIN_DAYS_VALUE, Math.trunc(parsed))));
 }
 
 export function normalizePriceBounds(priceMin: number, priceMax: number): [number, number] | null {
-  const min = Math.ceil(priceMin * 2) / 2;
-  const max = Math.floor(priceMax * 2) / 2;
+  const min = Math.ceil(priceMin / MPA_MONEY_STEP) * MPA_MONEY_STEP;
+  const max = Math.floor(priceMax / MPA_MONEY_STEP) * MPA_MONEY_STEP;
   return min <= max ? [min, max] : null;
 }
 
@@ -163,43 +167,45 @@ export function normalizeProductionRange(
   absMin: number,
   absMax: number,
   minSpan = 300,
+  step = MPA_MONEY_STEP,
 ): [number, number] {
   if (!Number.isFinite(absMin) || !Number.isFinite(absMax) || absMax < absMin) {
     throw new RangeError(`Envelope de produção inválido: absMin (${absMin}) não pode ser maior que absMax (${absMax}).`);
   }
 
-  const intAbsMin = Math.ceil(absMin);
-  const intAbsMax = Math.floor(absMax);
-  if (intAbsMin > intAbsMax) {
-    throw new RangeError(`Envelope não contém nenhum valor inteiro viável: [${absMin}, ${absMax}].`);
+  const safeStep = Number.isFinite(Number(step)) && Number(step) > 0 ? Number(step) : MPA_MONEY_STEP;
+  const absMinOnGrid = Math.ceil(absMin / safeStep) * safeStep;
+  const absMaxOnGrid = Math.floor(absMax / safeStep) * safeStep;
+  if (absMinOnGrid > absMaxOnGrid) {
+    throw new RangeError(`Envelope não contém nenhum valor viável na granularidade de ${safeStep}: [${absMin}, ${absMax}].`);
   }
 
   const parsedSpan = Number(minSpan);
   const safeSpan = Number.isFinite(parsedSpan) && parsedSpan >= 0 ? parsedSpan : 300;
-  const effectiveSpan = Math.min(safeSpan, intAbsMax - intAbsMin);
-  let lo = Number.isFinite(Number(savedMin)) ? Math.round(Number(savedMin)) : intAbsMin;
-  let hi = Number.isFinite(Number(savedMax)) ? Math.round(Number(savedMax)) : intAbsMax;
+  const effectiveSpan = Math.min(safeSpan, absMaxOnGrid - absMinOnGrid);
+  let lo = Number.isFinite(Number(savedMin)) ? Math.round(Number(savedMin) / safeStep) * safeStep : absMinOnGrid;
+  let hi = Number.isFinite(Number(savedMax)) ? Math.round(Number(savedMax) / safeStep) * safeStep : absMaxOnGrid;
 
   if (lo > hi) [lo, hi] = [hi, lo];
-  if (hi > intAbsMax) {
-    hi = intAbsMax;
+  if (hi > absMaxOnGrid) {
+    hi = absMaxOnGrid;
     lo = Math.min(lo, hi - effectiveSpan);
   }
-  if (lo < intAbsMin) {
-    lo = intAbsMin;
+  if (lo < absMinOnGrid) {
+    lo = absMinOnGrid;
     hi = Math.max(hi, lo + effectiveSpan);
   }
-  if (hi > intAbsMax) hi = intAbsMax;
+  if (hi > absMaxOnGrid) hi = absMaxOnGrid;
   if (hi - lo < effectiveSpan) {
-    if (intAbsMax - lo >= effectiveSpan) hi = lo + effectiveSpan;
+    if (absMaxOnGrid - lo >= effectiveSpan) hi = lo + effectiveSpan;
     else {
-      lo = Math.max(intAbsMin, intAbsMax - effectiveSpan);
-      hi = intAbsMax;
+      lo = Math.max(absMinOnGrid, absMaxOnGrid - effectiveSpan);
+      hi = absMaxOnGrid;
     }
   }
 
-  lo = Math.max(intAbsMin, Math.min(lo, intAbsMax));
-  hi = Math.max(intAbsMin, Math.min(hi, intAbsMax));
+  lo = Math.round(Math.max(absMinOnGrid, Math.min(lo, absMaxOnGrid)) / safeStep) * safeStep;
+  hi = Math.round(Math.max(absMinOnGrid, Math.min(hi, absMaxOnGrid)) / safeStep) * safeStep;
   if (lo > hi) lo = hi;
   return [lo, hi];
 }

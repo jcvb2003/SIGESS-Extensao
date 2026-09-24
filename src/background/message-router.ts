@@ -332,7 +332,7 @@ async function handleGetESocialAutomationContext(
 }
 
 async function handleGetAutoRegistrationSnapshot(): Promise<MessageResponse> {
-  const settings = await StorageService.getSettings();
+  const settings = await StorageService.rebuildCapturedPessoaData();
   const pessoaData = settings.pessoaData
     ? {
         ...settings.pessoaData,
@@ -1213,6 +1213,7 @@ async function handleCadastroPortalOutcome(
 }
 
 async function openDataInspector(): Promise<MessageResponse> {
+  await StorageService.rebuildCapturedPessoaData();
   const url = browser.runtime.getURL("data_inspector.html");
   const existing = await browser.tabs.query({ url });
   const tab = existing[0];

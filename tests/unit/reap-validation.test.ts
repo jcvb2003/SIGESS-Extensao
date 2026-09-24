@@ -21,11 +21,11 @@ const completeValidSettings = {
   mpaSpecies: [
     { id: 10, nome: "Tucunaré", kgMin: "20", kgMax: "50", priceMin: "10.50", priceMax: "20.00" }
   ],
-  mpaMascDaysMin: "20",
+  mpaMascDaysMin: "21",
   mpaMascDaysMax: "25",
   mpaMascProductionAnnualMin: 5000,
   mpaMascProductionAnnualMax: 15000,
-  mpaFemDaysMin: "20",
+  mpaFemDaysMin: "21",
   mpaFemDaysMax: "25",
   mpaFemProductionAnnualMin: 5000,
   mpaFemProductionAnnualMax: 15000,
@@ -100,7 +100,22 @@ describe("Complete REAP MPA Validation", () => {
     expect(validateReapSettings(invalidDays, "MASCULINO")).toContain("números inteiros válidos de Dias/Mês");
 
     const outOfRangeDays = { ...completeValidSettings, mpaMascDaysMax: "35" };
-    expect(validateReapSettings(outOfRangeDays, "MASCULINO")).toContain("entre 1 e 30 dias");
+    expect(validateReapSettings(outOfRangeDays, "MASCULINO")).toContain("entre 7 e 28 dias");
+  });
+
+  it("requires a minimum R$ 60 span when both monthly limits are filled", () => {
+    const narrowMonthlyRange = {
+      ...completeValidSettings,
+      mpaMascProductionMonthlyMin: "650",
+      mpaMascProductionMonthlyMax: "709",
+    };
+    expect(validateReapSettings(narrowMonthlyRange, "MASCULINO")).toContain("pelo menos R$ 60,00");
+
+    const oneSidedMonthlyRange = {
+      ...completeValidSettings,
+      mpaMascProductionMonthlyMin: "650",
+    };
+    expect(validateReapSettings(oneSidedMonthlyRange, "MASCULINO")).toBeNull();
   });
 
   it("buildTurboConfig does not inject fallback values for localPesca or UF", () => {
@@ -130,4 +145,3 @@ describe("Complete REAP MPA Validation", () => {
     expect(configWith.areaRealizacao.nome).toBe("Igarapé Santa Luzia");
   });
 });
-
