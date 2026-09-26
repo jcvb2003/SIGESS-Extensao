@@ -15,6 +15,9 @@ export interface MpaPublicSearchResult {
   uf?: string;
   municipio?: string;
   categoria?: string;
+  formaAtuacao?: string;
+  produtoPesca?: string;
+  anoNascimento?: string;
   embarcado?: string;
   gruposAlvo?: string;
   dataCriacao?: string;
@@ -36,6 +39,26 @@ export interface MpaBatchProgressPayload {
 
 const SITE_URL = "https://pesqbrasil-pescadorprofissional.mpa.gov.br/acesso-externo";
 const RECAPTCHA_KEY = "6LeJP-srAAAAAFdZMYINP6CJ4COI_MAzFvk_0gs1";
+
+/**
+ * Normaliza datas do MPA para YYYY-MM-DD, removendo horário tanto de valores
+ * ISO (2023-10-31T11:22:02) quanto de valores PostgreSQL (2023-10-31 11:22:02).
+ */
+export function normalizePesqBrasilDate(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  const raw = String(value).trim();
+  if (!raw) return undefined;
+
+  const isoMatch = raw.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  const brazilianMatch = raw.match(/^(\d{2})[/-](\d{2})[/-](\d{4})/);
+  if (brazilianMatch) {
+    return `${brazilianMatch[3]}-${brazilianMatch[2]}-${brazilianMatch[1]}`;
+  }
+
+  return raw;
+}
 
 type ActiveMpaBatch = {
   cancelled: boolean;
@@ -237,6 +260,21 @@ async function executeQueryInTab(tabId: number, cpf: string, nome?: string): Pro
               return String(v);
             }
 
+            function firstDefined(...values) {
+              return values.find((value) => value !== null && value !== undefined && value !== "");
+            }
+
+            function normalizeDateValue(value) {
+              if (value === null || value === undefined) return undefined;
+              const raw = String(value).trim();
+              if (!raw) return undefined;
+              const isoMatch = raw.match(/^(\\d{4})[-/](\\d{2})[-/](\\d{2})/);
+              if (isoMatch) return isoMatch[1] + "-" + isoMatch[2] + "-" + isoMatch[3];
+              const brazilianMatch = raw.match(/^(\\d{2})[/-](\\d{2})[/-](\\d{4})/);
+              if (brazilianMatch) return brazilianMatch[3] + "-" + brazilianMatch[2] + "-" + brazilianMatch[1];
+              return raw;
+            }
+
             try {
               // 1. Assegura que o script do Google reCAPTCHA v3 está carregado
               if (!window.grecaptcha) {
@@ -350,18 +388,23 @@ async function executeQueryInTab(tabId: number, cpf: string, nome?: string): Pro
                 cpf_original: cpfOriginal,
                 nomeSocio,
                 codigoRGP: data.codigoRGP ? String(data.codigoRGP).trim() : undefined,
-                situacao: data.situacao ? String(data.situacao).trim() : "Sem Registro",
-                tipoRegistro: data.tipoRegistro ? String(data.tipoRegistro).trim() : undefined,
-                uf: data.uf ? String(data.uf).trim() : undefined,
-                municipio: data.municipio ? String(data.municipio).trim() : undefined,
-                categoria: data.categoria ? String(data.categoria).trim() : undefined,
+                situacao: firstDefined(data.situacao, data.situacaoRgp, data.situacaoRGP)
+                  ? String(firstDefined(data.situacao, data.situacaoRgp, data.situacaoRGP)).trim()
+                  : "Sem Registro",
+                tipoRegistro: formatValue(firstDefined(data.tipoRegistro, data.tipoDeRegistro)),
+                uf: formatValue(firstDefined(data.uf, data.ufPescador, data.ufDoPescador)),
+                municipio: formatValue(firstDefined(data.municipio, data.municipioPescador, data.municipioDoPescador)),
+                categoria: formatValue(data.categoria),
+                formaAtuacao: formatValue(firstDefined(data.formaAtuacao, data.formaDeAtuacao)),
+                produtoPesca: formatValue(firstDefined(data.produtoPesca, data.produtoDePesca)),
+                anoNascimento: formatValue(firstDefined(data.anoNascimento, data.anoDeNascimento)),
                 embarcado: data.embarcado ? String(data.embarcado).trim() : undefined,
                 gruposAlvo: formatValue(data.gruposAlvo),
-                dataCriacao: data.dataCriacao ? String(data.dataCriacao).split("T")[0] : undefined,
-                dataPrimeiroRgp: data.dataPrimeiroRgp ? String(data.dataPrimeiroRgp).split("T")[0] : undefined,
+                dataCriacao: normalizeDateValue(data.dataCriacao),
+                dataPrimeiroRgp: normalizeDateValue(firstDefined(data.dataPrimeiroRgp, data.dataPrimeiroRGP)),
                 areasPescaPretendida: formatValue(data.areasPescaPretendida),
-                dataCancelamento: data.dataCancelamento ? String(data.dataCancelamento).split("T")[0] : undefined,
-                dataSuspensao: data.dataSuspensao ? String(data.dataSuspensao).split("T")[0] : undefined,
+                dataCancelamento: normalizeDateValue(data.dataCancelamento),
+                dataSuspensao: normalizeDateValue(firstDefined(data.dataSuspensao, data.dataSuspensaoRgp)),
                 status_resultado: "sucesso",
               });
             } catch (err) {
@@ -411,7 +454,16 @@ async function executeQueryInTab(tabId: number, cpf: string, nome?: string): Pro
                 cpf_original: cpfOriginal,
                 nomeSocio,
                 codigoRGP: data.codigoRGP,
-                situacao: data.situacao || "Sem Registro",
+                situacao: data.situacao || data.situacaoRgp || data.situacaoRGP || "Sem Registro",
+                tipoRegistro: data.tipoRegistro || data.tipoDeRegistro,
+                uf: data.uf || data.ufPescador || data.ufDoPescador,
+                municipio: data.municipio || data.municipioPescador || data.municipioDoPescador,
+                categoria: data.categoria,
+                formaAtuacao: data.formaAtuacao || data.formaDeAtuacao,
+                produtoPesca: data.produtoPesca || data.produtoDePesca,
+                anoNascimento: data.anoNascimento || data.anoDeNascimento,
+                dataPrimeiroRgp: data.dataPrimeiroRgp || data.dataPrimeiroRGP,
+                dataSuspensao: data.dataSuspensao || data.dataSuspensaoRgp,
                 status_resultado: "sucesso",
               });
             } catch (e) {
@@ -552,6 +604,10 @@ export async function runMpaConsultationBatch(
       const normalizedResult: MpaPublicSearchResult = {
         ...result,
         codigoRGP: unmaskRgp(result.codigoRGP, item.cpf),
+        dataCriacao: normalizePesqBrasilDate(result.dataCriacao),
+        dataPrimeiroRgp: normalizePesqBrasilDate(result.dataPrimeiroRgp),
+        dataCancelamento: normalizePesqBrasilDate(result.dataCancelamento),
+        dataSuspensao: normalizePesqBrasilDate(result.dataSuspensao),
       };
 
       resultsByIndex[itemIndex] = normalizedResult;
