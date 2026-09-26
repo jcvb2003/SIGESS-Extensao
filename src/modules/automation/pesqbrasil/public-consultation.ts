@@ -37,22 +37,33 @@ export interface MpaBatchProgressPayload {
 const SITE_URL = "https://pesqbrasil-pescadorprofissional.mpa.gov.br/acesso-externo";
 const RECAPTCHA_KEY = "6LeJP-srAAAAAFdZMYINP6CJ4COI_MAzFvk_0gs1";
 
-let activeBatchCancelled = false;
-let activeConsultationTabId: number | null = null;
+type ActiveMpaBatch = {
+  cancelled: boolean;
+  tabIds: Set<number>;
+};
+
+let activeMpaBatch: ActiveMpaBatch | null = null;
+
+async function closeMpaTab(tabId: number): Promise<void> {
+  const browserAPI = typeof browser !== "undefined" ? browser : (globalThis as any).chrome;
+
+  try {
+    await browserAPI.tabs?.executeScript?.(tabId, {
+      code: "(window).__sigessConsultandoAtivo = false; window.onbeforeunload = null;",
+    });
+  } catch {}
+
+  try {
+    await browserAPI.tabs?.remove?.(tabId);
+  } catch {}
+}
 
 export function cancelMpaConsultationBatch(): boolean {
-  activeBatchCancelled = true;
-  if (typeof activeConsultationTabId === "number") {
-    const tabIdToClose = activeConsultationTabId;
-    activeConsultationTabId = null;
-    const browserAPI = typeof browser !== "undefined" ? browser : (globalThis as any).chrome;
-    try {
-      browserAPI.tabs?.executeScript?.(tabIdToClose, {
-        code: "(window).__sigessConsultandoAtivo = false; window.onbeforeunload = null;",
-      }).catch(() => {});
-      browserAPI.tabs?.remove?.(tabIdToClose).catch(() => {});
-    } catch {}
-  }
+  const batch = activeMpaBatch;
+  if (!batch) return true;
+
+  batch.cancelled = true;
+  for (const tabId of batch.tabIds) void closeMpaTab(tabId);
   return true;
 }
 
@@ -450,157 +461,149 @@ export async function runMpaConsultationBatch(
   runId: string,
   onProgress?: (payload: MpaBatchProgressPayload) => void,
 ): Promise<{ success: boolean; results: MpaPublicSearchResult[]; error?: string }> {
-  activeBatchCancelled = false;
+  if (activeMpaBatch) {
+    return {
+      success: false,
+      results: [],
+      error: "Já existe uma consulta pública do PesqBrasil em andamento.",
+    };
+  }
+
+  if (items.length === 0) {
+    return { success: false, results: [], error: "Nenhum CPF foi informado para consulta." };
+  }
+
+  const batch: ActiveMpaBatch = {
+    cancelled: false,
+    tabIds: new Set<number>(),
+  };
+  activeMpaBatch = batch;
   logger.info("MPA", `Iniciando lote de consulta pública: ${items.length} itens (Run: ${runId})`);
 
-  let tabId: number | null = null;
-  let tabRemovedListener: ((id: number) => void) | null = null;
-  const results: MpaPublicSearchResult[] = [];
+  const resultsByIndex: Array<MpaPublicSearchResult | undefined> = new Array(items.length);
+  const completedResults: MpaPublicSearchResult[] = [];
+  let nextIndex = 0;
+  let completed = 0;
+  let progressDoneEmitted = false;
+  const onTabRemoved = (tabId: number) => {
+    if (!batch.tabIds.has(tabId)) return;
+    batch.tabIds.delete(tabId);
+    batch.cancelled = true;
+    logger.warning("MPA", `Worker interrompido porque a aba ${tabId} foi fechada.`);
+  };
 
-  try {
-    // 1. Abre a página em segundo plano
+  const emitProgress = (result: MpaPublicSearchResult, done: boolean) => {
+    if (!onProgress || (done && progressDoneEmitted)) return;
+    if (done) progressDoneEmitted = true;
+    onProgress({
+      runId,
+      total: items.length,
+      current: completed,
+      result,
+      done,
+    });
+  };
+
+  const createWorkerTab = async (): Promise<number> => {
     const tab = await browser.tabs.create({
       url: SITE_URL,
       active: false,
     });
-
-    tabId = tab.id ?? null;
+    const tabId = tab.id;
     if (typeof tabId !== "number") {
-      throw new Error("Não foi possível abrir a aba de consulta pública.");
+      throw new Error("Não foi possível abrir uma aba de consulta pública.");
     }
 
-    activeConsultationTabId = tabId;
-
-    // Monitora o fechamento manual da aba pelo usuário para interromper o lote imediatamente
-    const currentOpenedTabId = tabId;
-    tabRemovedListener = (removedTabId: number) => {
-      if (removedTabId === currentOpenedTabId) {
-        logger.info("MPA", "Aba da consulta do PesqBrasil foi fechada pelo usuário. Interrompendo lote imediatamente.");
-        activeBatchCancelled = true;
-      }
-    };
-    browser.tabs.onRemoved.addListener(tabRemovedListener);
-
-    // 2. Aguarda carregamento inicial
+    batch.tabIds.add(tabId);
     await waitForTabLoad(tabId);
     await injectPesqBrasilOverlay(tabId);
+    return tabId;
+  };
 
-    // Pausa de 1.5s para o Next.js inicializar e garante overlay ativo
-    await new Promise((r) => setTimeout(r, 1500));
-    await injectPesqBrasilOverlay(tabId);
+  const shouldRetry = (result: MpaPublicSearchResult) =>
+    result.status_resultado === "erro_conexao";
 
-    // 3. Itera sobre os CPFs
-    for (let i = 0; i < items.length; i++) {
-      if (activeBatchCancelled) {
-        logger.info("MPA", "Lote interrompido/cancelado antes do próximo item.");
-        break;
-      }
+  const runWorker = async (tabId: number): Promise<void> => {
+    while (!batch.cancelled) {
+      const itemIndex = nextIndex++;
+      if (itemIndex >= items.length) return;
 
-      // Verifica se a aba ainda existe antes de executar a consulta
-      try {
-        const tabCheck = await browser.tabs.get(tabId);
-        if (!tabCheck) {
-          logger.info("MPA", "Aba de consulta não encontrada. Interrompendo lote.");
-          activeBatchCancelled = true;
-          break;
-        }
-      } catch {
-        logger.info("MPA", "Aba de consulta foi fechada. Interrompendo lote imediatamente.");
-        activeBatchCancelled = true;
-        break;
-      }
+      const item = items[itemIndex];
+      let result: MpaPublicSearchResult | undefined;
 
-      const item = items[i];
-      logger.info("MPA", `Consultando item ${i + 1}/${items.length}: CPF ${item.cpf}`);
-
-      const rawResult = await executeQueryInTab(tabId, item.cpf, item.nome);
-
-      // Se a aba foi fechada ou o lote foi cancelado durante a execução deste item
-      if (activeBatchCancelled) {
-        logger.info("MPA", "Aba fechada ou cancelamento solicitado durante a consulta. Interrompendo.");
-        break;
-      }
-
-      // Se o erro indicar que a aba foi fechada ou destruída durante a injeção
-      if (
-        rawResult.error &&
-        (rawResult.error.toLowerCase().includes("tab") ||
-          rawResult.error.toLowerCase().includes("closed") ||
-          rawResult.error.toLowerCase().includes("invalid") ||
-          rawResult.error.toLowerCase().includes("no tab"))
-      ) {
+      for (let attempt = 0; attempt < 3 && !batch.cancelled; attempt += 1) {
         try {
-          await browser.tabs.get(tabId);
-        } catch {
-          logger.info("MPA", "Aba fechada detectada pelo erro de execução. Interrompendo lote.");
-          activeBatchCancelled = true;
-          break;
+          result = await executeQueryInTab(tabId, item.cpf, item.nome);
+        } catch (error: any) {
+          result = {
+            cpf_original: item.cpf,
+            nomeSocio: item.nome,
+            situacao: "Erro de Execução",
+            status_resultado: "erro_conexao",
+            error: error?.message || "Falha ao executar consulta no PesqBrasil.",
+          };
         }
+
+        if (!result || !shouldRetry(result) || attempt === 2) break;
       }
 
-      const result: MpaPublicSearchResult = {
-        ...rawResult,
-        codigoRGP: unmaskRgp(rawResult.codigoRGP, item.cpf),
+      if (batch.cancelled || !result) return;
+
+      const normalizedResult: MpaPublicSearchResult = {
+        ...result,
+        codigoRGP: unmaskRgp(result.codigoRGP, item.cpf),
       };
-      results.push(result);
 
-      if (onProgress) {
-        onProgress({
-          runId,
-          total: items.length,
-          current: i + 1,
-          result,
-          done: i === items.length - 1 || activeBatchCancelled,
-        });
-      }
+      resultsByIndex[itemIndex] = normalizedResult;
+      completedResults.push(normalizedResult);
+      completed += 1;
+      emitProgress(normalizedResult, completed === items.length);
+    }
+  };
 
-      // Intervalo seguro entre consultas para não saturar
-      if (i < items.length - 1 && !activeBatchCancelled) {
-        await new Promise((r) => setTimeout(r, 800));
-      }
+  try {
+    browser.tabs.onRemoved.addListener(onTabRemoved);
+    const workerCount = Math.min(5, items.length);
+    const workerTabs = await Promise.allSettled(
+      Array.from({ length: workerCount }, () => createWorkerTab()),
+    );
+    const readyTabs = workerTabs
+      .filter((result): result is PromiseFulfilledResult<number> => result.status === "fulfilled")
+      .map((result) => result.value);
+
+    if (readyTabs.length === 0) {
+      throw new Error("Não foi possível abrir nenhuma aba de consulta pública.");
     }
 
-    // Se o lote foi interrompido/cancelado antes do fim, emite o evento final com done: true
-    if (activeBatchCancelled && onProgress && results.length > 0) {
-      onProgress({
-        runId,
-        total: items.length,
-        current: results.length,
-        result: results[results.length - 1],
-        done: true,
-      });
+    if (readyTabs.length < workerCount) {
+      logger.warning("MPA", `Apenas ${readyTabs.length} de ${workerCount} workers foram iniciados.`);
+    }
+
+    await Promise.all(readyTabs.map((tabId) => runWorker(tabId)));
+
+    if (batch.cancelled && completedResults.length > 0) {
+      emitProgress(completedResults[completedResults.length - 1], true);
     }
 
     return {
       success: true,
-      results,
+      results: resultsByIndex.filter(
+        (result): result is MpaPublicSearchResult => Boolean(result),
+      ),
     };
   } catch (error: any) {
     logger.error("MPA", "Erro no processamento do lote:", error);
     return {
       success: false,
-      results,
+      results: resultsByIndex.filter(
+        (result): result is MpaPublicSearchResult => Boolean(result),
+      ),
       error: error?.message || "Erro durante o lote de consulta",
     };
   } finally {
-    activeConsultationTabId = null;
-
-    // Remove listener de monitoramento
-    try {
-      if (tabRemovedListener) {
-        browser.tabs.onRemoved.removeListener(tabRemovedListener);
-      }
-    } catch {}
-
-    // Fecha a aba de background de forma limpa caso ainda esteja aberta
-    if (typeof tabId === "number") {
-      try {
-        await browser.tabs.executeScript(tabId, {
-          code: "(window).__sigessConsultandoAtivo = false; window.onbeforeunload = null;",
-        }).catch(() => {});
-        await browser.tabs.remove(tabId).catch(() => {});
-        logger.info("MPA", "Aba de consulta em background encerrada.");
-      } catch {}
-    }
+    browser.tabs.onRemoved.removeListener(onTabRemoved);
+    await Promise.all([...batch.tabIds].map((tabId) => closeMpaTab(tabId)));
+    activeMpaBatch = null;
+    logger.info("MPA", `Lote encerrado: ${completedResults.length}/${items.length} resultados.`);
   }
 }

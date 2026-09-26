@@ -232,18 +232,14 @@ export async function routeMessage(
           ? ((message as any).items as MpaConsultationItem[])
           : [];
         const runId = String((message as any).runId || `mpa-${Date.now()}`);
+        const sourceTabId = sender?.tab?.id;
 
         const broadcastProgress = (payload: MpaBatchProgressPayload) => {
-          browser.tabs.query({}).then((tabs) => {
-            for (const tab of tabs) {
-              if (typeof tab.id === "number") {
-                browser.tabs.sendMessage(tab.id, {
-                  type: "SIGESS_EXTENSION_EVENT",
-                  eventName: "mpaConsultationProgress",
-                  data: payload,
-                }).catch(() => {});
-              }
-            }
+          if (typeof sourceTabId !== "number") return;
+          browser.tabs.sendMessage(sourceTabId, {
+            type: "SIGESS_EXTENSION_EVENT",
+            eventName: "mpaConsultationProgress",
+            data: payload,
           }).catch(() => {});
         };
 
