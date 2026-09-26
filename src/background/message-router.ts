@@ -1,7 +1,7 @@
 import { logger } from "../shared/services/logger";
 import { StorageService } from "./services/storage";
-import { LicenseService } from "../shared/services/license";
-import { getLicenseErrorMessage } from "../shared/services/license-messages";
+import { LicenseService, type LicenseReason } from "../shared/services/license";
+import { getLicenseErrorMessage, getLicenseOperationState } from "../shared/services/license-messages";
 import { RealtimeLicenseService } from "./services/realtime-license";
 import {
   CadastroSession,
@@ -52,6 +52,15 @@ import {
   type MpaBatchProgressPayload,
 } from "../modules/automation/pesqbrasil/public-consultation";
 
+function licenseFailureResponse(reason?: LicenseReason): MessageResponse {
+  return {
+    success: false,
+    state: getLicenseOperationState(reason),
+    licenseReason: reason,
+    error: getLicenseErrorMessage(reason),
+  };
+}
+
 const UPDATE_ALLOWED_ACTIONS = new Set([
   "checkLicense",
   "getGovBatchStatuses",
@@ -97,8 +106,8 @@ export async function routeMessage(
     if (updateInfo && !UPDATE_ALLOWED_ACTIONS.has(action)) {
       return {
         success: false,
+        state: "update_required",
         error: "Nova versão detectada. Atualize a extensão para continuar.",
-        updateRequired: true,
         updateAvailable: updateInfo,
       };
     }
@@ -131,6 +140,22 @@ export async function routeMessage(
         return await handleStartGovBatchConsultation(message);
       case "getGovBatchStatuses":
         return await handleGetGovBatchStatuses(message);
+      case "checkExtensionAvailability":
+        {
+          const license = await LicenseService.checkLicenseForBridgeStatus();
+          return {
+            success: true,
+            state: "bridge_ready",
+            ...(license.ok
+              ? {}
+              : {
+                  licenseState: getLicenseOperationState(license.reason),
+                  licenseReason: license.reason,
+                  licenseError: getLicenseErrorMessage(license.reason),
+                }),
+            version: browser.runtime.getManifest().version,
+          };
+        }
       case "getESocialAutomationSettings":
         return await handleGetESocialAutomationSettings();
       case "getESocialAutomationContext":
@@ -396,10 +421,7 @@ async function handleStartBatchLogin(
 ) {
   const license = await LicenseService.checkLicense();
   if (!license.ok) {
-    return {
-      success: false,
-      error: getLicenseErrorMessage(license.reason),
-    };
+    return licenseFailureResponse(license.reason);
   }
   const { type, credentials } = message;
   if (!credentials || !Array.isArray(credentials) || credentials.length === 0) {
@@ -463,10 +485,7 @@ async function handleAbrirAbaContainer(
 ) {
   const license = await LicenseService.checkLicense();
   if (!license.ok) {
-    return {
-      success: false,
-      error: getLicenseErrorMessage(license.reason),
-    };
+    return licenseFailureResponse(license.reason);
   }
   const { url, cpf, senha, nome, valorComercializado } = message;
 
@@ -577,10 +596,7 @@ async function handleEnqueueGovBatchSessions(
 ) {
   const license = await LicenseService.checkLicense();
   if (!license.ok) {
-    return {
-      success: false,
-      error: getLicenseErrorMessage(license.reason),
-    };
+    return licenseFailureResponse(license.reason);
   }
 
   // Limpa histórico de lotes antigos encerrados para que o novo lote comece limpo
@@ -860,10 +876,7 @@ async function handleTurboFillReap(message: MessageRequest) {
   const license = await LicenseService.getStatus();
 
   if (!license.ok) {
-    return {
-      success: false,
-      error: getLicenseErrorMessage(license.reason),
-    };
+    return licenseFailureResponse(license.reason);
   }
 
   const { config } = message;
@@ -962,10 +975,7 @@ function enqueueCadastroDataArrival(
 async function handleStartGovBatchConsultation(message: MessageRequest) {
   const license = await LicenseService.checkLicense();
   if (!license.ok) {
-    return {
-      success: false,
-      error: getLicenseErrorMessage(license.reason),
-    };
+    return licenseFailureResponse(license.reason);
   }
 
   const items = Array.isArray((message as any).items)
@@ -1039,10 +1049,7 @@ async function handleStartGovBatchConsultation(message: MessageRequest) {
 async function handleStartGovBatchGeneration(message: MessageRequest) {
   const license = await LicenseService.checkLicense();
   if (!license.ok) {
-    return {
-      success: false,
-      error: getLicenseErrorMessage(license.reason),
-    };
+    return licenseFailureResponse(license.reason);
   }
 
   const items = Array.isArray((message as any).items)

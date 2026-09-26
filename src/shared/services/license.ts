@@ -295,6 +295,27 @@ export class LicenseService {
     return this.performLiveCheck("status", deviceName);
   }
 
+  static async checkLicenseForBridgeStatus(): Promise<LicenseResult> {
+    const key = await this.getSavedKey();
+    if (!key) return { ok: false, reason: "no_key" };
+
+    const revoked = await this.isDeviceRevoked();
+    if (revoked) return { ok: false, reason: "wrong_device" };
+
+    const credentials = await this.getDeviceCredentials();
+    if (!credentials) return { ok: false, reason: "no_key" };
+
+    if (this.startupValidation) return this.startupValidation;
+
+    const memory = await this.getMemoryCache();
+    if (memory) return memory;
+
+    const storage = await this.getStorageCache();
+    if (storage) return storage;
+
+    return this.performLiveCheck("status", undefined, false);
+  }
+
   private static mapApiError(code?: string): LicenseReason {
     switch (code) {
       case "invalid_license": return "invalid_key";
@@ -376,6 +397,7 @@ export class LicenseService {
   private static async performLiveCheck(
     action: LicenseAction = "status",
     deviceName?: string,
+    allowActivation = true,
   ): Promise<LicenseResult> {
     const key = await this.getSavedKey();
     if (!key) return { ok: false, reason: "no_key" };
@@ -391,6 +413,10 @@ export class LicenseService {
         return { ok: false, reason: "wrong_device" };
       }
 
+      if (!allowActivation && action !== "activate" && !credentials) {
+        return { ok: false, reason: revoked ? "wrong_device" : "no_key" };
+      }
+
       if (action === "update_name" && credentials) {
         const payload = await this.apiRequest("/v1/licenses/device", {
           license_id: credentials.licenseId,
@@ -401,7 +427,7 @@ export class LicenseService {
         return this.cacheApiResult(payload, this.memoryCache ?? undefined);
       }
 
-      if (shouldActivateDevice(action, Boolean(credentials), revoked)) {
+      if (allowActivation && shouldActivateDevice(action, Boolean(credentials), revoked)) {
         const idempotencyKey = await this.getActivationIdempotencyKey();
         const payload = await this.apiRequest("/v1/licenses/activate", {
           key,

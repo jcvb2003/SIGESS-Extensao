@@ -3,6 +3,7 @@ import { getUpdateAvailableInfo } from "../shared/services/update-block";
 console.log("[SIGESS] Content Script active");
 
 const ALLOWED_MESSAGE_TYPES = new Set([
+  "checkExtensionAvailability",
   "enqueueGovBatchSessions",
   "startGovBatchGeneration",
   "startGovBatchConsultation",
@@ -30,8 +31,14 @@ const UPDATE_ALLOWED_MESSAGE_TYPES = new Set([
   "updateESocialSettings",
   "updateSettings",
 ]);
+const UPDATE_STATUS_READ_MESSAGE_TYPES = new Set([
+  "getGovBatchStatuses",
+  "getESocialAutomationSettings",
+  "getAutoRegistrationSnapshot",
+]);
 const EXTENSION_EVENT_TYPE = "SIGESS_EXTENSION_EVENT";
 const ESOCIAL_SETTINGS_EVENT_NAME = "esocialAutomationSettingsChanged";
+const EXTENSION_BRIDGE_STATUS_EVENT_NAME = "extensionBridgeStateChanged";
 
 type ESocialAutomationSettingsSnapshot = {
   competencia: string;
@@ -98,8 +105,8 @@ window.addEventListener("message", function (event) {
             requestId: event.data.requestId,
             response: {
               success: false,
+              state: "update_required",
               error: "Nova versão detectada. Atualize a extensão para continuar.",
-              updateRequired: true,
               updateAvailable: updateInfo,
             },
           },
@@ -127,7 +134,13 @@ window.addEventListener("message", function (event) {
             {
               type: "SIGESS_EXTENSION_RESPONSE",
               requestId: event.data.requestId,
-              response: response || { success: false, error: "Sem resposta do background" },
+              response: updateInfo && UPDATE_STATUS_READ_MESSAGE_TYPES.has(messageType)
+                ? {
+                    ...(response && typeof response === "object" ? response : { success: false, error: "Sem resposta do background" }),
+                    state: "update_required",
+                    updateAvailable: updateInfo,
+                  }
+                : response || { success: false, error: "Sem resposta do background" },
             },
             window.location.origin,
           );
@@ -143,6 +156,7 @@ window.addEventListener("message", function (event) {
               requestId: event.data.requestId,
               response: {
                 success: false,
+                state: "bridge_unavailable",
                 error:
                   error instanceof Error
                     ? error.message
@@ -162,6 +176,25 @@ const browserAPI =
 if (browserAPI?.storage?.onChanged) {
   browserAPI.storage.onChanged.addListener((changes: Record<string, { newValue?: unknown }>, areaName: string) => {
     if (areaName !== "local") return;
+
+    if ("updateAvailable" in changes) {
+      const updateAvailable = changes.updateAvailable?.newValue as {
+        version?: string;
+        url?: string;
+      } | undefined;
+      const hasUpdateAvailable = updateAvailable !== undefined && updateAvailable !== null;
+
+      window.postMessage(
+        {
+          type: EXTENSION_EVENT_TYPE,
+          eventName: EXTENSION_BRIDGE_STATUS_EVENT_NAME,
+          data: hasUpdateAvailable
+            ? { state: "update_required", updateAvailable }
+            : { state: "bridge_ready" },
+        },
+        window.location.origin,
+      );
+    }
 
     if (changes.sigessSettings?.newValue) {
       emitESocialAutomationSettingsChanged(changes.sigessSettings.newValue as Record<string, unknown>);

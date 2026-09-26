@@ -1,3 +1,39 @@
+export type LicenseOperationState =
+  | "license_not_activated"
+  | "license_unlinked"
+  | "license_expired"
+  | "license_blocked"
+  | "license_invalid_key"
+  | "license_device_limit"
+  | "license_network_error"
+  | "license_database_error"
+  | "license_rate_limited"
+  | "license_unauthorized_access"
+  | "license_invalid_signature"
+  | "license_missing_parameters"
+  | "license_internal_error"
+  | "license_unknown_error";
+
+const LICENSE_OPERATION_STATE_BY_REASON: Record<string, LicenseOperationState> = {
+  no_key: "license_not_activated",
+  wrong_device: "license_unlinked",
+  expired: "license_expired",
+  blocked: "license_blocked",
+  invalid_key: "license_invalid_key",
+  device_limit: "license_device_limit",
+  network_error: "license_network_error",
+  database_error: "license_database_error",
+  rate_limited: "license_rate_limited",
+  unauthorized_access: "license_unauthorized_access",
+  invalid_signature: "license_invalid_signature",
+  missing_parameters: "license_missing_parameters",
+  internal_error: "license_internal_error",
+};
+
+export function getLicenseOperationState(reason?: string): LicenseOperationState {
+  return reason ? LICENSE_OPERATION_STATE_BY_REASON[reason] ?? "license_unknown_error" : "license_unknown_error";
+}
+
 export function getLicenseErrorMessage(reason?: string): string {
   switch (reason) {
     case "no_key":
