@@ -15,9 +15,6 @@ export interface MpaPublicSearchResult {
   uf?: string;
   municipio?: string;
   categoria?: string;
-  formaAtuacao?: string;
-  produtoPesca?: string;
-  anoNascimento?: string;
   embarcado?: string;
   gruposAlvo?: string;
   dataCriacao?: string;
@@ -260,10 +257,6 @@ async function executeQueryInTab(tabId: number, cpf: string, nome?: string): Pro
               return String(v);
             }
 
-            function firstDefined(...values) {
-              return values.find((value) => value !== null && value !== undefined && value !== "");
-            }
-
             function normalizeDateValue(value) {
               if (value === null || value === undefined) return undefined;
               const raw = String(value).trim();
@@ -388,23 +381,18 @@ async function executeQueryInTab(tabId: number, cpf: string, nome?: string): Pro
                 cpf_original: cpfOriginal,
                 nomeSocio,
                 codigoRGP: data.codigoRGP ? String(data.codigoRGP).trim() : undefined,
-                situacao: firstDefined(data.situacao, data.situacaoRgp, data.situacaoRGP)
-                  ? String(firstDefined(data.situacao, data.situacaoRgp, data.situacaoRGP)).trim()
-                  : "Sem Registro",
-                tipoRegistro: formatValue(firstDefined(data.tipoRegistro, data.tipoDeRegistro)),
-                uf: formatValue(firstDefined(data.uf, data.ufPescador, data.ufDoPescador)),
-                municipio: formatValue(firstDefined(data.municipio, data.municipioPescador, data.municipioDoPescador)),
-                categoria: formatValue(data.categoria),
-                formaAtuacao: formatValue(firstDefined(data.formaAtuacao, data.formaDeAtuacao)),
-                produtoPesca: formatValue(firstDefined(data.produtoPesca, data.produtoDePesca)),
-                anoNascimento: formatValue(firstDefined(data.anoNascimento, data.anoDeNascimento)),
+                situacao: data.situacao ? String(data.situacao).trim() : "Sem Registro",
+                tipoRegistro: data.tipoRegistro ? String(data.tipoRegistro).trim() : undefined,
+                uf: data.uf ? String(data.uf).trim() : undefined,
+                municipio: data.municipio ? String(data.municipio).trim() : undefined,
+                categoria: data.categoria ? String(data.categoria).trim() : undefined,
                 embarcado: data.embarcado ? String(data.embarcado).trim() : undefined,
                 gruposAlvo: formatValue(data.gruposAlvo),
                 dataCriacao: normalizeDateValue(data.dataCriacao),
-                dataPrimeiroRgp: normalizeDateValue(firstDefined(data.dataPrimeiroRgp, data.dataPrimeiroRGP)),
+                dataPrimeiroRgp: normalizeDateValue(data.dataPrimeiroRgp),
                 areasPescaPretendida: formatValue(data.areasPescaPretendida),
                 dataCancelamento: normalizeDateValue(data.dataCancelamento),
-                dataSuspensao: normalizeDateValue(firstDefined(data.dataSuspensao, data.dataSuspensaoRgp)),
+                dataSuspensao: normalizeDateValue(data.dataSuspensao),
                 status_resultado: "sucesso",
               });
             } catch (err) {
@@ -454,16 +442,13 @@ async function executeQueryInTab(tabId: number, cpf: string, nome?: string): Pro
                 cpf_original: cpfOriginal,
                 nomeSocio,
                 codigoRGP: data.codigoRGP,
-                situacao: data.situacao || data.situacaoRgp || data.situacaoRGP || "Sem Registro",
-                tipoRegistro: data.tipoRegistro || data.tipoDeRegistro,
-                uf: data.uf || data.ufPescador || data.ufDoPescador,
-                municipio: data.municipio || data.municipioPescador || data.municipioDoPescador,
+                situacao: data.situacao || "Sem Registro",
+                tipoRegistro: data.tipoRegistro,
+                uf: data.uf,
+                municipio: data.municipio,
                 categoria: data.categoria,
-                formaAtuacao: data.formaAtuacao || data.formaDeAtuacao,
-                produtoPesca: data.produtoPesca || data.produtoDePesca,
-                anoNascimento: data.anoNascimento || data.anoDeNascimento,
-                dataPrimeiroRgp: data.dataPrimeiroRgp || data.dataPrimeiroRGP,
-                dataSuspensao: data.dataSuspensao || data.dataSuspensaoRgp,
+                dataPrimeiroRgp: data.dataPrimeiroRgp,
+                dataSuspensao: data.dataSuspensao,
                 status_resultado: "sucesso",
               });
             } catch (e) {
