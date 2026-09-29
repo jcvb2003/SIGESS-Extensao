@@ -85,6 +85,14 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+browser.tabs.onCreated.addListener(async (tab) => {
+  try {
+    await getTabManager().handleTabCreated(tab);
+  } catch (e) {
+    console.error("TabManager onCreated error:", e);
+  }
+});
+
 browser.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     await getTabManager().handleTabActivated(activeInfo.tabId);
@@ -96,6 +104,7 @@ browser.tabs.onActivated.addListener(async (activeInfo) => {
 browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   try {
     await getTabManager().handleTabRemoval(tabId, removeInfo);
+    await StorageService.clearPesqBrasilCadastroContext(tabId);
   } catch (e) {
     console.error("TabManager onRemoved error:", e);
   }

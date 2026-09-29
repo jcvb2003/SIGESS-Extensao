@@ -4,6 +4,7 @@ import { InssPortalRuntime } from "../modules/automation/inss/runtime";
 import { ESocialPortalRuntime } from "../modules/automation/esocial/runtime";
 import { PesqBrasilPortalRuntime } from "../modules/automation/pesqbrasil/runtime";
 import { TsePortalRuntime } from "../modules/automation/tse/runtime";
+import { fillTseAuthForm } from "../modules/automation/tse/form-filler-tse";
 import { resolvePortalBridge } from "../modules/automation/cadastro/portal-bridges";
 import { BridgeInjector } from "../modules/automation/cadastro/bridge-injector";
 import { routePortalBridgeMessage } from "../modules/automation/cadastro/portal-data-router";
@@ -11,6 +12,7 @@ import { setupRegistrationNavigation } from "../modules/automation/cadastro/regi
 import { loadRegistrationRuntimeState, observeRegistrationStorage } from "../modules/automation/cadastro/registration-state";
 import { injectGovBrReloginButton } from "../modules/automation/cadastro/govbr-relogin";
 import { GovBrConsentRuntime } from "../modules/automation/cadastro/govbr-consent";
+import { PesqBrasilCadastroRuntime } from "../modules/automation/pesqbrasil-registration/runtime";
 
 declare var browser: any;
 declare var chrome: any;
@@ -69,6 +71,7 @@ async function initMain() {
   const pesqBrasilRuntime = new PesqBrasilPortalRuntime();
   const tseRuntime = new TsePortalRuntime({ canSubmit: canSubmitCadastroTse });
   const govBrConsentRuntime = new GovBrConsentRuntime();
+  const pesqBrasilCadastroRuntime = new PesqBrasilCadastroRuntime();
 
   // ── Inicialização ────────────────────────────────────────────────────────
 
@@ -86,6 +89,23 @@ async function initMain() {
     const settings = runtimeState.settings;
     _autoEnabled = runtimeState.autoEnabled;
     _cadastroSessionActive = runtimeState.cadastroSessionActive;
+
+    if (globalThis.location.hostname.includes("tse.jus.br")) {
+      try {
+        const externalContext = await (globalThis.browser || globalThis.chrome).runtime.sendMessage({
+          action: "getExternalPortalContext",
+        });
+        if (externalContext?.portalId === "tse" && externalContext.data) {
+          fillTseAuthForm(externalContext.data, { submit: true });
+        }
+      } catch {
+        // A TSE tab opened outside the external-portal flow has no context.
+      }
+    }
+
+    // O preenchimento PesqBrasil é acionado pelo botão flutuante e não depende
+    // da captura automática global estar ativada.
+    pesqBrasilCadastroRuntime.start();
 
     // SEMPRE registra listeners de bridge, mesmo se desativado (para poder ativar em tempo real)
     globalThis.addEventListener("message", (event) => routePortalBridgeMessage(event, _autoEnabled));

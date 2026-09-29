@@ -1,6 +1,7 @@
 import {
   AppSettings,
   CadastroSession,
+  ExternalPortalSession,
   GovBatchClosedStatus,
   GovBatchItemStatus,
   UserCredentials,
@@ -20,6 +21,12 @@ import {
   projectSourceFields,
 } from "../../modules/automation/cadastro/source-projections";
 import { normalizeCpf } from "../../shared/utils/normalize-cpf";
+import {
+  DEFAULT_PESQBRASIL_CADASTRO_CONFIG,
+  type PesqBrasilCadastroConfig,
+  type PesqBrasilCadastroContext,
+  type PesqBrasilCadastroPayload,
+} from "../../modules/automation/pesqbrasil-registration/contracts";
 
 declare var chrome: any;
 declare var browser: any;
@@ -33,10 +40,12 @@ function getBrowserStorage() {
 }
 
 export class StorageService {
+  private static readonly EXTERNAL_SESSIONS_KEY = "sigessExternalPortalSessions";
   private static readonly CADASTRO_SESSION_KEY = "sigessActiveCadastro";
   private static readonly CLOSED_GOV_BATCH_STATUSES_KEY =
     "sigess_closed_gov_batch_statuses";
   private static readonly credentialWriteQueues = new Map<number, Promise<void>>();
+  private static readonly PESQBRASIL_CADASTRO_CONFIG_KEY = "sigess_pesqbrasil_cadastro_config";
   static async get<T>(keys: string | string[]): Promise<Record<string, T>> {
     const storage = getBrowserStorage();
     if (!storage) return {} as Record<string, T>;
@@ -69,6 +78,67 @@ export class StorageService {
 
   static async saveSettings(settings: AppSettings): Promise<void> {
     await this.set({ sigessSettings: normalizeReapSettings(settings) });
+  }
+
+  static async getPesqBrasilCadastroConfig(): Promise<PesqBrasilCadastroConfig> {
+    const result = await this.get<PesqBrasilCadastroConfig>(this.PESQBRASIL_CADASTRO_CONFIG_KEY);
+    const current = result[this.PESQBRASIL_CADASTRO_CONFIG_KEY];
+    return {
+      ...DEFAULT_PESQBRASIL_CADASTRO_CONFIG,
+      ...(current || {}),
+      areaPesca: {
+        ...DEFAULT_PESQBRASIL_CADASTRO_CONFIG.areaPesca,
+        ...(current?.areaPesca || {}),
+      },
+      filiacao: {
+        ...DEFAULT_PESQBRASIL_CADASTRO_CONFIG.filiacao,
+        ...(current?.filiacao || {}),
+      },
+      nacionalidade: "Brasileira",
+    };
+  }
+
+  static async savePesqBrasilCadastroConfig(
+    config: Partial<PesqBrasilCadastroConfig>,
+  ): Promise<PesqBrasilCadastroConfig> {
+    const current = await this.getPesqBrasilCadastroConfig();
+    const next: PesqBrasilCadastroConfig = {
+      ...current,
+      ...config,
+      areaPesca: { ...current.areaPesca, ...(config.areaPesca || {}) },
+      filiacao: { ...current.filiacao, ...(config.filiacao || {}) },
+      nacionalidade: "Brasileira",
+    };
+    await this.set({ [this.PESQBRASIL_CADASTRO_CONFIG_KEY]: next });
+    return next;
+  }
+
+  private static getPesqBrasilCadastroContextKey(tabId: number): string {
+    return `sigess_pesqbrasil_cadastro_context_${tabId}`;
+  }
+
+  static async savePesqBrasilCadastroContext(
+    tabId: number,
+    payload: PesqBrasilCadastroPayload,
+  ): Promise<void> {
+    const key = this.getPesqBrasilCadastroContextKey(tabId);
+    const context: PesqBrasilCadastroContext = {
+      payload,
+      receivedAt: Date.now(),
+    };
+    await this.set({ [key]: context });
+  }
+
+  static async getPesqBrasilCadastroContext(
+    tabId: number,
+  ): Promise<PesqBrasilCadastroContext | null> {
+    const key = this.getPesqBrasilCadastroContextKey(tabId);
+    const result = await this.get<PesqBrasilCadastroContext>(key);
+    return result[key] || null;
+  }
+
+  static async clearPesqBrasilCadastroContext(tabId: number): Promise<void> {
+    await this.remove(this.getPesqBrasilCadastroContextKey(tabId));
   }
 
   /** Remove todos os dados de pessoa coletados, preservando apenas configurações operacionais. */
@@ -281,6 +351,17 @@ export class StorageService {
   static async clearCredentials(tabId: number): Promise<void> {
     const key = `credenciais_${tabId}`;
     await this.remove(key);
+  }
+
+  static async getExternalPortalSessions(): Promise<ExternalPortalSession[]> {
+    const result = await this.get<ExternalPortalSession[]>(this.EXTERNAL_SESSIONS_KEY);
+    return Array.isArray(result[this.EXTERNAL_SESSIONS_KEY])
+      ? result[this.EXTERNAL_SESSIONS_KEY]
+      : [];
+  }
+
+  static async saveExternalPortalSessions(sessions: ExternalPortalSession[]): Promise<void> {
+    await this.set({ [this.EXTERNAL_SESSIONS_KEY]: sessions });
   }
 
   static async saveClosedGovBatchStatus(

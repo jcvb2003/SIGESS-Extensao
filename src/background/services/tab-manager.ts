@@ -1,5 +1,6 @@
 import { StorageService } from "./storage";
-import { CadastroSession, UserCredentials } from "../../shared/types";
+import { CadastroSession, ExternalPortalSession, UserCredentials } from "../../shared/types";
+import type { PesqBrasilCadastroPayload } from "../../modules/automation/pesqbrasil-registration/contracts";
 import {
   AuthStrategy,
   PesqBrasilStrategy,
@@ -8,6 +9,8 @@ import {
   INSSStrategy,
   ESocialStrategy,
   CadUnicoStrategy,
+  FacilitaStrategy,
+  ReceitaFederalStrategy,
 } from "./auth-strategy";
 import { CADUNICO_HOME_URL, isCadUnicoUrl } from "../../modules/automation/cadunico/routes";
 import { INSS_DATA_URL, isInssDataUrl, isInssUrl } from "../../modules/automation/inss/routes";
@@ -21,6 +24,7 @@ import {
   isEsocialHomeUrl,
 } from "../../modules/automation/esocial/routes";
 import { closeCadastroContainerTabs, sanitizeCadastroContainer } from "../cadastro/cadastro-container";
+import { isTabUnavailableError } from "./dom-injector";
 
 export class TabManager {
   private readonly strategies: AuthStrategy[] = [];
@@ -41,6 +45,8 @@ export class TabManager {
       new INSSStrategy(),
       new ESocialStrategy(),
       new CadUnicoStrategy(),
+      new FacilitaStrategy(),
+      new ReceitaFederalStrategy(),
     ];
   }
 
@@ -80,6 +86,67 @@ export class TabManager {
     await StorageService.remove(this.getTabContainerKey(tabId));
   }
 
+  private async hashCpf(cpf: string): Promise<string> {
+    const normalized = String(cpf || "").replace(/\D/g, "");
+    if (!normalized) return "";
+    const data = new TextEncoder().encode(normalized);
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  private async findExternalSession(cpf: string): Promise<ExternalPortalSession | null> {
+    if (!this.supportsContextualIdentities()) return null;
+    const cpfHash = await this.hashCpf(cpf);
+    if (!cpfHash) return null;
+    const sessions = await StorageService.getExternalPortalSessions();
+    const candidates = sessions
+      .filter((session) => session.cpfHash === cpfHash)
+      .sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+    for (const session of candidates) {
+      try {
+        await (browser as any).contextualIdentities.get(session.cookieStoreId);
+        return session;
+      } catch {
+        // Remove stale containers below.
+      }
+    }
+    if (candidates.length) {
+      const staleIds = new Set(candidates.map((session) => session.sessionId));
+      await StorageService.saveExternalPortalSessions(
+        sessions.filter((session) => !staleIds.has(session.sessionId)),
+      );
+    }
+    return null;
+  }
+
+  private async upsertExternalSession(
+    cpf: string,
+    cookieStoreId: string,
+    tabId: number,
+    sessionId?: string,
+  ): Promise<void> {
+    const cpfHash = await this.hashCpf(cpf);
+    if (!cpfHash) return;
+    const sessions = await StorageService.getExternalPortalSessions();
+    const now = Date.now();
+    const current = sessions.find((session) => session.sessionId === sessionId);
+    const next: ExternalPortalSession = current
+      ? { ...current, cookieStoreId, lastUsedAt: now, tabIds: [...new Set([...current.tabIds, tabId])] }
+      : {
+          sessionId: sessionId || `external-${now}-${Math.random().toString(36).slice(2, 8)}`,
+          cpfHash,
+          cookieStoreId,
+          createdAt: now,
+          lastUsedAt: now,
+          tabIds: [tabId],
+        };
+    await StorageService.saveExternalPortalSessions([
+      next,
+      ...sessions.filter((session) => session.sessionId !== next.sessionId),
+    ]);
+    await StorageService.updateCredentials(tabId, { externalSessionId: next.sessionId });
+  }
+
   async createSession(
     url: string,
     cpf: string,
@@ -94,7 +161,11 @@ export class TabManager {
     selectedMonth?: string,
     competencias?: UserCredentials["competencias"],
     automationRunId?: string,
-  ): Promise<void> {
+    pesqBrasilCadastroData?: PesqBrasilCadastroPayload,
+    externalPortalId?: string,
+    externalPortalData?: Partial<UserCredentials["externalPortalData"]>,
+    reuseExternalSession = false,
+  ): Promise<number | null> {
     try {
       const resolvedPortalType =
         portalType ||
@@ -106,7 +177,18 @@ export class TabManager {
 
       let tab: browser.tabs.Tab;
 
-      if (this.supportsContextualIdentities()) {
+      const reusableSession = reuseExternalSession
+        ? await this.findExternalSession(cpf)
+        : null;
+
+      if (reusableSession) {
+        tab = await browser.tabs.create({
+          url: "about:blank",
+          cookieStoreId: reusableSession.cookieStoreId,
+          active: false,
+        });
+        if (tab.id) await this.saveTabContainer(tab.id, reusableSession.cookieStoreId);
+      } else if (this.supportsContextualIdentities()) {
         const container = await (browser as any).contextualIdentities.create({
           name: nome || `Sessao-${index}-${cpf.slice(-4)}`,
           color: "blue",
@@ -140,6 +222,9 @@ export class TabManager {
           nome,
           valorComercializado,
           portalType: resolvedPortalType,
+           externalPortalId,
+           externalPortalData,
+           externalLaunchAttempted: false,
           gerarGps,
           consultarGuias,
            selectedYear,
@@ -155,11 +240,24 @@ export class TabManager {
           progressStage: "aguardando_pagina",
           lastUpdatedAt: Date.now(),
         });
+        if (pesqBrasilCadastroData) {
+          await StorageService.savePesqBrasilCadastroContext(tab.id, pesqBrasilCadastroData);
+        }
         await browser.tabs.update(tab.id, { url });
+        if (reuseExternalSession && this.supportsContextualIdentities()) {
+          await this.upsertExternalSession(
+            cpf,
+            reusableSession?.cookieStoreId || (await this.getTabContainer(tab.id)) || "firefox-default",
+            tab.id,
+            reusableSession?.sessionId,
+          );
+        }
+        return tab.id;
       }
     } catch (error) {
       console.error("Erro ao criar sessao:", error);
     }
+    return null;
   }
 
   async createSessionInContainer(
@@ -201,12 +299,72 @@ export class TabManager {
     }
   }
 
+  async handleTabCreated(tab: browser.tabs.Tab): Promise<void> {
+    const openerTabId = (tab as browser.tabs.Tab & { openerTabId?: number }).openerTabId;
+    if (typeof tab.id !== "number") return;
+    const createdTabId = tab.id;
+
+    let sourceTabId = openerTabId;
+    let openerCredentials = typeof sourceTabId === "number"
+      ? await StorageService.getCredentials(sourceTabId)
+      : null;
+    if (!openerCredentials && tab.cookieStoreId) {
+      const siblingTabs = await browser.tabs.query({ cookieStoreId: tab.cookieStoreId });
+      for (const sibling of siblingTabs) {
+        if (typeof sibling.id !== "number" || sibling.id === tab.id) continue;
+        const credentials = await StorageService.getCredentials(sibling.id);
+        if (credentials?.externalPortalId === "facilita") {
+          sourceTabId = sibling.id;
+          openerCredentials = credentials;
+          break;
+        }
+      }
+    }
+    if (openerCredentials?.externalPortalId !== "facilita") return;
+
+    const cookieStoreId = tab.cookieStoreId || (typeof sourceTabId === "number" ? await this.getTabContainer(sourceTabId) : null);
+    if (cookieStoreId) await this.saveTabContainer(createdTabId, cookieStoreId);
+    await StorageService.saveCredentials(createdTabId, {
+      ...openerCredentials,
+      externalPortalId: "facilita",
+      externalLaunchAttempted: openerCredentials.externalLaunchAttempted,
+      externalPopupContinuation: true,
+      loginConcluido: false,
+      govBrCpfSubmitted: false,
+      govBrPasswordSubmitted: false,
+      status: "abrindo_em_lote",
+      statusTitle: "Abrindo login",
+      statusDescription: "Preparando a janela de login do Facilita...",
+      lastUpdatedAt: Date.now(),
+    });
+    if (typeof sourceTabId === "number") {
+      await StorageService.updateCredentials(sourceTabId, {
+        status: "redirecionando",
+        statusTitle: "Continuando login",
+        statusDescription: "Aguardando a aba de autenticação do Facilita...",
+      });
+    }
+    if (openerCredentials.externalSessionId) {
+      const sessions = await StorageService.getExternalPortalSessions();
+      await StorageService.saveExternalPortalSessions(
+        sessions.map((session) => session.sessionId === openerCredentials.externalSessionId
+          ? { ...session, tabIds: [...new Set([...session.tabIds, createdTabId])], lastUsedAt: Date.now() }
+          : session),
+      );
+    }
+  }
+
   async handleTabUpdate(
     tabId: number,
     changeInfo: browser.tabs._OnUpdatedChangeInfo,
     tab: browser.tabs.Tab,
   ) {
     if (!tab.url) return;
+
+    // tabs.onUpdated pode entregar um evento já enfileirado depois de a aba
+    // ter sido fechada. Não inicia a estratégia nesse caso.
+    const liveTab = await browser.tabs.get(tabId).catch(() => null);
+    if (!liveTab) return;
 
     const credentials = await StorageService.getCredentials(tabId);
     if (!credentials) return;
@@ -255,6 +413,21 @@ export class TabManager {
     const returnedFromGovBr =
       credentials.govBrPasswordSubmitted &&
       !tab.url.includes("sso.acesso.gov.br");
+
+    if (
+      credentials.externalPopupContinuation &&
+      changeInfo.status === "complete" &&
+      !tab.url.includes("sso.acesso.gov.br") &&
+      !tab.url.startsWith("about:")
+    ) {
+      await StorageService.updateCredentials(tabId, {
+        loginConcluido: true,
+        status: "concluido",
+        statusTitle: "Login concluído",
+        statusDescription: "O portal foi aberto após a autenticação do Facilita.",
+      });
+      return;
+    }
 
     if (returnedFromGovBr) {
       if (credentials.isCadastroAutomatico) {
@@ -374,7 +547,8 @@ export class TabManager {
       return;
     }
 
-    const tab = await browser.tabs.get(tabId);
+    const tab = await browser.tabs.get(tabId).catch(() => null);
+    if (!tab) return;
     const credentials = await StorageService.getCredentials(tabId);
     if (!tab.url?.includes("sso.acesso.gov.br") || !credentials || credentials.loginConcluido) return;
 
@@ -452,9 +626,15 @@ export class TabManager {
     try {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
+          const liveTab = await browser.tabs.get(tabId).catch(() => null);
+          if (!liveTab) return;
           await strategy.execute(tabId, tabUrl, credentials);
           return;
         } catch (error: any) {
+          if (isTabUnavailableError(error) || !(await browser.tabs.get(tabId).catch(() => null))) {
+            console.debug(`[TabManager] Aba ${tabId} encerrada durante a automação; retry cancelado.`);
+            return;
+          }
           if (error?.message === "govbr_senha_invalida") {
             const errorMessage = "Usuário e/ou senha inválidos no Gov.br.";
             await this.abortActiveCadastroSession(errorMessage);
@@ -733,6 +913,15 @@ export class TabManager {
 
     if (creds?.portalType === "esocial" && creds.automationRunId) {
       await StorageService.saveClosedGovBatchStatus(creds, tabId);
+    }
+
+    if (creds?.externalSessionId) {
+      const sessions = await StorageService.getExternalPortalSessions();
+      await StorageService.saveExternalPortalSessions(
+        sessions.map((session) => session.sessionId === creds.externalSessionId
+          ? { ...session, tabIds: session.tabIds.filter((id) => id !== tabId), lastUsedAt: Date.now() }
+          : session),
+      );
     }
 
     await StorageService.clearCredentials(tabId);

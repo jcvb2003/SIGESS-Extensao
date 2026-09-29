@@ -50,6 +50,11 @@ export interface UserCredentials {
   isCadastroAutomatico?: boolean;
   cadastroSessionId?: string;
   portalType?: "mte" | "pesqbrasil_mpa" | "esocial" | "inss" | "cadunico" | "tse";
+  externalPortalId?: string;
+  externalPortalData?: Partial<PessoaData>;
+  externalSessionId?: string;
+  externalLaunchAttempted?: boolean;
+  externalPopupContinuation?: boolean;
   gerarGps?: boolean;
   consultarGuias?: boolean;
   selectedYear?: string;
@@ -383,6 +388,15 @@ export interface MessageResponse {
   settings?: AppSettings;
   data?: any;
   [key: string]: any;
+}
+
+export interface ExternalPortalSession {
+  sessionId: string;
+  cpfHash: string;
+  cookieStoreId: string;
+  createdAt: number;
+  lastUsedAt: number;
+  tabIds: number[];
 }
 
 export interface TurboReapConfig {

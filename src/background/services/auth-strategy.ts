@@ -245,6 +245,58 @@ export class PesqBrasilStrategy extends BaseAuthStrategy {
   }
 }
 
+export class FacilitaStrategy extends BaseAuthStrategy {
+  name = "Facilita";
+  urlTrigger = "portalcidadao.dataprev.gov.br";
+
+  async execute(tabId: number, tabUrl: string, credentials: UserCredentials): Promise<void> {
+    if (tabUrl.includes(this.urlTrigger) && !tabUrl.includes("sso.acesso.gov.br") && !credentials.externalLaunchAttempted) {
+      try {
+        await DOMInjector.waitForElement(tabId, "#buttonEntrarComLogin", 12000);
+        await StorageService.updateCredentials(tabId, { externalLaunchAttempted: true });
+        await DOMInjector.executeMain(tabId, () => {
+          const button = document.querySelector("#buttonEntrarComLogin") as HTMLButtonElement | null;
+          if (!button) return false;
+          button.click();
+          return true;
+        });
+        await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
+      } catch {
+        // O portal pode já ter redirecionado ou estar com uma sessão ativa.
+      }
+    }
+    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+      await this.handleGovBrLogin(tabId, credentials);
+    }
+  }
+}
+
+export class ReceitaFederalStrategy extends BaseAuthStrategy {
+  name = "ReceitaFederal";
+  urlTrigger = "servicos.receitafederal.gov.br";
+
+  async execute(tabId: number, tabUrl: string, credentials: UserCredentials): Promise<void> {
+    if (tabUrl.includes(this.urlTrigger) && !tabUrl.includes("sso.acesso.gov.br") && !credentials.externalLaunchAttempted) {
+      try {
+        await DOMInjector.waitForElement(tabId, "input[type='submit'][value*='Entrar com GovBR']", 12000);
+        await StorageService.updateCredentials(tabId, { externalLaunchAttempted: true });
+        await DOMInjector.executeMain(tabId, () => {
+          const button = document.querySelector("input[type='submit'][value*='Entrar com GovBR']") as HTMLInputElement | null;
+          if (!button) return false;
+          button.click();
+          return true;
+        });
+        await this.updateStatus(tabId, "fazendo_login", "Fazendo Login", "Redirecionando para Gov.BR...");
+      } catch {
+        // O portal pode já ter redirecionado ou estar com uma sessão ativa.
+      }
+    }
+    if (tabUrl.includes("sso.acesso.gov.br/login")) {
+      await this.handleGovBrLogin(tabId, credentials);
+    }
+  }
+}
+
 export class MTEStrategy extends BaseAuthStrategy {
   name = "MTE";
   urlTrigger = "servicos.mte.gov.br";

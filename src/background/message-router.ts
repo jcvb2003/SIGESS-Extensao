@@ -43,6 +43,7 @@ import {
 import { createCadastroCollectionEvent } from "./cadastro/cadastro-event";
 import { enqueueCadastroSessionWork } from "./cadastro/cadastro-session-queue";
 import { XPI_INSTALL_URL } from "../shared/services/update-block";
+import { DOMInjector } from "./services/dom-injector";
 import { clearStaticCacheRuntime } from "./services/static-cache-runtime";
 import { clearStaticCache } from "./services/static-cache-policy";
 import {
@@ -128,10 +129,77 @@ export async function routeMessage(
       case "updateESocialSettings":
       case "updateSettings":
         return await handleUpdateSettings(message);
+      case "getPesqBrasilCadastroConfig":
+        return { success: true, data: await StorageService.getPesqBrasilCadastroConfig() };
+      case "savePesqBrasilCadastroConfig":
+        return {
+          success: true,
+          data: await StorageService.savePesqBrasilCadastroConfig(message.config || {}),
+        };
+      case "getPesqBrasilCadastroContext": {
+        const tabId = sender?.tab?.id;
+        if (typeof tabId !== "number") return { success: false, error: "Aba PesqBrasil não identificada." };
+        return {
+          success: true,
+          data: await StorageService.getPesqBrasilCadastroContext(tabId),
+        };
+      }
+      case "setPesqBrasilCadastroInput": {
+        const tabId = sender?.tab?.id;
+        if (typeof tabId !== "number") {
+          return { success: false, error: "Aba PesqBrasil não identificada." };
+        }
+
+        const fieldId = typeof message.fieldId === "string" ? message.fieldId : "";
+        const fieldName = typeof message.fieldName === "string" ? message.fieldName : "";
+        const value = String(message.value ?? "");
+        if (!fieldId && !fieldName) {
+          return { success: false, error: "Campo PesqBrasil não identificado." };
+        }
+
+        const filled = await DOMInjector.executeMain(
+          tabId,
+          (id, name, nextValue) => {
+            const input = ((id ? document.getElementById(id) : null)
+              || (name ? document.querySelector(`input[name="${name}"]`) : null)) as HTMLInputElement | null;
+            if (!input) return false;
+
+            const tracker = (input as any)._valueTracker;
+            if (tracker) tracker.setValue(input.value);
+            const setter = Object.getOwnPropertyDescriptor(
+              window.HTMLInputElement.prototype,
+              "value",
+            )?.set;
+            if (setter) setter.call(input, nextValue);
+            else input.value = nextValue;
+
+            input.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              composed: true,
+              inputType: "insertText",
+              data: nextValue,
+            }));
+            return input.value === nextValue;
+          },
+          [fieldId, fieldName, value],
+        );
+
+        return { success: filled };
+      }
       case "startBatchLogin":
         return await handleStartBatchLogin(message, getTabManager);
       case "abrirAbaContainer":
         return await handleAbrirAbaContainer(message, getTabManager);
+      case "getExternalPortalContext": {
+        const tabId = sender?.tab?.id;
+        if (typeof tabId !== "number") return { success: false, error: "Aba externa não identificada." };
+        const credentials = await StorageService.getCredentials(tabId);
+        return {
+          success: true,
+          portalId: credentials?.externalPortalId,
+          data: credentials?.externalPortalData,
+        };
+      }
       case "enqueueGovBatchSessions":
         return await handleEnqueueGovBatchSessions(message, getTabManager);
       case "startGovBatchGeneration":
@@ -483,7 +551,17 @@ async function handleAbrirAbaContainer(
   if (!license.ok) {
     return licenseFailureResponse(license.reason);
   }
-  const { url, cpf, senha, nome, valorComercializado } = message;
+  const {
+    url,
+    cpf,
+    senha,
+    nome,
+    valorComercializado,
+    pesqBrasilCadastroData,
+    externalPortalId,
+    externalPortalData,
+    reuseExternalSession,
+  } = message;
 
   try {
     if (!isUrlAllowed(url || "")) {
@@ -568,7 +646,7 @@ async function handleAbrirAbaContainer(
   }
 
   const randIndex = Math.floor(Math.random() * 1000);
-  await getTabManager().createSession(
+  const tabId = await getTabManager().createSession(
     url,
     cpf,
     senha,
@@ -582,8 +660,18 @@ async function handleAbrirAbaContainer(
           ? "pesqbrasil_mpa"
           : "mte",
     valorComercializado,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    pesqBrasilCadastroData,
+    externalPortalId,
+    externalPortalData,
+    Boolean(reuseExternalSession),
   );
-  return { success: true };
+  return { success: tabId !== null, ...(tabId !== null ? { tabId } : { error: "Não foi possível abrir a aba do portal." }) };
 }
 
 async function handleEnqueueGovBatchSessions(
