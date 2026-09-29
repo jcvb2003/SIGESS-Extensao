@@ -48,6 +48,17 @@ type ESocialAutomationSettingsSnapshot = {
   selectedMonth: string;
 };
 
+function isTrustedWebOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    if (url.origin === "https://app.sigess.com.br") return true;
+    return url.protocol === "http:"
+      && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+  } catch {
+    return false;
+  }
+}
+
 function buildESocialAutomationSnapshot(settings: Record<string, unknown>): ESocialAutomationSettingsSnapshot {
   const rawYear = String(settings.selectedYear || "").trim();
   const month = String(settings.selectedMonth || "").padStart(2, "0");
@@ -82,6 +93,7 @@ window.addEventListener("message", function (event) {
 
   const messageType = event.data?.type;
   if (!ALLOWED_MESSAGE_TYPES.has(messageType)) return;
+  if (messageType === "abrirAbaContainer" && !isTrustedWebOrigin(event.origin)) return;
 
   console.log("[SIGESS] Content Script: Repassando mensagem para background", {
     type: messageType,

@@ -127,6 +127,7 @@ const DataInspector: React.FC = () => {
     
     const hasDivergence = (fieldKey: string) => {
         const values = sources
+            .filter(s => !(fieldKey === "endereco" && s === "tse"))
             .map(s => {
                 const val = rawData[s][fieldKey as keyof PessoaData];
                 return (val && typeof val === 'string') ? val.trim().toLowerCase() : "";
@@ -219,11 +220,14 @@ const DataInspector: React.FC = () => {
                                                     <td style={{ padding: '12px 16px', color: '#94a3b8', fontWeight: 500 }}>
                                                         {field.label}
                                                     </td>
-                                                    {sources.map(s => (
-                                                        <td key={s} style={{ padding: '12px 16px', color: rawData[s][field.key as keyof PessoaData] ? '#f1f5f9' : '#334155' }}>
-                                                            {renderValue(rawData[s][field.key as keyof PessoaData], field.key)}
+                                                    {sources.map(s => {
+                                                        const excludedFromAddressComparison = field.key === "endereco" && s === "tse";
+                                                        return (
+                                                        <td key={s} style={{ padding: '12px 16px', color: excludedFromAddressComparison ? '#334155' : rawData[s][field.key as keyof PessoaData] ? '#f1f5f9' : '#334155' }}>
+                                                            {excludedFromAddressComparison ? "—" : renderValue(rawData[s][field.key as keyof PessoaData], field.key)}
                                                         </td>
-                                                    ))}
+                                                        );
+                                                    })}
                                                     <td style={{ padding: '12px 16px' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <span style={{ color: divergent ? '#f59e0b' : '#10b981', fontWeight: 600 }}>

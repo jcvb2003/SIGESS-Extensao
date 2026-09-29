@@ -1,20 +1,61 @@
+export class TabUnavailableError extends Error {
+  constructor(public readonly tabId: number) {
+    super(`A aba ${tabId} não está mais disponível.`);
+    this.name = "TabUnavailableError";
+  }
+}
+
+export function isTabUnavailableError(error: unknown): boolean {
+  if (error instanceof TabUnavailableError) return true;
+  const message = String((error as { message?: unknown })?.message || error || "");
+  return /invalid tab id|no tab with id|tab .* closed|tab .* removed|does not exist/i.test(message);
+}
+
 export class DOMInjector {
+  private static async executeInWorld<T>(
+    tabId: number,
+    func: (...args: any[]) => T,
+    args: any[],
+    world: "ISOLATED" | "MAIN",
+  ): Promise<T> {
+    try {
+      try {
+        await browser.tabs.get(tabId);
+      } catch {
+        throw new TabUnavailableError(tabId);
+      }
+
+      const results = await browser.scripting.executeScript({
+        target: { tabId },
+        func: func as any,
+        args,
+        world,
+      } as any);
+      return results[0]?.result as T;
+    } catch (error) {
+      if (isTabUnavailableError(error)) {
+        console.debug(`[SIGESS] Injeção ignorada: a aba ${tabId} já foi encerrada.`);
+        throw error;
+      }
+      console.error(`DOMInjector Error (Tab ${tabId}):`, error);
+      throw error;
+    }
+  }
+
   static async execute<T>(
     tabId: number,
     func: (...args: any[]) => T,
     args: any[] = [],
   ): Promise<T> {
-    try {
-      const results = await browser.scripting.executeScript({
-        target: { tabId },
-        func: func as any,
-        args: args,
-      });
-      return results[0]?.result as T;
-    } catch (error) {
-      console.error(`DOMInjector Error (Tab ${tabId}):`, error);
-      throw error;
-    }
+    return this.executeInWorld(tabId, func, args, "ISOLATED");
+  }
+
+  static async executeMain<T>(
+    tabId: number,
+    func: (...args: any[]) => T,
+    args: any[] = [],
+  ): Promise<T> {
+    return this.executeInWorld(tabId, func, args, "MAIN");
   }
 
   static async setInputValue(

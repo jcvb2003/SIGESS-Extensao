@@ -55,7 +55,11 @@ export async function waitForElement(
 
 export function setReactInput(input: HTMLInputElement, value: string) {
   const tracker = (input as any)._valueTracker;
-  if (tracker) tracker.setValue(value);
+  // O React usa o valor armazenado no tracker para decidir se o evento
+  // `input` representa uma mudança. Atualizar o tracker para o valor novo
+  // antes do setter faz o React ignorar o evento e manter o estado anterior.
+  // Mantemos o valor anterior e alteramos somente a propriedade DOM.
+  if (tracker) tracker.setValue(input.value);
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
     globalThis.HTMLInputElement.prototype,
     "value",

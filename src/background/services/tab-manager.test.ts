@@ -9,6 +9,7 @@ describe("TabManager sessão de lote GOV", () => {
   const tabs = {
     create: vi.fn(),
     update: vi.fn(),
+    get: vi.fn(),
   };
 
   beforeEach(() => {
@@ -16,6 +17,7 @@ describe("TabManager sessão de lote GOV", () => {
     contextualIdentities.create.mockResolvedValue({ cookieStoreId: "firefox-container-21" });
     tabs.create.mockResolvedValue({ id: 21 });
     tabs.update.mockResolvedValue(undefined);
+    tabs.get.mockResolvedValue({ id: 21 });
     (globalThis as any).browser = { contextualIdentities, tabs };
   });
 
@@ -79,5 +81,29 @@ describe("TabManager sessão de lote GOV", () => {
         progressStage: "fazendo_login",
       }),
     );
+  });
+
+  it("não marca erro nem repete quando a aba já foi encerrada", async () => {
+    const updateBatchStatusSpy = vi.spyOn(StorageService, "updateBatchStatus").mockResolvedValue(null);
+    const tabManager = new TabManager();
+    const mockStrategy = {
+      name: "PesqBrasilMPA",
+      urlTrigger: "pesqbrasil",
+      execute: vi.fn().mockRejectedValue(new Error("Invalid tab ID: 21")),
+      updateStatus: vi.fn(),
+    };
+    tabs.get
+      .mockResolvedValueOnce({ id: 21 })
+      .mockRejectedValue(new Error("Invalid tab ID: 21"));
+
+    await (tabManager as any).executeWithRetry(
+      21,
+      "https://pesqbrasil-pescadorprofissional.mpa.gov.br/",
+      { cpf: "71060926229", senha: "senha", portalType: "pesqbrasil_mpa" },
+      mockStrategy,
+    );
+
+    expect(mockStrategy.execute).toHaveBeenCalledTimes(1);
+    expect(updateBatchStatusSpy).not.toHaveBeenCalled();
   });
 });
