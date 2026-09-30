@@ -122,6 +122,7 @@
         "*://*.receita.fazenda.gov.br/*",
         "*://*.tse.jus.br/*",
         "https://app.sigess.com.br/registration*",
+        "https://dev.sigess.com.br/registration*",
         "https://sigess-extensao.vercel.app/registration*",
         "http://localhost:5173/registration*"
       ],
@@ -139,6 +140,7 @@
         "*://*.receita.fazenda.gov.br/*",
         "*://*.tse.jus.br/*",
         "https://app.sigess.com.br/registration*",
+        "https://dev.sigess.com.br/registration*",
         "https://sigess-extensao.vercel.app/registration*",
         "http://localhost:5173/registration*"
       ],

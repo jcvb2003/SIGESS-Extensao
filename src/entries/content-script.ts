@@ -51,7 +51,10 @@ type ESocialAutomationSettingsSnapshot = {
 function isTrustedWebOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);
-    if (url.origin === "https://app.sigess.com.br") return true;
+    if (
+      url.origin === "https://app.sigess.com.br" ||
+      url.origin === "https://dev.sigess.com.br"
+    ) return true;
     return url.protocol === "http:"
       && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
   } catch {
