@@ -210,18 +210,40 @@ export async function routeMessage(
         return await handleGetGovBatchStatuses(message);
       case "checkExtensionAvailability":
         {
-          const license = await LicenseService.checkLicenseForBridgeStatus();
+          const version = browser.runtime.getManifest().version;
+
+          // A bridge availability probe must not depend on the license API.
+          // The Web has a short timeout for this handshake, while license
+          // validation may be waiting for startup validation or the network.
+          void LicenseService.checkLicenseForBridgeStatus()
+            .then((license) => {
+              const tabId = sender?.tab?.id;
+              if (typeof tabId !== "number") return;
+
+              return browser.tabs.sendMessage(tabId, {
+                type: "SIGESS_EXTENSION_EVENT",
+                eventName: "extensionBridgeStateChanged",
+                data: {
+                  state: "bridge_ready",
+                  version,
+                  ...(license.ok
+                    ? {}
+                    : {
+                        licenseState: getLicenseOperationState(license.reason),
+                        licenseReason: license.reason,
+                        licenseError: getLicenseErrorMessage(license.reason),
+                      }),
+                },
+              });
+            })
+            .catch((error) => {
+              console.warn("[SIGESS] Validação assíncrona da licença do bridge falhou", error);
+            });
+
           return {
             success: true,
             state: "bridge_ready",
-            ...(license.ok
-              ? {}
-              : {
-                  licenseState: getLicenseOperationState(license.reason),
-                  licenseReason: license.reason,
-                  licenseError: getLicenseErrorMessage(license.reason),
-                }),
-            version: browser.runtime.getManifest().version,
+            version,
           };
         }
       case "getESocialAutomationSettings":
@@ -421,7 +443,13 @@ async function handleGetESocialAutomationContext(
 }
 
 async function handleGetAutoRegistrationSnapshot(): Promise<MessageResponse> {
-  const settings = await StorageService.rebuildCapturedPessoaData();
+  // Snapshot reads are part of the Web bridge's short request/response path.
+  // Rebuilding all captured projections may perform expensive serialization and
+  // a storage write, so it must not delay the response beyond the Web timeout.
+  const settings = await StorageService.getSettings();
+  void StorageService.rebuildCapturedPessoaData().catch((error) => {
+    console.warn("[SIGESS] Reconstrução assíncrona dos dados capturados falhou", error);
+  });
   const pessoaData = settings.pessoaData
     ? {
         ...settings.pessoaData,
