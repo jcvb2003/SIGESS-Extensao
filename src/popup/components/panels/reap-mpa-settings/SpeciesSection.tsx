@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AppSettings } from "../../../../shared/types";
 import { SpeciesSearch } from "./SharedFields";
-import { getValidSpeciesPool, MAX_DAYS_VALUE, MIN_DAYS_SPAN, MIN_DAYS_VALUE, MIN_KG_SPAN, MIN_MONTHLY_PRODUCTION_SPAN, MIN_PRICE_SPAN, MPA_MONEY_STEP, normalizePriceBounds, normalizeProductionRange } from "../../../../modules/reap-mpa/reap-settings";
+import { calculateSafeProductionEnvelope, normalizeMonthlyProductionRange, MAX_DAYS_VALUE, MIN_DAYS_SPAN, MIN_DAYS_VALUE, MIN_KG_SPAN, MIN_MONTHLY_PRODUCTION_SPAN, MIN_PRICE_SPAN, MPA_MONEY_STEP, normalizePriceBounds, normalizeProductionRange } from "../../../../modules/reap-mpa/reap-settings";
 
 function cleanSpeciesNumericInput(value: string, allowDecimal = true): string {
   if (!value) return "";
@@ -47,8 +47,7 @@ function monthlySliderRange(
   return min <= max ? [min, max] : [max, min];
 }
 
-function serializeMonthlySliderBound(value: number, boundary: number): string {
-  if (Math.abs(value - boundary) < MPA_MONEY_STEP / 2) return "";
+function serializeMonthlySliderBound(value: number): string {
   return String(Number(value.toFixed(2)));
 }
 
@@ -66,59 +65,9 @@ function daysSliderRange(minRaw: string | undefined, maxRaw: string | undefined)
 }
 
 function calculateProductionSlice(settings: AppSettings, gender?: "MASCULINO" | "FEMININO") {
-  const productiveMonths = 12 - new Set(
-    (settings.mpaDefesoMonths || []).filter((month) => Number.isInteger(month) && month >= 1 && month <= 12),
-  ).size;
-
-  const species = getValidSpeciesPool(settings.mpaSpecies);
-  const requestedCount = Number(settings.mpaSpeciesCount);
-  const usableCount = species.length;
-  if (!Number.isInteger(requestedCount) || requestedCount < 1 || usableCount < requestedCount || productiveMonths <= 0) {
-    return {
-      min: 0,
-      max: 0,
-      monthlyMin: 0,
-      monthlyMax: 0,
-      usableCount,
-      productiveMonths,
-      isReady: false,
-      hasMonthlyAnnualConflict: false,
-    };
-  }
-
-  const theoreticalAnnualMin = species
-    .map((item) => item.kgMin * item.priceMin * productiveMonths)
-    .sort((a, b) => a - b)
-    .slice(0, requestedCount)
-    .reduce((sum, value) => sum + value, 0);
-  const theoreticalAnnualMax = species
-    .map((item) => item.kgMax * item.priceMax * productiveMonths)
-    .sort((a, b) => b - a)
-    .slice(0, requestedCount)
-    .reduce((sum, value) => sum + value, 0);
-
-  const prefix = gender === "FEMININO" ? "mpaFemProductionMonthly" : "mpaMascProductionMonthly";
-  const monthlyMin = gender ? parseMoneyValue(settings[`${prefix}Min`]) : 0;
-  const monthlyMax = gender ? parseMoneyValue(settings[`${prefix}Max`]) : 0;
-  const annualMin = Math.max(theoreticalAnnualMin, monthlyMin > 0 ? monthlyMin * productiveMonths : 0);
-  const annualMax = Math.min(theoreticalAnnualMax, monthlyMax > 0 ? monthlyMax * productiveMonths : Number.POSITIVE_INFINITY);
-  const theoreticalMinOnGrid = Math.ceil(theoreticalAnnualMin / MPA_MONEY_STEP) * MPA_MONEY_STEP;
-  const theoreticalMaxOnGrid = Math.floor(theoreticalAnnualMax / MPA_MONEY_STEP) * MPA_MONEY_STEP;
-  const hasMonthlyAnnualConflict = annualMin > annualMax;
-
-  return {
-    // Quando as restrições se cruzam fora do envelope, mantemos o slider em um
-    // intervalo seguro para a tela continuar renderizando e mostramos o conflito.
-    min: hasMonthlyAnnualConflict ? theoreticalMinOnGrid : Math.ceil(annualMin / MPA_MONEY_STEP) * MPA_MONEY_STEP,
-    max: hasMonthlyAnnualConflict ? theoreticalMaxOnGrid : Math.floor(annualMax / MPA_MONEY_STEP) * MPA_MONEY_STEP,
-    monthlyMin: Math.ceil((theoreticalAnnualMin / productiveMonths) / MPA_MONEY_STEP) * MPA_MONEY_STEP,
-    monthlyMax: Math.floor((theoreticalAnnualMax / productiveMonths) / MPA_MONEY_STEP) * MPA_MONEY_STEP,
-    usableCount,
-    productiveMonths,
-    isReady: !hasMonthlyAnnualConflict,
-    hasMonthlyAnnualConflict,
-  };
+  return calculateSafeProductionEnvelope(settings, gender);
 }
+
 
 function getSliderHandleStyle(pct: number): React.CSSProperties {
   return {
@@ -319,61 +268,77 @@ export function ReapSpeciesSection({
     femProductionSlice.min,
     femProductionSlice.max,
   );
-  const productionInputsKey = JSON.stringify(
-    [
-      settings.mpaSpeciesCount,
-      settings.mpaDefesoMonths,
-      settings.mpaMascProductionMonthlyMin,
-      settings.mpaMascProductionMonthlyMax,
-      settings.mpaFemProductionMonthlyMin,
-      settings.mpaFemProductionMonthlyMax,
-      ...(settings.mpaSpecies || []).map((item) => [item.kgMin, item.kgMax, item.priceMin, item.priceMax]),
-    ],
-  );
-  const previousProductionInputsKey = useRef<string>();
 
   useEffect(() => {
     if (prodAbsMin <= 0 || prodAbsMax <= prodAbsMin) return;
 
-    const inputsChanged = previousProductionInputsKey.current !== undefined
-      && previousProductionInputsKey.current !== productionInputsKey;
-    previousProductionInputsKey.current = productionInputsKey;
-    const targetMascMin = inputsChanged ? mascProductionSlice.min : undefined;
-    const targetMascMax = inputsChanged ? mascProductionSlice.max : undefined;
-    const targetFemMin = inputsChanged ? femProductionSlice.min : undefined;
-    const targetFemMax = inputsChanged ? femProductionSlice.max : undefined;
     const patch: Partial<AppSettings> = {};
-    if (settings.mpaMascProductionAnnualMin !== (targetMascMin ?? mascProdAnnualMin)) {
-      patch.mpaMascProductionAnnualMin = targetMascMin ?? mascProdAnnualMin;
+    if (settings.mpaMascProductionAnnualMin !== mascProdAnnualMin) {
+      patch.mpaMascProductionAnnualMin = mascProdAnnualMin;
     }
-    if (settings.mpaMascProductionAnnualMax !== (targetMascMax ?? mascProdAnnualMax)) {
-      patch.mpaMascProductionAnnualMax = targetMascMax ?? mascProdAnnualMax;
+    if (settings.mpaMascProductionAnnualMax !== mascProdAnnualMax) {
+      patch.mpaMascProductionAnnualMax = mascProdAnnualMax;
     }
-    if (settings.mpaFemProductionAnnualMin !== (targetFemMin ?? femProdAnnualMin)) {
-      patch.mpaFemProductionAnnualMin = targetFemMin ?? femProdAnnualMin;
+    if (settings.mpaFemProductionAnnualMin !== femProdAnnualMin) {
+      patch.mpaFemProductionAnnualMin = femProdAnnualMin;
     }
-    if (settings.mpaFemProductionAnnualMax !== (targetFemMax ?? femProdAnnualMax)) {
-      patch.mpaFemProductionAnnualMax = targetFemMax ?? femProdAnnualMax;
+    if (settings.mpaFemProductionAnnualMax !== femProdAnnualMax) {
+      patch.mpaFemProductionAnnualMax = femProdAnnualMax;
+    }
+
+    const mascMonthlyNormalized = normalizeMonthlyProductionRange(
+      settings.mpaMascProductionMonthlyMin,
+      settings.mpaMascProductionMonthlyMax,
+      mascProductionSlice.monthlyMin,
+      mascProductionSlice.monthlyMax,
+    );
+    if (mascMonthlyNormalized) {
+      const [normalizedMin, normalizedMax] = mascMonthlyNormalized;
+      if (parseMoneyValue(settings.mpaMascProductionMonthlyMin) !== normalizedMin) {
+        patch.mpaMascProductionMonthlyMin = String(Number(normalizedMin.toFixed(2)));
+      }
+      if (parseMoneyValue(settings.mpaMascProductionMonthlyMax) !== normalizedMax) {
+        patch.mpaMascProductionMonthlyMax = String(Number(normalizedMax.toFixed(2)));
+      }
+    }
+
+    const femMonthlyNormalized = normalizeMonthlyProductionRange(
+      settings.mpaFemProductionMonthlyMin,
+      settings.mpaFemProductionMonthlyMax,
+      femProductionSlice.monthlyMin,
+      femProductionSlice.monthlyMax,
+    );
+    if (femMonthlyNormalized) {
+      const [normalizedMin, normalizedMax] = femMonthlyNormalized;
+      if (parseMoneyValue(settings.mpaFemProductionMonthlyMin) !== normalizedMin) {
+        patch.mpaFemProductionMonthlyMin = String(Number(normalizedMin.toFixed(2)));
+      }
+      if (parseMoneyValue(settings.mpaFemProductionMonthlyMax) !== normalizedMax) {
+        patch.mpaFemProductionMonthlyMax = String(Number(normalizedMax.toFixed(2)));
+      }
     }
 
     if (Object.keys(patch).length > 0) void onUpdate(patch);
   }, [
     femProdAnnualMax,
     femProdAnnualMin,
-    femProductionSlice.max,
-    femProductionSlice.min,
+    femProductionSlice.monthlyMax,
+    femProductionSlice.monthlyMin,
     mascProdAnnualMax,
     mascProdAnnualMin,
-    mascProductionSlice.max,
-    mascProductionSlice.min,
+    mascProductionSlice.monthlyMax,
+    mascProductionSlice.monthlyMin,
     onUpdate,
     prodAbsMax,
     prodAbsMin,
-    productionInputsKey,
     settings.mpaFemProductionAnnualMax,
     settings.mpaFemProductionAnnualMin,
+    settings.mpaFemProductionMonthlyMax,
+    settings.mpaFemProductionMonthlyMin,
     settings.mpaMascProductionAnnualMax,
     settings.mpaMascProductionAnnualMin,
+    settings.mpaMascProductionMonthlyMax,
+    settings.mpaMascProductionMonthlyMin,
   ]);
 
   const updateSpecie = (index: number, data: any) => {
@@ -673,8 +638,8 @@ export function ReapSpeciesSection({
                     has: hasMasc,
                    onAnnualChange: ([lo, hi]: [number, number]) => onUpdate({ mpaMascAnnualMin: lo, mpaMascAnnualMax: hi }),
                     onMonthlyChange: ([lo, hi]: [number, number]) => onUpdate({
-                      mpaMascProductionMonthlyMin: serializeMonthlySliderBound(lo, mascProductionSlice.monthlyMin),
-                      mpaMascProductionMonthlyMax: serializeMonthlySliderBound(hi, mascProductionSlice.monthlyMax),
+                      mpaMascProductionMonthlyMin: serializeMonthlySliderBound(lo),
+                      mpaMascProductionMonthlyMax: serializeMonthlySliderBound(hi),
                     }),
                    daysRange: daysSliderRange(settings.mpaMascDaysMin, settings.mpaMascDaysMax),
                    onDaysRangeChange: ([lo, hi]: [number, number]) => onUpdate({
@@ -712,8 +677,8 @@ export function ReapSpeciesSection({
                     has: hasFem,
                    onAnnualChange: ([lo, hi]: [number, number]) => onUpdate({ mpaFemAnnualMin: lo, mpaFemAnnualMax: hi }),
                     onMonthlyChange: ([lo, hi]: [number, number]) => onUpdate({
-                      mpaFemProductionMonthlyMin: serializeMonthlySliderBound(lo, femProductionSlice.monthlyMin),
-                      mpaFemProductionMonthlyMax: serializeMonthlySliderBound(hi, femProductionSlice.monthlyMax),
+                      mpaFemProductionMonthlyMin: serializeMonthlySliderBound(lo),
+                      mpaFemProductionMonthlyMax: serializeMonthlySliderBound(hi),
                     }),
                    daysRange: daysSliderRange(settings.mpaFemDaysMin, settings.mpaFemDaysMax),
                    onDaysRangeChange: ([lo, hi]: [number, number]) => onUpdate({

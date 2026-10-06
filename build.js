@@ -36,6 +36,11 @@ const targets = [
 
 console.log(`Building extension for ${browserTarget}...`);
 console.log(`Output directory: ${outputDir}`);
+
+if (fs.existsSync(outputDir)) {
+  fs.rmSync(outputDir, { recursive: true, force: true });
+}
+
 console.log("Building Popup UI...");
 execSync("vite build", {
   stdio: "inherit",
@@ -49,8 +54,6 @@ try {
   const sidebarDest = path.join(outputDir, "sidebar.html");
   const inspectorSource = path.join(outputDir, "src/popup/data_inspector.html");
   const inspectorDest = path.join(outputDir, "data_inspector.html");
-  const filePickerSource = path.join(outputDir, "src/popup/file-picker.html");
-  const filePickerDest = path.join(outputDir, "file_picker.html");
   const reapSettingsSource = path.join(outputDir, "src/popup/reap-mpa-settings.html");
   const reapSettingsDest = path.join(outputDir, "reap_mpa_settings.html");
 
@@ -81,12 +84,6 @@ try {
     fs.copyFileSync(inspectorSource, inspectorDest);
     fixHtmlPaths(inspectorDest);
     console.log("Moved data_inspector.html to root");
-  }
-
-  if (fs.existsSync(filePickerSource)) {
-    fs.copyFileSync(filePickerSource, filePickerDest);
-    fixHtmlPaths(filePickerDest);
-    console.log("Moved file_picker.html to root");
   }
 
   if (fs.existsSync(reapSettingsSource)) {

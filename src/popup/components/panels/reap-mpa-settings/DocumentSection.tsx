@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppSettings } from "../../../../shared/types";
 import {
   getReapPdfCacheForPreset,
   removeReapPdfCacheForPreset,
+  saveReapPdfCacheForPreset,
   REAP_PDF_CACHES_STORAGE_KEY,
 } from "../../../../modules/reap-mpa/pdf-cache";
 import { IBAMA_DEFESO_URL } from "./constants";
@@ -11,14 +12,15 @@ export function ReapDocumentSection({
   settings,
   onUpdate,
   presetId,
-  onOpenFilePicker,
 }: {
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void | Promise<void>;
   presetId?: string;
-  onOpenFilePicker?: (presetId?: string) => void;
 }) {
   const [cachedPdfFilename, setCachedPdfFilename] = useState<string | null>(null);
+  const [isReadingPdf, setIsReadingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -46,6 +48,41 @@ export function ReapDocumentSection({
   }, [presetId]);
 
   const mode = settings.mpaDocumentoMode || "manual";
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setPdfError("Por favor, selecione um arquivo em formato PDF.");
+      if (e.target) e.target.value = "";
+      return;
+    }
+
+    setIsReadingPdf(true);
+    setPdfError(null);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const result = reader.result as string;
+        const b64 = result.includes(",") ? result.split(",")[1] : result;
+        await saveReapPdfCacheForPreset(presetId, { b64, filename: file.name });
+        setCachedPdfFilename(file.name);
+      } catch (err: any) {
+        setPdfError(err?.message || "Falha ao salvar PDF no cache.");
+      } finally {
+        setIsReadingPdf(false);
+        if (e.target) e.target.value = "";
+      }
+    };
+    reader.onerror = () => {
+      setPdfError("Falha na leitura do arquivo.");
+      setIsReadingPdf(false);
+      if (e.target) e.target.value = "";
+    };
+    reader.readAsDataURL(file);
+  };
 
   const removePdf = async () => {
     await removeReapPdfCacheForPreset(presetId);
@@ -130,6 +167,13 @@ export function ReapDocumentSection({
                 </a>
               </div>
             )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,application/pdf"
+              style={{ display: "none" }}
+              onChange={handleFileChange}
+            />
             {!cachedPdfFilename ? (
               <div style={{
                 padding: "10px",
@@ -139,15 +183,12 @@ export function ReapDocumentSection({
               }}>
                 <button
                   type="button"
-                  onClick={() =>
-                    onOpenFilePicker
-                      ? onOpenFilePicker(presetId)
-                      : browser.tabs.create({ url: browser.runtime.getURL("file_picker.html") })
-                  }
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isReadingPdf}
                   className="btn btn-secondary btn-full"
                   style={{ minHeight: "42px" }}
                 >
-                  Selecionar PDF
+                  {isReadingPdf ? "Lendo PDF..." : "Selecionar PDF"}
                 </button>
               </div>
             ) : (
@@ -176,6 +217,15 @@ export function ReapDocumentSection({
                 <button
                   type="button"
                   className="btn btn-secondary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isReadingPdf}
+                  style={{ padding: "6px 10px", fontSize: "11px" }}
+                >
+                  {isReadingPdf ? "Lendo..." : "Substituir"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
                   onClick={() => void removePdf()}
                   aria-label="Remover PDF anexado"
                   title="Remover PDF anexado"
@@ -183,6 +233,11 @@ export function ReapDocumentSection({
                 >
                   ×
                 </button>
+              </div>
+            )}
+            {pdfError && (
+              <div style={{ fontSize: "11px", color: "var(--color-danger)", gridColumn: "1 / -1" }}>
+                {pdfError}
               </div>
             )}
           </div>

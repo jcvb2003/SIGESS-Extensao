@@ -12,14 +12,12 @@ interface ReapMpaSettingsFormProps {
   settings: AppSettings;
   onUpdate: (data: Partial<AppSettings>) => void | Promise<void>;
   presetId?: string;
-  onOpenFilePicker?: (presetId?: string) => void;
 }
 
 const ReapMpaSettingsForm: React.FC<ReapMpaSettingsFormProps> = ({
   settings,
   onUpdate,
   presetId,
-  onOpenFilePicker,
 }) => {
   return (
     <div className="stack" style={{ gap: "16px" }}>
@@ -33,7 +31,6 @@ const ReapMpaSettingsForm: React.FC<ReapMpaSettingsFormProps> = ({
         settings={settings}
         onUpdate={onUpdate}
         presetId={presetId}
-        onOpenFilePicker={onOpenFilePicker}
       />
     </div>
   );

@@ -394,18 +394,28 @@ function isNeighborhoodTotalValid(
   const newMonthTotal = currentMonthTotal + totalDelta;
 
   const currentBounds = monthlyBounds?.[month];
-  if (currentBounds && (newMonthTotal < currentBounds.min || newMonthTotal > currentBounds.max)) return false;
+  if (currentBounds) {
+    if (newMonthTotal < currentBounds.min) {
+      if (newMonthTotal <= currentMonthTotal) return false;
+    } else if (newMonthTotal > currentBounds.max) {
+      if (newMonthTotal >= currentMonthTotal) return false;
+    }
+  }
 
   const mIdx = months.indexOf(month);
   if (mIdx > 0) {
     const prevMonth = months[mIdx - 1];
     const prevTotal = production.reduce((sum, f) => sum + f.monthlyKg[prevMonth] * (f.monthlyPrices?.[prevMonth] || 0), 0);
-    if (Math.abs(newMonthTotal - prevTotal) > 300) return false;
+    const prevDist = Math.abs(currentMonthTotal - prevTotal);
+    const newDist = Math.abs(newMonthTotal - prevTotal);
+    if (newDist > 300 && newDist >= prevDist) return false;
   }
   if (mIdx < months.length - 1) {
     const nextMonth = months[mIdx + 1];
     const nextTotal = production.reduce((sum, f) => sum + f.monthlyKg[nextMonth] * (f.monthlyPrices?.[nextMonth] || 0), 0);
-    if (Math.abs(nextTotal - newMonthTotal) > 300) return false;
+    const nextDist = Math.abs(currentMonthTotal - nextTotal);
+    const newDist = Math.abs(newMonthTotal - nextTotal);
+    if (newDist > 300 && newDist >= nextDist) return false;
   }
   return true;
 }

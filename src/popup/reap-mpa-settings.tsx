@@ -3,23 +3,13 @@ import { createRoot } from "react-dom/client";
 import { Download, LoaderCircle, Play, Upload } from "lucide-react";
 import ReapMpaSettingsForm from "./components/panels/ReapMpaSettingsForm";
 import { StorageService } from "../background/services/storage";
-import { getDefesoMonthsNormalizationNotice, normalizeReapSettings } from "../modules/reap-mpa/reap-settings";
+import { getDefesoMonthsNormalizationNotice, normalizeReapSettings, getMpaSettings, withoutMpaSettings } from "../modules/reap-mpa/reap-settings";
 import { copyReapPdfCache, getReapPdfCacheForPreset, removeReapPdfCacheForPreset, REAP_PDF_CACHES_STORAGE_KEY } from "../modules/reap-mpa/pdf-cache";
+import { createReapMpaExportPayload, parseReapMpaImportPayload } from "../modules/reap-mpa/reap-io";
 import { checkPresetReadiness } from "../modules/reap-mpa/turbo-config";
 import { ReapSimulationGenderMonth, ReapSimulationResult, simulateReapMpa } from "../modules/reap-mpa/simulation";
 import { AppSettings, ReapMpaPreset } from "../shared/types";
 
-function getMpaSettings(settings: AppSettings): Partial<AppSettings> {
-  return Object.fromEntries(
-    Object.entries(settings).filter(([key]) => key.startsWith("mpa")),
-  ) as Partial<AppSettings>;
-}
-
-function withoutMpaSettings(settings: AppSettings): AppSettings {
-  return Object.fromEntries(
-    Object.entries(settings).filter(([key]) => !key.startsWith("mpa")),
-  ) as AppSettings;
-}
 
 function getSettingsForPreset(settings: AppSettings, preset: ReapMpaPreset): AppSettings {
   return normalizeReapSettings({
@@ -283,17 +273,15 @@ const ReapMpaSettingsPage: React.FC = () => {
 
   const handleExportSettings = async () => {
     try {
-      const rawSettings = await StorageService.getSettings();
-      const pdfResult = await browser.storage.local.get(REAP_PDF_CACHES_STORAGE_KEY);
-      const pdfCaches = pdfResult[REAP_PDF_CACHES_STORAGE_KEY] || {};
+      const currentSettings = settings || (await StorageService.getSettings());
+      const currentPresets = getPresets(currentSettings);
 
-      const exportData = {
-        version: 1,
-        format: "sigess-reap-mpa-settings",
-        exportedAt: new Date().toISOString(),
-        settings: rawSettings,
-        pdfCaches,
-      };
+      const pdfCachesByPresetId: Record<string, { b64: string; filename: string } | null> = {};
+      for (const preset of currentPresets) {
+        pdfCachesByPresetId[preset.id] = await getReapPdfCacheForPreset(preset.id);
+      }
+
+      const exportData = createReapMpaExportPayload(currentSettings, pdfCachesByPresetId);
 
       const blob = new Blob([JSON.stringify(exportData, null, 2)], {
         type: "application/json",
@@ -328,21 +316,8 @@ const ReapMpaSettingsPage: React.FC = () => {
         return;
       }
 
-      let nextSettings: AppSettings | null = null;
-      let nextPdfCaches: any = null;
-
-      if (imported && typeof imported === "object") {
-        if (imported.format === "sigess-reap-mpa-settings" && imported.settings) {
-          nextSettings = imported.settings;
-          nextPdfCaches = imported.pdfCaches;
-        } else if (imported.reapMpaPresets || Object.keys(imported).some((k) => k.startsWith("mpa"))) {
-          nextSettings = imported;
-          nextPdfCaches = imported.pdfCaches;
-        }
-      }
-
-      if (!nextSettings) {
-        alert("Arquivo inválido. Não foram encontradas configurações válidas do REAP MPA.");
+      if (!imported || typeof imported !== "object") {
+        alert("Arquivo inválido. Conteúdo não é um objeto JSON.");
         return;
       }
 
@@ -350,27 +325,29 @@ const ReapMpaSettingsPage: React.FC = () => {
         return;
       }
 
-      const normalized = normalizeReapSettings(nextSettings);
-      const presets = getPresets(normalized);
-      const finalSettings = {
-        ...normalized,
-        reapMpaPresets: presets,
-        activeReapMpaPresetId: normalized.activeReapMpaPresetId ?? presets[0].id,
-      };
+      const currentStorageSettings = await StorageService.getSettings();
+      const { normalizedSettings, pdfCaches, activePresetId } = parseReapMpaImportPayload(
+        imported,
+        currentStorageSettings,
+      );
 
       await browser.runtime.sendMessage({
         action: "updateESocialSettings",
-        settings: finalSettings,
+        settings: normalizedSettings,
       });
 
-      if (nextPdfCaches && typeof nextPdfCaches === "object") {
-        await browser.storage.local.set({
-          [REAP_PDF_CACHES_STORAGE_KEY]: nextPdfCaches,
-        });
-      }
+      const currentPdfsResult = await browser.storage.local.get(REAP_PDF_CACHES_STORAGE_KEY);
+      const currentStoredPdfs = currentPdfsResult[REAP_PDF_CACHES_STORAGE_KEY] || {};
+      const updatedPdfCaches = {
+        ...currentStoredPdfs,
+        ...pdfCaches,
+      };
+      await browser.storage.local.set({
+        [REAP_PDF_CACHES_STORAGE_KEY]: updatedPdfCaches,
+      });
 
-      setSettings(finalSettings);
-      setSelectedPresetId(finalSettings.activeReapMpaPresetId);
+      setSettings(normalizedSettings);
+      setSelectedPresetId(activePresetId);
       setStatus("Configurações importadas com sucesso!");
       alert("Configurações importadas com sucesso!");
     } catch (error: any) {
@@ -516,11 +493,6 @@ const ReapMpaSettingsPage: React.FC = () => {
             settings={displayedSettings}
             presetId={selectedPreset.id}
             onUpdate={updateSettings}
-            onOpenFilePicker={(presetId) => {
-              const url = new URL(browser.runtime.getURL("file_picker.html"));
-              if (presetId) url.searchParams.set("presetId", presetId);
-              void browser.tabs.create({ url: url.toString() });
-            }}
           />
 
           {/* Seção Importar e Exportar Configurações */}

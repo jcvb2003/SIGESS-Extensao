@@ -34,7 +34,6 @@ export default defineConfig({
                 popup: 'src/popup/index.html',
                 sidebar: 'src/popup/sidebar.html',
                 data_inspector: 'src/popup/data_inspector.html',
-                file_picker: 'src/popup/file-picker.html',
                 reap_mpa_settings: 'src/popup/reap-mpa-settings.html',
             },
             output: {

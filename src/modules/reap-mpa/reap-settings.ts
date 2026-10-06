@@ -240,17 +240,195 @@ export function normalizeReapSettings(settings: AppSettings): AppSettings {
   };
 }
 
+export const ALLOWED_REAP_MPA_SETTING_KEYS = new Set([
+  "mpaReferenceYear",
+  "mpaResidenceUF",
+  "mpaResidenceMunicipio",
+  "mpaWorkRelation",
+  "mpaCommercializationStates",
+  "mpaDefesoMonths",
+  "mpaMunicipio",
+  "mpaUF",
+  "mpaLocalPesca",
+  "mpaNomeLocalPesca",
+  "mpaMetodoPesca",
+  "mpaPetrecho",
+  "mpaAmbiente",
+  "mpaDocumentoMode",
+  "mpaSpecies",
+  "mpaSpeciesCount",
+  "mpaRotateMonthlySpecies",
+  "mpaEsocialMonthlyValue",
+  "mpaMascProdMin",
+  "mpaMascProdMax",
+  "mpaMascProductionAnnualMin",
+  "mpaMascProductionAnnualMax",
+  "mpaMascProductionMonthlyMin",
+  "mpaMascProductionMonthlyMax",
+  "mpaMascDaysMin",
+  "mpaMascDaysMax",
+  "mpaMascAnnualMin",
+  "mpaMascAnnualMax",
+  "mpaFemProdMin",
+  "mpaFemProdMax",
+  "mpaFemProductionAnnualMin",
+  "mpaFemProductionAnnualMax",
+  "mpaFemProductionMonthlyMin",
+  "mpaFemProductionMonthlyMax",
+  "mpaFemDaysMin",
+  "mpaFemDaysMax",
+  "mpaFemAnnualMin",
+  "mpaFemAnnualMax",
+]);
+
+export function getMpaSettings(settings: Partial<AppSettings> | Record<string, unknown>): Partial<AppSettings> {
+  if (!settings || typeof settings !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(settings).filter(([key]) => ALLOWED_REAP_MPA_SETTING_KEYS.has(key)),
+  ) as Partial<AppSettings>;
+}
+
+export function withoutMpaSettings(settings: Partial<AppSettings> | Record<string, unknown>): AppSettings {
+  if (!settings || typeof settings !== "object") return {} as AppSettings;
+  return Object.fromEntries(
+    Object.entries(settings).filter(([key]) => !ALLOWED_REAP_MPA_SETTING_KEYS.has(key)),
+  ) as unknown as AppSettings;
+}
+
+export function parseMoneyValue(value?: string | number): number {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === "number") return Number.isFinite(value) && value > 0 ? value : 0;
+  const normalized = String(value).trim().replace(/[^0-9,.-]/g, "");
+  const withDot = normalized.includes(",")
+    ? normalized.replaceAll(".", "").replace(",", ".")
+    : normalized;
+  const numberValue = Number(withDot);
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : 0;
+}
+
+export function normalizeMonthlyProductionRange(
+  savedMin: string | number | undefined,
+  savedMax: string | number | undefined,
+  safeMonthlyMin: number,
+  safeMonthlyMax: number,
+  minSpan = MIN_MONTHLY_PRODUCTION_SPAN,
+): [number, number] | null {
+  const minVal = parseMoneyValue(savedMin);
+  const maxVal = parseMoneyValue(savedMax);
+  if (minVal <= 0 && maxVal <= 0) return null;
+
+  return normalizeProductionRange(
+    minVal > 0 ? minVal : safeMonthlyMin,
+    maxVal > 0 ? maxVal : safeMonthlyMax,
+    safeMonthlyMin,
+    safeMonthlyMax,
+    minSpan,
+    MPA_MONEY_STEP,
+  );
+}
+
+export interface SafeProductionEnvelope {
+  safeMonthlyMin: number;
+  safeMonthlyMax: number;
+  monthlyMin: number;
+  monthlyMax: number;
+  min: number;
+  max: number;
+  usableCount: number;
+  productiveMonths: number;
+  isReady: boolean;
+  hasMonthlyAnnualConflict: boolean;
+}
+
+export function calculateSafeProductionEnvelope(
+  settings: AppSettings,
+  gender?: "MASCULINO" | "FEMININO",
+): SafeProductionEnvelope {
+  const defesoSet = new Set(
+    (settings.mpaDefesoMonths || []).filter((month) => Number.isInteger(month) && month >= 1 && month <= 12),
+  );
+  const productiveMonths = 12 - defesoSet.size;
+
+  const species = getValidSpeciesPool(settings.mpaSpecies);
+  const requestedCount = Number(settings.mpaSpeciesCount);
+  const usableCount = species.length;
+  if (!Number.isInteger(requestedCount) || requestedCount < 1 || usableCount < requestedCount || productiveMonths <= 0) {
+    return {
+      safeMonthlyMin: 0,
+      safeMonthlyMax: 0,
+      monthlyMin: 0,
+      monthlyMax: 0,
+      min: 0,
+      max: 0,
+      usableCount,
+      productiveMonths,
+      isReady: false,
+      hasMonthlyAnnualConflict: false,
+    };
+  }
+
+  // PISO SEGURO: maior piso mínimo entre as combinações de requestedCount espécies
+  // (Pior caso de piso mínimo: pegar as requestedCount espécies de maior piso)
+  const safeMonthlyMin = species
+    .map((item) => item.kgMin * item.priceMin)
+    .sort((a, b) => b - a)
+    .slice(0, requestedCount)
+    .reduce((sum, value) => sum + value, 0);
+
+  // TETO SEGURO: menor teto máximo entre as combinações de requestedCount espécies
+  // (Pior caso de teto máximo: pegar as requestedCount espécies de menor teto)
+  const safeMonthlyMax = species
+    .map((item) => item.kgMax * item.priceMax)
+    .sort((a, b) => a - b)
+    .slice(0, requestedCount)
+    .reduce((sum, value) => sum + value, 0);
+
+  const theoreticalAnnualMin = safeMonthlyMin * productiveMonths;
+  const theoreticalAnnualMax = safeMonthlyMax * productiveMonths;
+
+  const prefix = gender === "FEMININO" ? "mpaFemProductionMonthly" : "mpaMascProductionMonthly";
+  const monthlyNormalized = gender
+    ? normalizeMonthlyProductionRange(
+        settings[`${prefix}Min` as keyof AppSettings] as string,
+        settings[`${prefix}Max` as keyof AppSettings] as string,
+        safeMonthlyMin,
+        safeMonthlyMax,
+      )
+    : null;
+
+  const annualMin = Math.max(
+    theoreticalAnnualMin,
+    monthlyNormalized ? monthlyNormalized[0] * productiveMonths : 0,
+  );
+  const annualMax = Math.min(
+    theoreticalAnnualMax,
+    monthlyNormalized ? monthlyNormalized[1] * productiveMonths : Number.POSITIVE_INFINITY,
+  );
+  const theoreticalMinOnGrid = Math.ceil(theoreticalAnnualMin / MPA_MONEY_STEP) * MPA_MONEY_STEP;
+  const theoreticalMaxOnGrid = Math.floor(theoreticalAnnualMax / MPA_MONEY_STEP) * MPA_MONEY_STEP;
+  const hasMonthlyAnnualConflict = annualMin > annualMax || safeMonthlyMin > safeMonthlyMax;
+
+  return {
+    safeMonthlyMin,
+    safeMonthlyMax,
+    monthlyMin: Math.ceil(safeMonthlyMin / MPA_MONEY_STEP) * MPA_MONEY_STEP,
+    monthlyMax: Math.floor(safeMonthlyMax / MPA_MONEY_STEP) * MPA_MONEY_STEP,
+    min: hasMonthlyAnnualConflict ? theoreticalMinOnGrid : Math.ceil(annualMin / MPA_MONEY_STEP) * MPA_MONEY_STEP,
+    max: hasMonthlyAnnualConflict ? theoreticalMaxOnGrid : Math.floor(annualMax / MPA_MONEY_STEP) * MPA_MONEY_STEP,
+    usableCount,
+    productiveMonths,
+    isReady: !hasMonthlyAnnualConflict,
+    hasMonthlyAnnualConflict,
+  };
+}
+
 export function activateReapMpaPreset(settings: AppSettings, presetId: string): AppSettings | null {
   const presets = settings.reapMpaPresets || [];
   const preset = presets.find((item: ReapMpaPreset) => item.id === presetId);
   if (!preset) return null;
 
-  const withoutMpaSettings = Object.fromEntries(
-    Object.entries(settings).filter(([key]) => !key.startsWith("mpa")),
-  ) as AppSettings;
-
   return normalizeReapSettings({
-    ...withoutMpaSettings,
+    ...withoutMpaSettings(settings),
     ...preset.settings,
     reapMpaPresets: presets,
     activeReapMpaPresetId: presetId,
