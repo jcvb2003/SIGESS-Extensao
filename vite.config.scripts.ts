@@ -23,7 +23,9 @@ const entries = {
     tse_bridge: resolve(__dirname, 'src/modules/automation/tse/bridge.ts'),
     inss_bridge: resolve(__dirname, 'src/modules/automation/inss/bridge.ts'),
     capture_indicator: resolve(__dirname, 'src/modules/debug/CaptureIndicator.ts'),
-    content_sdpa: resolve(__dirname, 'src/entries/sdpa.ts')
+    content_sdpa_bridge: resolve(__dirname, 'src/entries/sdpa-bridge-bootstrap.ts'),
+    content_sdpa: resolve(__dirname, 'src/entries/sdpa.ts'),
+    sdpa_page_bridge: resolve(__dirname, 'src/modules/automation/sdpa/page-bridge.ts')
 };
 
 const entryFile = entries[target as keyof typeof entries];

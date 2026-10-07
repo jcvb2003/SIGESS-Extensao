@@ -340,6 +340,11 @@ export async function routeMessage(
         cancelMpaConsultationBatch();
         return { success: true };
       }
+      case "SDPA_DATA_BROADCAST":
+      case "UPDATE_SDPA_STATUS":
+        // Eventos destinados à sidebar. O background apenas reconhece a
+        // mensagem; os listeners da página lateral consomem o payload.
+        return { success: true };
       case "inssAuthenticated":
         return await navigateAuthenticatedCadastroInss(sender);
       case "esocialAuthenticated":

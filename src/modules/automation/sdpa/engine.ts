@@ -1,6 +1,18 @@
 import { AppSettings, PessoaData } from '../../../shared/types';
 import { StorageService } from '../../../background/services/storage';
 
+interface SdpaDefesoOption {
+  codigo: number;
+  portariaComData: string;
+  portaria?: number;
+  dataInicio?: string;
+  dataFim?: string;
+}
+
+const SDPA_BRIDGE_SOURCE = "SIGESS_SDPA_DEFESO_BRIDGE";
+const SDPA_BRIDGE_ASSET = "assets/sdpa_page_bridge.js";
+const SDPA_SELECTED_DEFESO_STORAGE_KEY = "sdpaSelectedDefeso";
+
 class SDPAEngine {
   private static instance: SDPAEngine | null = null;
   private settings: AppSettings | null = null;
@@ -8,6 +20,11 @@ class SDPAEngine {
   private auditIntervalId: any = null;
   private isRunning = false;
   private auditStats = { ok: 0, warning: 0, missing: 0, total: 0 };
+  private sdpaDefesos: SdpaDefesoOption[] = [];
+  private sdpaSelectedDefesoCodigo: number | null = null;
+  private sdpaSelectedDefesoLabel = "";
+  private sdpaCaptureHandler: ((payload: unknown) => void) | null = null;
+  private sdpaBridgeInjected = false;
 
   private constructor() {
     // Privado para forçar uso do static initialize
@@ -16,6 +33,7 @@ class SDPAEngine {
   public static async initialize() {
     if (!SDPAEngine.instance) {
       SDPAEngine.instance = new SDPAEngine();
+      SDPAEngine.instance.installPageBridge();
 
       const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
       browserAPI?.runtime?.onMessage?.addListener((msg: any, _sender: any, sendResponse: (resp: any) => void) => {
@@ -43,7 +61,7 @@ class SDPAEngine {
               uf: SDPAEngine.instance?.auditData?.uf || "",
               telefone: SDPAEngine.instance?.auditData?.telefone || "",
               email: SDPAEngine.instance?.settings?.sdpaDefaultEmail || (SDPAEngine.instance?.auditData as any)?.email || "",
-              auditStats: SDPAEngine.instance?.auditStats || { ok: 0, warning: 0, missing: 0, total: 0 }
+              auditStats: SDPAEngine.instance?.auditStats || { ok: 0, warning: 0, missing: 0, total: 0 },
             },
           });
           return true;
@@ -65,7 +83,66 @@ class SDPAEngine {
         SDPAEngine.instance?.handleRouteChange();
       }, 600);
     }
+    await SDPAEngine.instance.restoreSelectedDefeso();
     await SDPAEngine.instance.handleRouteChange();
+  }
+
+  private async restoreSelectedDefeso(): Promise<void> {
+    try {
+      const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+      const result = await browserAPI?.storage?.local?.get(SDPA_SELECTED_DEFESO_STORAGE_KEY);
+      const saved = result?.[SDPA_SELECTED_DEFESO_STORAGE_KEY];
+      const codigo = Number(saved?.codigo);
+      if (Number.isInteger(codigo)) {
+        this.sdpaSelectedDefesoCodigo = codigo;
+        this.sdpaSelectedDefesoLabel = String(saved?.label || "");
+      }
+    } catch {
+      // A seleção continua funcionando somente em memória se o storage não estiver disponível.
+    }
+  }
+
+  private persistSelectedDefeso(option?: SdpaDefesoOption): void {
+    if (!option) return;
+    this.sdpaSelectedDefesoCodigo = option.codigo;
+    this.sdpaSelectedDefesoLabel = option.portariaComData;
+    try {
+      const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+      void browserAPI?.storage?.local?.set({
+        [SDPA_SELECTED_DEFESO_STORAGE_KEY]: {
+          codigo: option.codigo,
+          label: option.portariaComData,
+        },
+      });
+    } catch {
+      // A seleção permanece em memória nesta sessão.
+    }
+  }
+
+  private installPageBridge(): void {
+    if (this.sdpaBridgeInjected) return;
+    this.sdpaBridgeInjected = true;
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== window || event.data?.source !== SDPA_BRIDGE_SOURCE) return;
+      if (event.data.type === "RESPONSE") this.sdpaCaptureHandler?.(event.data.payload);
+    });
+
+    try {
+      const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
+      const script = document.createElement("script");
+      script.src = browserAPI.runtime.getURL(SDPA_BRIDGE_ASSET);
+      (document.head || document.documentElement).appendChild(script);
+    } catch (error) {
+      console.error("[SIGESS] Não foi possível instalar o bridge de portarias SDPA:", error);
+    }
+  }
+
+  private setPageBridgeArmed(armed: boolean): void {
+    window.postMessage({
+      source: SDPA_BRIDGE_SOURCE,
+      type: armed ? "ARM" : "DISARM",
+    }, window.location.origin);
   }
 
   private isEtapasRoute(): boolean {
@@ -109,6 +186,7 @@ class SDPAEngine {
     }
     document.getElementById('sigess-sdpa-pill')?.remove();
     document.getElementById('sigess-sdpa-panel')?.remove();
+    document.getElementById('sigess-sdpa-config')?.remove();
     document.querySelectorAll('.sigess-suggest-box').forEach(el => el.remove());
     document.querySelectorAll('.sigess-audit-green, .sigess-audit-red, .sigess-audit-orange')
       .forEach(el => el.classList.remove('sigess-audit-green', 'sigess-audit-red', 'sigess-audit-orange'));
@@ -157,7 +235,6 @@ class SDPAEngine {
         color: #ffffff;
         border-radius: 9999px;
         box-shadow: 0 4px 14px rgba(15, 118, 110, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.2);
-        cursor: pointer;
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
         font-weight: 700;
         font-size: 12px;
@@ -180,6 +257,89 @@ class SDPAEngine {
 
       .sigess-sdpa-pill:active {
         transform: translateY(0) scale(0.98);
+      }
+
+      .sigess-sdpa-fill,
+      .sigess-sdpa-settings {
+        appearance: none;
+        border: 0;
+        color: #ffffff;
+        background: transparent;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .sigess-sdpa-fill {
+        padding: 0 2px;
+      }
+
+      .sigess-sdpa-settings {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-left: 1px solid rgba(255,255,255,0.35);
+        padding-left: 8px;
+        margin-left: 2px;
+        font-size: 14px;
+        line-height: 1;
+      }
+
+      .sigess-sdpa-settings:hover,
+      .sigess-sdpa-fill:hover {
+        filter: brightness(1.25);
+      }
+
+      .sigess-sdpa-config {
+        position: fixed;
+        top: 58px;
+        right: 18px;
+        z-index: 2147483647;
+        width: 290px;
+        padding: 12px;
+        color: #173b3b;
+        background: #ffffff;
+        border: 1px solid #b3d7d4;
+        border-radius: 10px;
+        box-shadow: 0 10px 28px rgba(18,55,57,.18);
+        font: 12px/1.4 'Inter', system-ui, sans-serif;
+      }
+
+      .sigess-sdpa-config-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+        color: #0d514f;
+        font-weight: 700;
+      }
+
+      .sigess-sdpa-config-status {
+        color: #526b6b;
+      }
+
+      .sigess-sdpa-config-status.is-error { color: #9b2c2c; }
+      .sigess-sdpa-config-status.is-success { color: #17613a; }
+
+      .sigess-sdpa-config-select {
+        width: 100%;
+        margin-top: 10px;
+        padding: 8px 10px;
+        border: 1px solid #b3d7d4;
+        border-radius: 7px;
+        color: #173b3b;
+        background: #ffffff;
+        font: 12px 'Inter', system-ui, sans-serif;
+      }
+
+      .sigess-sdpa-config-close {
+        border: 0;
+        color: #526b6b;
+        background: transparent;
+        cursor: pointer;
+        font-size: 16px;
       }
 
       .sigess-pill-logo {
@@ -404,6 +564,110 @@ class SDPAEngine {
     }
 
     return "";
+  }
+
+  private async loadSdpaDefesos() {
+    try {
+      const payload = await new Promise<unknown>((resolve, reject) => {
+        const timeoutId = window.setTimeout(() => reject(new Error('O portal não retornou as portarias após abrir a configuração.')), 6000);
+        this.sdpaCaptureHandler = (response) => {
+          window.clearTimeout(timeoutId);
+          this.sdpaCaptureHandler = null;
+          resolve(response);
+        };
+
+        const trigger = document.querySelector<HTMLElement>('.br-select:has(#idDefeso) button, #idDefeso + button');
+        if (!trigger) {
+          window.clearTimeout(timeoutId);
+          this.sdpaCaptureHandler = null;
+          reject(new Error('Campo Portaria com período não encontrado no portal.'));
+          return;
+        }
+        this.setPageBridgeArmed(true);
+        trigger.click();
+      });
+
+      const rawItems: any[] = Array.isArray(payload)
+        ? payload
+        : (Array.isArray((payload as any)?.data) ? (payload as any).data : []);
+      const options = rawItems
+        .map((item: any): SdpaDefesoOption | null => {
+          const codigo = Number(item?.codigo);
+          const label = String(item?.portariaComData || '').trim();
+          if (!Number.isInteger(codigo) || !label) return null;
+          return {
+            codigo,
+            portariaComData: label,
+            portaria: Number.isFinite(Number(item?.portaria)) ? Number(item.portaria) : undefined,
+            dataInicio: typeof item?.dataInicio === 'string' ? item.dataInicio : undefined,
+            dataFim: typeof item?.dataFim === 'string' ? item.dataFim : undefined,
+          };
+        })
+        .filter((item: SdpaDefesoOption | null): item is SdpaDefesoOption => Boolean(item));
+
+      if (options.length === 0) throw new Error('Nenhuma portaria com período disponível foi retornada pelo portal.');
+
+      this.sdpaDefesos = Array.from(
+        new Map<number, SdpaDefesoOption>(options.map((item): [number, SdpaDefesoOption] => [item.codigo, item])).values(),
+      );
+      const hasSelectedOption = this.sdpaDefesos.some((item) => item.codigo === this.sdpaSelectedDefesoCodigo);
+      if (!hasSelectedOption) {
+        if (this.sdpaDefesos.length === 1) {
+          this.persistSelectedDefeso(this.sdpaDefesos[0]);
+        } else {
+          this.sdpaSelectedDefesoCodigo = null;
+          this.sdpaSelectedDefesoLabel = "";
+        }
+      }
+      this.broadcastSdpaDataToSidebar();
+
+      return {
+        count: this.sdpaDefesos.length,
+        labels: this.sdpaDefesos.map((item) => item.portariaComData),
+        selectedCodigo: this.sdpaSelectedDefesoCodigo,
+      };
+    } finally {
+      this.sdpaCaptureHandler = null;
+      this.setPageBridgeArmed(false);
+    }
+  }
+
+  private async selectConfiguredSdpaDefeso(): Promise<void> {
+    const selectedOption = this.sdpaDefesos.find((item) => item.codigo === this.sdpaSelectedDefesoCodigo)
+      || (this.sdpaSelectedDefesoCodigo !== null
+        ? {
+            codigo: this.sdpaSelectedDefesoCodigo,
+            portariaComData: this.sdpaSelectedDefesoLabel,
+          }
+        : undefined);
+    if (!selectedOption) {
+      throw new Error('Abra Configurar e selecione uma portaria antes de preencher.');
+    }
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const option = selectedOption;
+      const radio = document.querySelector<HTMLInputElement>(`input[name="idDefeso"][value="${CSS.escape(String(option.codigo))}"]`);
+      if (radio) {
+        radio.click();
+        return;
+      }
+
+      const parent = document.querySelector('.br-select:has(#idDefeso)');
+      const label = Array.from(parent?.querySelectorAll('label') || [])
+        .find((item) => item.textContent?.trim() === option.portariaComData);
+      if (label) {
+        const radioId = label.getAttribute('for');
+        if (radioId) document.getElementById(radioId)?.click();
+        else (label as HTMLElement).click();
+        return;
+      }
+      if (attempt === 0) {
+        parent?.querySelector<HTMLButtonElement>('button[aria-label*="Expandir" i], button[aria-label*="Exibir" i]')?.click();
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+
+    throw new Error('As portarias foram carregadas, mas ainda não estão disponíveis no campo Portaria com período.');
   }
 
   private auditDateField() {
@@ -713,7 +977,7 @@ class SDPAEngine {
 
   private injectUI() {
     if (document.getElementById('sigess-sdpa-pill')) return;
-    document.getElementById('sigess-sdpa-panel')?.remove();
+    document.getElementById('sigess-sdpa-config')?.remove();
 
     const browserAPI = typeof browser !== 'undefined' ? browser : (window as any).chrome;
     const logoUrl = browserAPI?.runtime?.getURL ? browserAPI.runtime.getURL('sigess-logo.png') : 'sigess-logo.png';
@@ -721,52 +985,140 @@ class SDPAEngine {
     const pill = document.createElement('div');
     pill.id = 'sigess-sdpa-pill';
     pill.className = 'sigess-sdpa-pill';
-    pill.title = 'Clique para preencher a solicitação SDPA';
+    pill.title = 'Preencher solicitação SDPA';
 
     pill.innerHTML = `
       <div class="sigess-pill-logo">
         <img src="${logoUrl}" alt="SIGESS" class="sigess-pill-logo-img" />
       </div>
-      <span class="sigess-pill-text" id="sigess-pill-text">Preencher</span>
+      <button type="button" class="sigess-sdpa-fill" id="sigess-pill-fill">Preencher</button>
+      <button type="button" class="sigess-sdpa-settings" id="sigess-pill-settings" aria-label="Configurar solicitação SDPA" title="Configurar">⚙</button>
     `;
 
     document.body.appendChild(pill);
 
-    pill.addEventListener('click', () => {
-      const textEl = document.getElementById('sigess-pill-text');
-      if (textEl) textEl.textContent = 'Preenchendo...';
+    pill.querySelector<HTMLButtonElement>('#sigess-pill-fill')?.addEventListener('click', () => {
+      const fillButton = document.getElementById('sigess-pill-fill') as HTMLButtonElement | null;
+      const originalText = fillButton?.textContent || 'Preencher';
+      if (fillButton) {
+        fillButton.textContent = 'Preenchendo...';
+        fillButton.disabled = true;
+      }
       pill.classList.add('sigess-pill-loading');
 
       this.runFiller()
         .then(() => {
-          if (textEl) textEl.textContent = 'Concluído!';
+          if (fillButton) fillButton.textContent = 'Concluído!';
           setTimeout(() => {
-            if (textEl) textEl.textContent = 'Preencher';
+            if (fillButton) {
+              fillButton.textContent = originalText;
+              fillButton.disabled = false;
+            }
             pill.classList.remove('sigess-pill-loading');
           }, 3000);
         })
         .catch(err => {
           console.error("[SIGESS] SDPA Filler Error:", err);
-          if (textEl) textEl.textContent = 'Preencher';
+          if (fillButton) {
+            fillButton.textContent = originalText;
+            fillButton.disabled = false;
+          }
           pill.classList.remove('sigess-pill-loading');
         });
+    });
+
+    pill.querySelector<HTMLButtonElement>('#sigess-pill-settings')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.openSdpaConfiguration();
     });
 
     this.broadcastSdpaDataToSidebar();
   }
 
+  private async openSdpaConfiguration(): Promise<void> {
+    const existing = document.getElementById('sigess-sdpa-config');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const panel = document.createElement('section');
+    panel.id = 'sigess-sdpa-config';
+    panel.className = 'sigess-sdpa-config';
+    panel.innerHTML = `
+      <div class="sigess-sdpa-config-title">
+        <span>Configuração SDPA</span>
+        <button type="button" class="sigess-sdpa-config-close" aria-label="Fechar">×</button>
+      </div>
+      <div class="sigess-sdpa-config-status">Abrindo a consulta nativa do portal...</div>
+    `;
+    document.body.appendChild(panel);
+
+    panel.querySelector<HTMLButtonElement>('.sigess-sdpa-config-close')?.addEventListener('click', () => panel.remove());
+    const status = panel.querySelector<HTMLElement>('.sigess-sdpa-config-status');
+
+    try {
+      const result = await this.loadSdpaDefesos();
+      if (!status) return;
+      status.classList.add('is-success');
+      status.textContent = `${result.count} portaria(s) carregada(s) pela resposta do portal.`;
+      const selector = document.createElement('select');
+      selector.className = 'sigess-sdpa-config-select';
+      selector.setAttribute('aria-label', 'Portaria com período');
+      if (result.count > 1 && this.sdpaSelectedDefesoCodigo === null) {
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Selecione a portaria com período';
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        selector.appendChild(placeholder);
+      }
+      result.labels.forEach((label, index) => {
+        const option = document.createElement('option');
+        option.value = String(this.sdpaDefesos[index]?.codigo || '');
+        option.textContent = label;
+        option.selected = this.sdpaDefesos[index]?.codigo === this.sdpaSelectedDefesoCodigo;
+        selector.appendChild(option);
+      });
+      selector.addEventListener('change', () => {
+        const selected = Number(selector.value);
+        const option = this.sdpaDefesos.find((item) => item.codigo === selected);
+        if (option) {
+          this.persistSelectedDefeso(option);
+        } else {
+          this.sdpaSelectedDefesoCodigo = null;
+          this.sdpaSelectedDefesoLabel = "";
+        }
+      });
+      panel.appendChild(selector);
+    } catch (error) {
+      if (!status) return;
+      status.classList.add('is-error');
+      status.textContent = error instanceof Error ? error.message : 'Não foi possível consultar as portarias.';
+    }
+  }
+
   private setInputValue(input: HTMLInputElement | HTMLTextAreaElement, value: string) {
-    const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const view = input.ownerDocument?.defaultView || window;
+    const inputProto = view.HTMLInputElement?.prototype || HTMLInputElement.prototype;
+    const textAreaProto = view.HTMLTextAreaElement?.prototype || HTMLTextAreaElement.prototype;
+    const proto = input instanceof HTMLTextAreaElement ? textAreaProto : inputProto;
+    const tracker = (input as any)._valueTracker;
+    if (tracker && typeof tracker.setValue === "function") {
+      try {
+        tracker.setValue(input.value);
+      } catch {}
+    }
     const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
     if (setter) {
-      setter.call(input, "");
       setter.call(input, value);
     } else {
       input.value = value;
     }
-    for (const type of ["input", "change", "blur"]) {
-      input.dispatchEvent(new Event(type, { bubbles: true }));
-    }
+    input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+    input.dispatchEvent(new Event("blur", { bubbles: true, composed: true }));
     input.blur();
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -782,8 +1134,11 @@ class SDPAEngine {
     console.log("[SIGESS] Iniciando preenchimento SDPA...");
 
     // 1. Contatos
-    this.fillInput('input[name="contato.email"]', this.settings?.sdpaDefaultEmail || "");
-    this.fillInput('input[name="contato.telefone"]', this.auditData.telefone || this.settings?.sdpaFallbackPhone || "");
+    this.fillFirstInput(
+      ['input[name="contato.email"]', 'input[name*="email" i]', 'input[type="email"]'],
+      this.settings?.sdpaDefaultEmail || "",
+    );
+    await this.fillSdpaPhone();
 
     // 2. Grau de Instrução (Escolaridade)
     const grauTarget = this.resolveGrauInstrucaoMte(this.auditData.escolaridade, (this.auditData as any).alfabetizado);
@@ -803,15 +1158,8 @@ class SDPAEngine {
       }
     }
 
-    // 4. Endereço Completo
-    const d = this.auditData;
-    this.fillInput('input[name="endereco.cep"]', d.cep || "");
-    this.fillInput('input[name="endereco.logradouro"]', d.endereco || "");
-    this.fillInput('input[name="endereco.numero"]', d.numero || "");
-    this.fillInput('input[name="endereco.complemento"]', ""); // Não temos complemento isolado
-    this.fillInput('input[name="endereco.bairro"]', d.bairro || "");
-    this.fillInput('input[name="endereco.municipio"]', d.cidade || "");
-    this.fillInput('input[name="endereco.uf"]', d.uf || "");
+    // 4. Endereço Completo: o portal reseta os campos quando o CEP muda.
+    await this.fillSdpaAddress(this.auditData);
 
     // 5. Data 1º Registro
     if (this.auditData.dataPrimeiroRegistro) {
@@ -830,23 +1178,151 @@ class SDPAEngine {
     const checkbox = document.querySelector('input[name="aceiteRegras"]') as HTMLInputElement;
     if (checkbox) checkbox.checked = true;
 
-    // 7. Aguardar Portaria (Se necessário)
-    setTimeout(() => {
-      this.selectInBrSelect('idDefeso', '48');
-    }, 1000);
+    // 7. Consultar e selecionar a portaria vigente para o município
+    await this.selectConfiguredSdpaDefeso();
 
-    // 8. CEP (Último para disparar gatilhos se houver)
-    setTimeout(() => {
-      this.fillInput('input[name="endereco.cep"]', this.auditData?.cep || "");
-      this.finalize();
-    }, 2000);
+    this.finalize();
   }
 
-  private fillInput(selector: string, value: string) {
-    const el = document.querySelector(selector) as HTMLInputElement;
-    if (el) {
-      this.setInputValue(el, value);
+  private findInputByLabels(labels: string[]): HTMLInputElement | null {
+    const expected = labels.map((label) => label.toLowerCase());
+    for (const input of Array.from(document.querySelectorAll<HTMLInputElement>('input, textarea'))) {
+      const container = input.closest('.br-input, .form-group, .form-control, .row') || input.parentElement;
+      const text = container?.textContent?.toLowerCase() || '';
+      if (expected.some((label) => text.includes(label))) return input;
     }
+    return null;
+  }
+
+  private fillFirstInput(selectors: string[], value: string, labels: string[] = []): void {
+    if (!value) return;
+    const input = selectors
+      .map((selector) => document.querySelector<HTMLInputElement>(selector))
+      .find((element): element is HTMLInputElement => Boolean(element))
+      || (labels.length ? this.findInputByLabels(labels) : null);
+    if (input) this.setInputValue(input, value);
+  }
+
+  private normalizeDigits(value?: string): string {
+    return String(value || '').replace(/\D/g, '');
+  }
+
+  private formatSdpaPhone(value?: string): string {
+    const raw = String(value || '').trim();
+    const normalized = this.normalizeDigits(raw);
+    const digits = normalized.length === 13 && normalized.startsWith('55')
+      ? normalized.slice(2)
+      : normalized;
+    if (digits.length === 11) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    }
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    }
+    return raw;
+  }
+
+  private resolveSdpaPhone(): string {
+    const data = this.auditData as (PessoaData & Record<string, unknown>) | null;
+    const candidates = [
+      data?.telefone,
+      data?.celular,
+      data?.telefoneCelular,
+      (data?.contato as Record<string, unknown> | undefined)?.telefone,
+      this.settings?.pessoaData?.telefone,
+      this.settings?.sdpaFallbackPhone,
+    ];
+    const value = candidates.find((candidate) => String(candidate || '').trim() !== '');
+    return this.formatSdpaPhone(value as string | undefined);
+  }
+
+  private async fillSdpaPhone(): Promise<void> {
+    const phoneValue = this.resolveSdpaPhone();
+    if (!phoneValue) return;
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const phoneInput = document.querySelector<HTMLInputElement>('input[name="contato.telefone"][aria-label="Telefone"]')
+        || document.querySelector<HTMLInputElement>('input[name="contato.telefone"]');
+      if (phoneInput && !phoneInput.disabled) {
+        this.setInputValue(phoneInput, phoneValue);
+        if (this.normalizeDigits(phoneInput.value) === this.normalizeDigits(phoneValue)) return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+
+  private findSdpaAddressInput(field: string, labels: string[]): HTMLInputElement | null {
+    const selectors = [
+      `input[name="endereco.${field}"]`,
+      `input[name*="${field}" i]`,
+      `input[placeholder*="${field}" i]`,
+    ];
+    return selectors
+      .map((selector) => document.querySelector<HTMLInputElement>(selector))
+      .find((element): element is HTMLInputElement => Boolean(element))
+      || this.findInputByLabels(labels);
+  }
+
+  private readAddressSnapshot(): Record<string, string> {
+    const fields = {
+      cep: this.findSdpaAddressInput('cep', ['CEP']),
+      logradouro: this.findSdpaAddressInput('logradouro', ['logradouro', 'endereço', 'endereco', 'rua']),
+      numero: this.findSdpaAddressInput('numero', ['número', 'numero']),
+      bairro: this.findSdpaAddressInput('bairro', ['bairro']),
+      municipio: this.findSdpaAddressInput('municipio', ['município', 'municipio', 'cidade']),
+      uf: this.findSdpaAddressInput('uf', ['UF', 'estado']),
+    };
+    return Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input?.value || '']));
+  }
+
+  private async waitForCepResolution(previous: Record<string, string>, cep: string): Promise<void> {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const current = this.readAddressSnapshot();
+      const cepReady = !cep || this.normalizeDigits(current.cep) === cep;
+      const addressChanged = ['logradouro', 'bairro', 'municipio', 'uf']
+        .some((field) => current[field] !== previous[field]);
+      if (cepReady && addressChanged) return;
+    }
+  }
+
+  private async fillSdpaAddress(data: PessoaData): Promise<void> {
+    const targetCep = this.normalizeDigits(data.cep);
+    const cepInput = this.findSdpaAddressInput('cep', ['CEP']);
+    if (!cepInput || !targetCep) return;
+
+    const currentCep = this.normalizeDigits(cepInput.value);
+    if (currentCep !== targetCep) {
+      const previous = this.readAddressSnapshot();
+      this.setInputValue(cepInput, data.cep || targetCep);
+      await this.waitForCepResolution(previous, targetCep);
+    }
+
+    this.fillFirstInput(
+      ['input[name="endereco.logradouro"]', 'input[name*="logradouro" i]'],
+      data.endereco || '',
+      ['logradouro', 'endereço', 'endereco', 'rua'],
+    );
+    this.fillFirstInput(
+      ['input[name="endereco.numero"]', 'input[name*="numero" i]'],
+      data.numero || '',
+      ['número', 'numero'],
+    );
+    this.fillFirstInput(
+      ['input[name="endereco.bairro"]', 'input[name*="bairro" i]'],
+      data.bairro || '',
+      ['bairro'],
+    );
+    this.fillFirstInput(
+      ['input[name="endereco.municipio"]', 'input[name*="municipio" i]'],
+      data.cidade || '',
+      ['município', 'municipio', 'cidade'],
+    );
+    this.fillFirstInput(
+      ['input[name="endereco.uf"]', 'input[name$=".uf" i]'],
+      data.uf || '',
+      ['UF', 'estado'],
+    );
   }
 
   private clickRadio(name: string, labelText: string) {

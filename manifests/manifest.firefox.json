@@ -43,6 +43,7 @@
     "assets/cadunico_bridge.js",
     "assets/tse_bridge.js",
     "assets/inss_bridge.js",
+    "assets/sdpa_page_bridge.js",
     "data_inspector.html",
     "assets/data_inspector.js",
     "sidebar.html",
@@ -146,6 +147,15 @@
       ],
       "js": [
         "assets/capture_indicator.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://servicos.mte.gov.br/*"
+      ],
+      "js": [
+        "assets/content_sdpa_bridge.js"
       ],
       "run_at": "document_start"
     },

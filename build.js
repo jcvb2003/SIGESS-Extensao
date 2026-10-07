@@ -31,7 +31,9 @@ const targets = [
   "tse_bridge",
   "inss_bridge",
   "capture_indicator",
+  "content_sdpa_bridge",
   "content_sdpa",
+  "sdpa_page_bridge",
 ];
 
 console.log(`Building extension for ${browserTarget}...`);
